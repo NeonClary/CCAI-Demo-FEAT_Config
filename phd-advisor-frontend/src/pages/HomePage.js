@@ -81,7 +81,12 @@ const HomePage = ({ onNavigateToChat }) => {
       <footer className="footer">
         <div className="footer-content">
           <p className="footer-text">
-            {config.app.footer_text}
+            Copyright{' '}
+            <a href="https://neon.ai" target="_blank" rel="noopener noreferrer" className="footer-neon-link">
+              <img src="/neon-logo.png" alt="" className="footer-neon-logo" />
+              Neon.ai
+            </a>
+            , portions copyright University of Colorado Boulder. All rights reserved.
           </p>
         </div>
       </footer>

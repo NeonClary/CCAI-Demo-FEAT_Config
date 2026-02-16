@@ -402,22 +402,33 @@ const CanvasPage = ({ user, authToken, onNavigateToChat, onSignOut }) => {
         </div>
         
         <div className="header-actions">
-          <button 
-            onClick={handleRefreshCanvas}
-            disabled={isRefreshing || isUpdating}
-            className={`refresh-button ${(isRefreshing || isUpdating) ? 'disabled' : ''}`}
+          <div className="header-buttons">
+            <button 
+              onClick={handleRefreshCanvas}
+              disabled={isRefreshing || isUpdating}
+              className={`refresh-button ${(isRefreshing || isUpdating) ? 'disabled' : ''}`}
+            >
+              <RefreshCw className={`refresh-icon ${(isRefreshing || isUpdating) ? 'spinning' : ''}`} />
+              {(isRefreshing || isUpdating) ? 'Refreshing...' : 'Refresh Canvas'}
+            </button>
+            
+            <button 
+              className="action-button print-button"
+              onClick={handlePrint}
+            >
+              <Printer className="action-icon" />
+              Print
+            </button>
+          </div>
+          <a 
+            href="https://neon.ai" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="canvas-powered-by"
           >
-            <RefreshCw className={`refresh-icon ${(isRefreshing || isUpdating) ? 'spinning' : ''}`} />
-            {(isRefreshing || isUpdating) ? 'Refreshing...' : 'Refresh Canvas'}
-          </button>
-          
-          <button 
-            className="action-button print-button"
-            onClick={handlePrint}
-          >
-            <Printer className="action-icon" />
-            Print
-          </button>
+            <img src="/neon-logo.png" alt="" className="canvas-powered-by-logo" />
+            Powered by Neon.ai
+          </a>
         </div>
       </div>
 

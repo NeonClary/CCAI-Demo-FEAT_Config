@@ -886,6 +886,25 @@
   margin: 0;
 }
 
+.footer-neon-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+
+.footer-neon-link:hover {
+  opacity: 0.8;
+}
+
+.footer-neon-logo {
+  height: 1em;
+  width: auto;
+  vertical-align: middle;
+}
+
 .rag-info-overlay {
   position: absolute;
   top: 100%;

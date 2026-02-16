@@ -337,6 +337,20 @@ const Sidebar = ({
             </div>
           )}
         </div>
+
+        {/* Footer */}
+        <div className={`sidebar-footer ${isCollapsed ? 'collapsed' : ''}`}>
+          <a 
+            href="https://neon.ai" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="sidebar-neon-link"
+            title="Neon.ai"
+          >
+            <img src="/neon-logo.png" alt="" className="sidebar-neon-logo" />
+            {!isCollapsed && <span className="sidebar-neon-text">Neon.ai</span>}
+          </a>
+        </div>
       </div>
       
       {isMobileOpen && (
