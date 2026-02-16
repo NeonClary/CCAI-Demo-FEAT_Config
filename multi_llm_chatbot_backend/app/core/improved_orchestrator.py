@@ -142,35 +142,49 @@ class ImprovedChatOrchestrator:
         """
         Determine if the user input needs clarification.
         Patterns and keywords are driven by config.yaml → orchestrator section.
+
+        The caller guarantees the current message is in the session
+        exactly once before calling.  More than 1 user message means
+        this is not the first turn → skip clarification.
         """
-        # If this is not the first message, probably don't need clarification
         user_messages = [msg for msg in session.messages if msg.get('role') == 'user']
         if len(user_messages) > 1:
+            logger.info("Skipping clarification: session already has %d user message(s)", len(user_messages))
             return False
 
         orch_cfg = get_settings().orchestrator
-        
         user_lower = user_input.lower().strip()
-        
-        logger.info(f"Checking clarification for: '{user_input}' (lowercase: '{user_lower}')")
-        
+        word_count = len(user_input.split())
+
+        logger.info("Checking clarification for: %r (%d words)", user_input, word_count)
+
+        # 1) If the message contains domain-specific keywords it is
+        #    specific enough — never ask for clarification.
+        has_specific_keywords = any(
+            kw in user_lower for kw in orch_cfg.specific_keywords
+        )
+        if has_specific_keywords:
+            logger.info("NO CLARIFICATION: input contains specific keywords")
+            return False
+
+        # 2) If the message is long enough it is probably detailed
+        #    enough on its own, even without a recognised keyword.
+        if word_count >= orch_cfg.min_words_without_keywords:
+            logger.info("NO CLARIFICATION: input has %d words (>= %d threshold)",
+                        word_count, orch_cfg.min_words_without_keywords)
+            return False
+
+        # 3) Now check the vague-pattern regexes.  We only reach here
+        #    when the message is short AND has no specific keywords.
         for pattern in orch_cfg.vague_patterns:
             if re.search(pattern, user_lower):
-                logger.info(f"CLARIFICATION TRIGGERED: Pattern '{pattern}' matched input '{user_input}'")
+                logger.info("CLARIFICATION TRIGGERED: pattern %r matched %r", pattern, user_input)
                 return True
-        
-        # Check if input is too short and vague
-        word_count = len(user_input.split())
-        has_specific_keywords = any(
-            keyword in user_lower for keyword in orch_cfg.specific_keywords
-        )
-        
-        if word_count < orch_cfg.min_words_without_keywords and not has_specific_keywords:
-            logger.info(f"CLARIFICATION TRIGGERED: Short input ({word_count} words) without specific keywords")
-            return True
-        
-        logger.info(f"NO CLARIFICATION: Input has {word_count} words, specific keywords: {has_specific_keywords}")
-        return False
+
+        # 4) Short message with no keywords and no pattern match — still
+        #    too vague to route meaningfully.
+        logger.info("CLARIFICATION TRIGGERED: short input (%d words) without specific keywords", word_count)
+        return True
     
     async def generate_contextual_clarification(self, user_input: str) -> Dict[str, Any]:
         """
@@ -208,15 +222,24 @@ class ImprovedChatOrchestrator:
                 system_prompt=system_prompt,
                 context=[{"role": "user", "content": user_prompt}],
                 temperature=0.4,
-                max_tokens=250,
+                max_tokens=1024,
             )
 
-            # Strip markdown fences if the model wraps its answer
+            # Extract the JSON object from the LLM response.
+            # Models may wrap it in markdown fences, leading/trailing
+            # prose, or other formatting artefacts.
             cleaned = raw.strip()
-            if cleaned.startswith("```"):
-                cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
-                cleaned = re.sub(r"\s*```$", "", cleaned)
 
+            # Remove markdown fences
+            cleaned = re.sub(r"```(?:json)?", "", cleaned).strip()
+
+            # Find the first { ... } block (greedy on the closing brace
+            # so nested braces inside strings are captured).
+            json_match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+            if json_match:
+                cleaned = json_match.group(0)
+
+            logger.debug("LLM raw: %s | cleaned: %s", raw[:200], cleaned[:200])
             parsed = json.loads(cleaned)
             question = parsed.get("question", "").strip()
             suggestions = parsed.get("suggestions", [])

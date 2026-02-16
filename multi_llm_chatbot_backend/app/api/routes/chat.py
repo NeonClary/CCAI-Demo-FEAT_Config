@@ -194,11 +194,20 @@ async def chat_sequential_enhanced(
         rag_stats = session.get_rag_stats()
         logger.info(f"Session {session_id} has {rag_stats.get('total_documents', 0)} documents available")
         
-        # Add user message to session (needed for persona ranking)
-        session.append_message("user", message.user_input)
+        # The frontend saves the user message to MongoDB BEFORE calling
+        # this endpoint.  If the session was just loaded from MongoDB the
+        # message is already present; if the session was already in
+        # memory it isn't.  We ensure it exists exactly once so the
+        # first-message check in _needs_clarification is reliable.
+        already_in_session = (
+            session.messages
+            and session.messages[-1].get('role') == 'user'
+            and session.messages[-1].get('content') == message.user_input
+        )
+        if not already_in_session:
+            session.append_message("user", message.user_input)
         
         # Check if the user's message is vague and needs clarification
-        # (only triggers on the first user message in a session)
         if chat_orchestrator._needs_clarification(session, message.user_input):
             clarification = await chat_orchestrator.generate_contextual_clarification(
                 message.user_input

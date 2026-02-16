@@ -92,7 +92,17 @@ class ImprovedGeminiClient(LLMClient):
                     logger.error(f"Invalid candidate structure: {candidate}")
                     return "I apologize, but I received an unexpected response format. Please try again."
                 
-                text = candidate["content"]["parts"][0].get("text", "").strip()
+                # Gemini 2.5 models may include "thinking" parts
+                # (marked with "thought": true) before the actual answer.
+                # We want the last non-thought text part.
+                parts = candidate["content"]["parts"]
+                text = ""
+                for part in parts:
+                    if part.get("thought"):
+                        continue
+                    text = part.get("text", "")
+                
+                text = text.strip()
                 
                 if not text:
                     logger.warning("Empty response from Gemini")
