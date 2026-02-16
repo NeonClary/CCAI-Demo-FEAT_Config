@@ -16,9 +16,17 @@ const ThinkingIndicator = ({ advisorId }) => {
     <div className="thinking-container">
       <div 
         className="advisor-avatar" 
-        style={{ backgroundColor: colors.bgColor }}
+        style={{ backgroundColor: colors.bgColor, overflow: 'hidden' }}
       >
-        {Icon ? <Icon style={{ color: colors.color }} /> : null}
+        {advisor.avatar ? (
+          <img 
+            src={advisor.avatar} 
+            alt={advisor.name} 
+            style={{ width: '100%', height: '100%', borderRadius: 'inherit', objectFit: 'cover' }} 
+          />
+        ) : Icon ? (
+          <Icon style={{ color: colors.color }} />
+        ) : null}
       </div>
       <div 
         className="thinking-bubble"

@@ -197,6 +197,22 @@ async def chat_sequential_enhanced(
         # Add user message to session (needed for persona ranking)
         session.append_message("user", message.user_input)
         
+        # Check if the user's message is vague and needs clarification
+        # (only triggers on the first user message in a session)
+        if chat_orchestrator._needs_clarification(session, message.user_input):
+            clarification_msg = await chat_orchestrator._generate_clarification_question(session)
+            suggestions = chat_orchestrator._get_clarification_suggestions()
+            logger.info(f"Clarification triggered for input: {message.user_input!r}")
+            return {
+                "status": "clarification_needed",
+                "message": clarification_msg,
+                "suggestions": suggestions,
+                "session_debug": {
+                    "session_id": session_id,
+                    "trigger": "vague_input"
+                }
+            }
+        
         # RESTORED: Get intelligently ordered personas based on context
         top_personas = await chat_orchestrator.get_top_personas(
             session_id=session_id, 

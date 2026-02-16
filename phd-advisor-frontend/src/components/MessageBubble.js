@@ -10,7 +10,8 @@ const MessageBubble = ({
   onReply, 
   onCopy, 
   onExpand,
-  showReplyButton = false 
+  showReplyButton = false,
+  inlineAvatar = false 
 }) => {
   const { isDark } = useTheme();
   const { advisors, getAdvisorColors } = useAppConfig();
@@ -216,14 +217,45 @@ const MessageBubble = ({
     const colors = getAdvisorColors(personaId, isDark);
     const isCopied = copiedStates[message.id];
 
-    return (
-      <div className="advisor-message-container">
-        <div 
-          className="advisor-avatar" 
-          style={{ backgroundColor: colors.bgColor || 'var(--bg-muted)' }}
+    const avatarElement = (size = 40) => (
+      advisor.avatar ? (
+        <img 
+          src={advisor.avatar} 
+          alt={advisor.name || 'Advisor'} 
+          style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} 
+        />
+      ) : Icon ? (
+        <div
+          style={{
+            width: size, height: size, borderRadius: '50%', backgroundColor: colors.bgColor || 'var(--bg-muted)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden'
+          }}
         >
-          {Icon ? <Icon style={{ color: colors.color || 'var(--text-secondary)' }} /> : (advisor.name ? advisor.name.charAt(0) : 'A')}
+          <Icon style={{ color: colors.color || 'var(--text-secondary)', width: size * 0.5, height: size * 0.5 }} />
         </div>
+      ) : (
+        <div
+          style={{
+            width: size, height: size, borderRadius: '50%', backgroundColor: colors.bgColor || 'var(--bg-muted)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            color: colors.color || 'var(--text-secondary)', fontWeight: 600, fontSize: size * 0.4
+          }}
+        >
+          {advisor.name ? advisor.name.charAt(0) : 'A'}
+        </div>
+      )
+    );
+
+    return (
+      <div className={`advisor-message-container ${inlineAvatar ? 'inline-avatar-mode' : ''}`}>
+        {!inlineAvatar && (
+          <div 
+            className="advisor-avatar" 
+            style={{ backgroundColor: colors.bgColor || 'var(--bg-muted)', overflow: 'hidden' }}
+          >
+            {avatarElement(40)}
+          </div>
+        )}
 
         <div 
           className="advisor-message-bubble"
@@ -234,6 +266,7 @@ const MessageBubble = ({
           }}
         >
           <div className="advisor-message-header">
+            {inlineAvatar && avatarElement(32)}
             <h4 
               className="advisor-message-name" 
               style={{ color: colors.color || 'var(--text-primary)' }}

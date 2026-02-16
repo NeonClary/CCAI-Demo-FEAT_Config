@@ -58,6 +58,7 @@ class LoginConfig(BaseModel):
 class ExampleCategory(BaseModel):
     title: str
     icon: str = "BookOpen"
+    avatar: str = ""
     color: str = "#3B82F6"
     bg_color: str = "#EFF6FF"
     suggestions: List[str] = []
@@ -78,6 +79,7 @@ class PersonaItemConfig(BaseModel):
     dark_color: str = "#9CA3AF"
     dark_bg_color: str = "#374151"
     icon: str = "HelpCircle"
+    avatar: str = ""
     temperature: int = 5
     persona_prompt: str = ""
 
@@ -88,6 +90,7 @@ class PersonasConfig(BaseModel):
 
 
 class OrchestratorConfig(BaseModel):
+    avatar: str = ""
     vague_patterns: List[str] = []
     min_words_without_keywords: int = 6
     specific_keywords: List[str] = []
@@ -182,9 +185,13 @@ class AppSettings(BaseModel):
                         "dark_color": p.dark_color,
                         "dark_bg_color": p.dark_bg_color,
                         "icon": p.icon,
+                        "avatar": p.avatar,
                     }
                     for p in self.personas.items
                 ],
+            },
+            "orchestrator": {
+                "avatar": self.orchestrator.avatar,
             },
         }
 

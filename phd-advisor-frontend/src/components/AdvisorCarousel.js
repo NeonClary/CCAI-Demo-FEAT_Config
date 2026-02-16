@@ -74,6 +74,7 @@ const AdvisorCarousel = ({ messages, onReply, onExpand, onClick }) => {
                 onExpand={onExpand}
                 onClick={onClick}
                 showReplyButton={true}
+                inlineAvatar={true}
               />
             </div>
           ))}

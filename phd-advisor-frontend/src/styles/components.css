@@ -276,6 +276,7 @@
   align-items: center;
   justify-content: center;
   margin: 0 auto 24px auto;
+  overflow: hidden;
 }
 
 .advisor-card-icon svg {
@@ -503,6 +504,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .advisor-avatar svg {

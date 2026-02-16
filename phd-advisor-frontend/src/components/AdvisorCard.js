@@ -14,7 +14,15 @@ const AdvisorCard = ({ advisor, advisorId }) => {
         className="advisor-card-icon" 
         style={{ backgroundColor: colors.bgColor }}
       >
-        <Icon style={{ color: colors.color }} />
+        {advisor.avatar ? (
+          <img 
+            src={advisor.avatar} 
+            alt={advisor.name} 
+            style={{ width: '100%', height: '100%', borderRadius: 'inherit', objectFit: 'cover' }} 
+          />
+        ) : (
+          <Icon style={{ color: colors.color }} />
+        )}
       </div>
       <h3 className="advisor-card-title">{advisor.name}</h3>
       <p 

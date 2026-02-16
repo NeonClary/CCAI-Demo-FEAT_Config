@@ -29,6 +29,7 @@ const buildAdvisors = (personaItems) => {
       darkColor: p.dark_color || '#9CA3AF',
       darkBgColor: p.dark_bg_color || '#374151',
       icon: resolveIcon(p.icon),
+      avatar: p.avatar ? `/avatars/${p.avatar}` : null,
     };
   }
   return advisors;
@@ -100,11 +101,16 @@ export const AppConfigProvider = ({ children }) => {
 
   const getAdvisorColors = buildGetAdvisorColors(advisors);
 
+  const orchestratorAvatar = config?.orchestrator?.avatar
+    ? `/avatars/${config.orchestrator.avatar}`
+    : null;
+
   const value = {
     config,          // raw config object from /api/config
     advisors,        // { methodologist: { name, role, icon, color, ... }, ... }
     getAdvisorColors,
     resolveIcon,
+    orchestratorAvatar,
     loading,
     error,
   };

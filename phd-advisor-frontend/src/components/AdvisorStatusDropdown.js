@@ -68,7 +68,15 @@ const AdvisorStatusDropdown = ({ advisors, thinkingAdvisors, getAdvisorColors, i
                   }}
                 >
                   <div className="advisor-icon">
-                    <IconComponent size={16} />
+                    {advisor.avatar ? (
+                      <img 
+                        src={advisor.avatar} 
+                        alt={advisor.name} 
+                        style={{ width: '100%', height: '100%', borderRadius: 'inherit', objectFit: 'cover' }} 
+                      />
+                    ) : (
+                      <IconComponent size={16} />
+                    )}
                   </div>
                   <div className="advisor-details">
                     <div className="advisor-name">{advisor.name}</div>

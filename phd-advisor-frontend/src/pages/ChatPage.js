@@ -16,7 +16,7 @@ import '../styles/EnhancedChatInput.css';
 import AdvisorStatusDropdown from '../components/AdvisorStatusDropdown';
 
 const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onSignOut }) => {
-  const { config, advisors, getAdvisorColors } = useAppConfig();
+  const { config, advisors, getAdvisorColors, orchestratorAvatar } = useAppConfig();
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [thinkingAdvisors, setThinkingAdvisors] = useState([]);
@@ -420,9 +420,21 @@ const handleNewChat = async (sessionId = null) => {
 
       // Rest of the function remains the same...
       const data = await response.json();
-      
-      // Process responses...
-      if (data.responses && Array.isArray(data.responses)) {
+
+      // Handle clarification request from orchestrator
+      if (data.status === 'clarification_needed') {
+        const clarificationMessage = {
+          id: generateMessageId(),
+          type: 'clarification',
+          content: data.message,
+          suggestions: data.suggestions || [],
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, clarificationMessage]);
+        await saveMessageToSession(clarificationMessage);
+      }
+      // Process advisor responses...
+      else if (data.responses && Array.isArray(data.responses)) {
         const newResponses = data.responses.map(response => ({
           id: generateMessageId(),
           type: 'advisor',
@@ -881,7 +893,15 @@ const handleNewChat = async (sessionId = null) => {
                           <div className="clarification-message-container">
                             <div className="clarification-message">
                               <div className="clarification-header">
-                                <MessageCircle size={16} />
+                                {orchestratorAvatar ? (
+                                  <img 
+                                    src={orchestratorAvatar} 
+                                    alt="Orchestrator" 
+                                    style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }} 
+                                  />
+                                ) : (
+                                  <MessageCircle size={16} />
+                                )}
                                 <span>I need a bit more information</span>
                               </div>
                               <p>{item.message.content}</p>
@@ -910,8 +930,16 @@ const handleNewChat = async (sessionId = null) => {
 
                     {thinkingAdvisors.includes('system') && (
                       <div className="orchestrator-thinking">
-                        <div className="thinking-bubble">
-                          <MessageCircle size={20} />
+                        <div className="thinking-bubble" style={orchestratorAvatar ? { overflow: 'hidden', padding: 0 } : {}}>
+                          {orchestratorAvatar ? (
+                            <img 
+                              src={orchestratorAvatar} 
+                              alt="Orchestrator" 
+                              style={{ width: '100%', height: '100%', borderRadius: 'inherit', objectFit: 'cover' }} 
+                            />
+                          ) : (
+                            <MessageCircle size={20} />
+                          )}
                         </div>
                         <div className="thinking-content">
                           <span className="thinking-label">Orchestrator is thinking...</span>

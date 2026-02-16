@@ -415,6 +415,21 @@
   margin-bottom: 24px;
 }
 
+.orchestrator-thinking .thinking-bubble {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-gradient, var(--accent-primary));
+  color: white;
+  border: none;
+  box-shadow: var(--shadow-sm);
+}
+
 .thinking-content {
   display: flex;
   align-items: center;
