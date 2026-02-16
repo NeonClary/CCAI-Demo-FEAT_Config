@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Home, MessageCircle, Reply, X, Sparkles, Users, Settings2, FileText , LogOut, Menu} from 'lucide-react';
 import EnhancedChatInput from '../components/EnhancedChatInput';
 import MessageBubble from '../components/MessageBubble';
+import AdvisorCarousel from '../components/AdvisorCarousel';
 import ThinkingIndicator from '../components/ThinkingIndicator';
 import SuggestionsPanel from '../components/SuggestionsPanel';
 import ThemeToggle from '../components/ThemeToggle';
@@ -684,6 +685,32 @@ const handleNewChat = async (sessionId = null) => {
   const hasMessages = messages.length > 0;
   const hasConversationMessages = messages.filter(m => m.type !== 'system' && m.type !== 'document_upload').length > 0;
 
+  // Group consecutive non-reply advisor messages for carousel display
+  const groupedMessages = useMemo(() => {
+    const groups = [];
+    let i = 0;
+    while (i < messages.length) {
+      const msg = messages[i];
+      if (msg.type === 'advisor' && !msg.isReply && !msg.isExpansion) {
+        const batch = [];
+        while (
+          i < messages.length &&
+          messages[i].type === 'advisor' &&
+          !messages[i].isReply &&
+          !messages[i].isExpansion
+        ) {
+          batch.push(messages[i]);
+          i++;
+        }
+        groups.push({ kind: 'advisor-group', id: batch[0].id, messages: batch });
+      } else {
+        groups.push({ kind: 'single', id: msg.id, message: msg });
+        i++;
+      }
+    }
+    return groups;
+  }, [messages]);
+
   const chatPlaceholder = config?.chat_page?.placeholder || "Ask your advisors anything...";
 
   return (
@@ -790,25 +817,34 @@ const handleNewChat = async (sessionId = null) => {
                 
                 <div className="messages-list">
                   <div className="messages-scroll">
-                    {messages.map((message) => (
-                      <div key={message.id}>
-                        {message.type === 'user' && (
+                    {groupedMessages.map((item) => (
+                      <div key={item.id}>
+                        {item.kind === 'advisor-group' && (
+                          <AdvisorCarousel
+                            messages={item.messages}
+                            onReply={handleReplyToMessage}
+                            onExpand={handleExpandMessage}
+                            onClick={handleMessageClick}
+                          />
+                        )}
+
+                        {item.kind === 'single' && item.message.type === 'user' && (
                           <div className="user-message-container">
                             <div className="user-message">
-                              {message.replyTo && (
+                              {item.message.replyTo && (
                                 <div className="reply-indicator">
                                   <Reply size={12} />
-                                  <span>Reply to {message.replyTo.advisorName}</span>
+                                  <span>Reply to {item.message.replyTo.advisorName}</span>
                                 </div>
                               )}
-                              <p>{message.content}</p>
+                              <p>{item.message.content}</p>
                             </div>
                           </div>
                         )}
 
-                        {message.type === 'advisor' && (
+                        {item.kind === 'single' && item.message.type === 'advisor' && (
                           <MessageBubble
-                            message={message}
+                            message={item.message}
                             onReply={handleReplyToMessage}
                             onExpand={handleExpandMessage}
                             onClick={handleMessageClick}
@@ -816,45 +852,45 @@ const handleNewChat = async (sessionId = null) => {
                           />
                         )}
 
-                        {message.type === 'error' && (
+                        {item.kind === 'single' && item.message.type === 'error' && (
                           <div className="error-message-container">
                             <div className="error-message">
-                              <p>{message.content}</p>
+                              <p>{item.message.content}</p>
                             </div>
                           </div>
                         )}
 
-                        {message.type === 'system' && (
+                        {item.kind === 'single' && item.message.type === 'system' && (
                           <div className="system-message-container">
                             <div className="system-message">
-                              <p>{message.content}</p>
+                              <p>{item.message.content}</p>
                             </div>
                           </div>
                         )}
 
-                        {message.type === 'document_upload' && (
+                        {item.kind === 'single' && item.message.type === 'document_upload' && (
                           <div className="system-message-container">
                             <div className="system-message document-upload">
                               <FileText size={16} />
-                              <p>{message.content}</p>
+                              <p>{item.message.content}</p>
                             </div>
                           </div>
                         )}
 
-                        {message.type === 'clarification' && (
+                        {item.kind === 'single' && item.message.type === 'clarification' && (
                           <div className="clarification-message-container">
                             <div className="clarification-message">
                               <div className="clarification-header">
                                 <MessageCircle size={16} />
                                 <span>I need a bit more information</span>
                               </div>
-                              <p>{message.content}</p>
+                              <p>{item.message.content}</p>
                               
-                              {message.suggestions && message.suggestions.length > 0 && (
+                              {item.message.suggestions && item.message.suggestions.length > 0 && (
                                 <div className="clarification-suggestions">
                                   <p className="suggestions-label">Here are some ways you could be more specific:</p>
                                   <div className="suggestions-list">
-                                    {message.suggestions.map((suggestion, index) => (
+                                    {item.message.suggestions.map((suggestion, index) => (
                                       <button
                                         key={index}
                                         className="suggestion-button"
@@ -869,8 +905,6 @@ const handleNewChat = async (sessionId = null) => {
                             </div>
                           </div>
                         )}
-
-                        
                       </div>
                     ))}
 

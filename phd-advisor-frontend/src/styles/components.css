@@ -627,6 +627,124 @@
   color: inherit;
 }
 
+/* ── Advisor Carousel ─────────────────────────────────── */
+
+.advisor-carousel {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+/* Grid mode – all cards side-by-side */
+.advisor-carousel.grid-mode .carousel-viewport {
+  overflow: visible;
+}
+
+.advisor-carousel.grid-mode .carousel-track {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.advisor-carousel.grid-mode .carousel-slide {
+  flex: 1;
+  min-width: 0;
+}
+
+.advisor-carousel.grid-mode .carousel-slide .advisor-message-container {
+  width: 100%;
+}
+
+.advisor-carousel.grid-mode .carousel-slide .advisor-message-bubble {
+  max-width: none;
+}
+
+/* Carousel mode – one card at a time */
+.advisor-carousel.carousel-mode .carousel-viewport {
+  overflow: hidden;
+}
+
+.advisor-carousel.carousel-mode .carousel-track {
+  display: flex;
+  transition: transform 0.3s ease;
+}
+
+.advisor-carousel.carousel-mode .carousel-slide {
+  flex: 0 0 100%;
+  min-width: 0;
+}
+
+.advisor-carousel.carousel-mode .carousel-slide .advisor-message-bubble {
+  max-width: none;
+}
+
+/* Navigation arrows */
+.carousel-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-sm);
+  color: var(--text-secondary);
+  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+
+.carousel-arrow:hover:not(:disabled) {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.carousel-arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.carousel-prev {
+  left: -12px;
+}
+
+.carousel-next {
+  right: -12px;
+}
+
+/* Dot indicators */
+.carousel-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.carousel-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: none;
+  background: var(--border-secondary);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.carousel-dot:hover {
+  background: var(--text-secondary);
+}
+
+.carousel-dot.active {
+  background: var(--text-primary);
+  transform: scale(1.25);
+}
+
+/* ── End Advisor Carousel ─────────────────────────────── */
+
 /* Tooltip Styles */
 .tooltip-container {
   position: relative;
