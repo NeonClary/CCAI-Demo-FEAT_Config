@@ -200,13 +200,14 @@ async def chat_sequential_enhanced(
         # Check if the user's message is vague and needs clarification
         # (only triggers on the first user message in a session)
         if chat_orchestrator._needs_clarification(session, message.user_input):
-            clarification_msg = await chat_orchestrator._generate_clarification_question(session)
-            suggestions = chat_orchestrator._get_clarification_suggestions()
+            clarification = await chat_orchestrator.generate_contextual_clarification(
+                message.user_input
+            )
             logger.info(f"Clarification triggered for input: {message.user_input!r}")
             return {
                 "status": "clarification_needed",
-                "message": clarification_msg,
-                "suggestions": suggestions,
+                "message": clarification["question"],
+                "suggestions": clarification["suggestions"],
                 "session_debug": {
                     "session_id": session_id,
                     "trigger": "vague_input"

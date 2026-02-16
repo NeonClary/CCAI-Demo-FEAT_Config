@@ -172,24 +172,73 @@ class ImprovedChatOrchestrator:
         logger.info(f"NO CLARIFICATION: Input has {word_count} words, specific keywords: {has_specific_keywords}")
         return False
     
-    async def _generate_clarification_question(self, session: ConversationContext) -> str:
+    async def generate_contextual_clarification(self, user_input: str) -> Dict[str, Any]:
         """
-        Generate a clarification question based on the conversation context.
-        Questions are driven by config.yaml → orchestrator.clarification_questions.
+        Use the LLM to produce a clarification question and clickable
+        suggestions that are tailored to what the user actually typed.
+        Falls back to the static values in config.yaml if the LLM call fails.
         """
         orch_cfg = get_settings().orchestrator
-        questions = orch_cfg.clarification_questions or [
+
+        # Build a compact advisor summary for the prompt
+        advisor_list = ", ".join(
+            f"{p.name} ({p.id})" for p in self.personas.values()
+        )
+
+        system_prompt = (
+            "You are a helpful routing assistant. The user's message is too "
+            "vague to send to the advisors. Produce a short clarifying question "
+            "and exactly 4 clickable suggestion buttons the user could press.\n\n"
+            "Reply ONLY with valid JSON — no markdown, no extra text:\n"
+            '{"question": "...", "suggestions": ["...", "...", "...", "..."]}\n\n'
+            "Keep the question to one sentence. Each suggestion should be a "
+            "complete sentence the user could send as their next message."
+        )
+
+        user_prompt = (
+            f"User said: \"{user_input}\"\n"
+            f"Available advisors: {advisor_list}\n\n"
+            "Generate a clarifying question and 4 suggestion buttons that "
+            "relate to what the user said and steer toward the advisors above."
+        )
+
+        try:
+            llm = next(iter(self.personas.values())).llm
+            raw = await llm.generate(
+                system_prompt=system_prompt,
+                context=[{"role": "user", "content": user_prompt}],
+                temperature=0.4,
+                max_tokens=250,
+            )
+
+            # Strip markdown fences if the model wraps its answer
+            cleaned = raw.strip()
+            if cleaned.startswith("```"):
+                cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+                cleaned = re.sub(r"\s*```$", "", cleaned)
+
+            parsed = json.loads(cleaned)
+            question = parsed.get("question", "").strip()
+            suggestions = parsed.get("suggestions", [])
+
+            if question and isinstance(suggestions, list) and len(suggestions) >= 2:
+                logger.info("LLM clarification generated for: %r", user_input)
+                return {"question": question, "suggestions": suggestions[:4]}
+
+        except Exception as e:
+            logger.warning("LLM clarification failed, using config fallback: %s", e)
+
+        # Fallback to static config values
+        fallback_questions = orch_cfg.clarification_questions or [
             "Could you provide more details about what you need help with?"
         ]
-        # Return the first option for now (could be made smarter with AI)
-        return questions[0]
-    
-    def _get_clarification_suggestions(self) -> List[str]:
-        """Get suggestions for clarification from config."""
-        orch_cfg = get_settings().orchestrator
-        return orch_cfg.clarification_suggestions or [
+        fallback_suggestions = orch_cfg.clarification_suggestions or [
             "Provide more details about your question"
         ]
+        return {
+            "question": fallback_questions[0],
+            "suggestions": fallback_suggestions,
+        }
     
     async def _generate_persona_responses(self, session: ConversationContext, response_length: str = "medium"):
         """
