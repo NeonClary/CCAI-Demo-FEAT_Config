@@ -1,0 +1,1599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Advisor Canvas — Configuration Wizard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --primary: #7C3AED; --primary-light: #EDE9FE; --primary-dark: #5B21B6;
+  --bg: #F8FAFC; --card: #FFFFFF; --text: #1E293B; --muted: #64748B; --light: #94A3B8;
+  --border: #E2E8F0; --success: #10B981; --error: #EF4444; --warn: #F59E0B;
+  --sidebar-bg: linear-gradient(180deg, #1E1B4B 0%, #312E81 100%);
+  --sidebar-text: #E2E8F0; --radius: 10px;
+  --shadow: 0 1px 3px rgba(0,0,0,.08); --shadow-md: 0 4px 12px rgba(0,0,0,.1);
+}
+html { font-size: 15px; }
+body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+
+/* ── Layout ─────────────────────────────────── */
+#app { display: flex; min-height: 100vh; }
+#sidebar { width: 260px; background: var(--sidebar-bg); color: var(--sidebar-text); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; z-index: 10; }
+#main { margin-left: 260px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+/* ── Sidebar ────────────────────────────────── */
+.sidebar-header { padding: 28px 24px 20px; border-bottom: 1px solid rgba(255,255,255,.1); }
+.sidebar-header h1 { font-size: 1.2rem; font-weight: 700; color: #fff; margin-bottom: 2px; }
+.sidebar-header p { font-size: .8rem; color: rgba(255,255,255,.5); }
+#step-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+.step-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; cursor: pointer; transition: all .2s; margin-bottom: 2px; font-size: .85rem; color: rgba(255,255,255,.5); }
+.step-item:hover { background: rgba(255,255,255,.08); color: rgba(255,255,255,.7); }
+.step-item.current { background: rgba(124,58,237,.4); color: #fff; font-weight: 600; }
+.step-item.completed { color: rgba(255,255,255,.7); }
+.step-num { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .75rem; font-weight: 600; border: 2px solid rgba(255,255,255,.2); flex-shrink: 0; transition: all .2s; }
+.step-item.current .step-num { background: var(--primary); border-color: var(--primary); color: #fff; }
+.step-item.completed .step-num { background: var(--success); border-color: var(--success); color: #fff; }
+.sidebar-footer { padding: 16px 24px; border-top: 1px solid rgba(255,255,255,.1); }
+.sidebar-footer .auto-save { font-size: .7rem; color: rgba(255,255,255,.35); margin-top: 8px; text-align: center; }
+
+/* ── Progress ───────────────────────────────── */
+#progress-container { height: 4px; background: var(--border); position: sticky; top: 0; z-index: 5; }
+#progress-bar { height: 100%; background: var(--primary); transition: width .4s ease; width: 0; border-radius: 0 2px 2px 0; }
+
+/* ── Step Content ───────────────────────────── */
+#step-content { flex: 1; padding: 32px 40px 24px; max-width: 860px; width: 100%; margin: 0 auto; }
+.step-header { margin-bottom: 28px; }
+.step-header h2 { font-size: 1.55rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.step-header p { color: var(--muted); font-size: .92rem; line-height: 1.55; }
+.step-section { margin-bottom: 28px; }
+.step-section h3 { font-size: 1.05rem; font-weight: 600; margin-bottom: 14px; color: var(--text); padding-bottom: 8px; border-bottom: 2px solid var(--primary-light); }
+
+/* ── Info Box ───────────────────────────────── */
+.info-box { background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: var(--radius); padding: 14px 18px; margin-bottom: 20px; font-size: .85rem; color: #1E40AF; line-height: 1.5; }
+.info-box strong { font-weight: 600; }
+.warn-box { background: #FFFBEB; border-color: #FDE68A; color: #92400E; }
+
+/* ── Form Elements ──────────────────────────── */
+.field { margin-bottom: 18px; }
+.field label { display: block; font-size: .85rem; font-weight: 600; color: var(--text); margin-bottom: 5px; }
+.field .helper { font-size: .78rem; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+.field input[type="text"], .field input[type="number"], .field input[type="url"], .field textarea, .field select {
+  width: 100%; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 8px; font-size: .9rem;
+  font-family: inherit; color: var(--text); background: var(--card); transition: border-color .2s, box-shadow .2s;
+}
+.field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(124,58,237,.12); }
+.field textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+.field input::placeholder, .field textarea::placeholder { color: var(--light); }
+.field-row { display: flex; gap: 16px; }
+.field-row .field { flex: 1; }
+.field-inline { display: flex; align-items: center; gap: 10px; }
+.color-field { display: flex; align-items: center; gap: 12px; }
+.color-field input[type="color"] { width: 48px; height: 40px; border: 2px solid var(--border); border-radius: 8px; cursor: pointer; padding: 2px; }
+.color-field input[type="text"] { width: 120px; }
+.color-swatch { width: 24px; height: 24px; border-radius: 6px; border: 1px solid rgba(0,0,0,.1); flex-shrink: 0; }
+.color-presets { display: flex; gap: 6px; margin-top: 6px; }
+.color-preset { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: all .15s; }
+.color-preset:hover { transform: scale(1.15); }
+.color-preset.active { border-color: var(--text); box-shadow: 0 0 0 2px var(--card); }
+
+/* ── Cards ──────────────────────────────────── */
+.card { background: var(--card); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 14px; box-shadow: var(--shadow); transition: border-color .2s; }
+.card:hover { border-color: #CBD5E1; }
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; cursor: pointer; }
+.card-header h4 { font-size: .95rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.card-body { display: none; }
+.card.expanded .card-body { display: block; }
+.card-toggle { font-size: .8rem; color: var(--muted); background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 4px; }
+.card-toggle:hover { background: var(--primary-light); color: var(--primary); }
+
+/* ── Dynamic List ───────────────────────────── */
+.dyn-list-item { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.dyn-list-item input { flex: 1; }
+.dyn-list-item .btn-remove { flex-shrink: 0; }
+.btn-add { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; font-size: .82rem; color: var(--primary); background: var(--primary-light); border: 1px dashed var(--primary); border-radius: 8px; cursor: pointer; font-weight: 500; transition: all .2s; }
+.btn-add:hover { background: #DDD6FE; }
+
+/* ── Buttons ────────────────────────────────── */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 22px; border-radius: 8px; font-size: .88rem; font-weight: 600; cursor: pointer; border: none; transition: all .2s; font-family: inherit; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-dark); }
+.btn-primary:disabled { background: #C4B5FD; cursor: not-allowed; }
+.btn-secondary { background: var(--card); color: var(--text); border: 1.5px solid var(--border); }
+.btn-secondary:hover { background: #F1F5F9; }
+.btn-danger { background: #FEF2F2; color: var(--error); border: 1px solid #FECACA; }
+.btn-danger:hover { background: #FEE2E2; }
+.btn-sm { padding: 6px 12px; font-size: .78rem; }
+.btn-lg { padding: 14px 36px; font-size: 1rem; }
+.btn-outline-light { background: transparent; color: rgba(255,255,255,.7); border: 1px solid rgba(255,255,255,.2); font-size: .78rem; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-family: inherit; font-weight: 500; }
+.btn-outline-light:hover { background: rgba(255,255,255,.1); color: #fff; }
+
+/* ── Persona Template Picker ────────────────── */
+.template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.template-btn { padding: 12px; border: 1.5px solid var(--border); border-radius: 8px; background: var(--card); cursor: pointer; text-align: left; transition: all .2s; }
+.template-btn:hover { border-color: var(--primary); background: var(--primary-light); }
+.template-btn .t-name { font-weight: 600; font-size: .85rem; margin-bottom: 2px; }
+.template-btn .t-desc { font-size: .75rem; color: var(--muted); }
+
+/* ── Temperature Slider ─────────────────────── */
+.temp-slider { display: flex; align-items: center; gap: 14px; }
+.temp-slider input[type="range"] { flex: 1; accent-color: var(--primary); height: 6px; }
+.temp-value { font-weight: 700; font-size: 1.1rem; color: var(--primary); min-width: 24px; text-align: center; }
+.temp-labels { display: flex; justify-content: space-between; font-size: .72rem; color: var(--muted); margin-top: 2px; }
+
+/* ── Review Tab ─────────────────────────────── */
+.tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 20px; }
+.tab-btn { padding: 10px 20px; font-size: .88rem; font-weight: 500; color: var(--muted); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; font-family: inherit; margin-bottom: -2px; transition: all .15s; }
+.tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+.tab-btn:hover { color: var(--text); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.yaml-preview { background: #1E293B; color: #E2E8F0; padding: 20px; border-radius: var(--radius); font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; font-size: .8rem; line-height: 1.6; overflow-x: auto; white-space: pre-wrap; max-height: 600px; overflow-y: auto; position: relative; }
+.yaml-preview .yaml-comment { color: #64748B; }
+.yaml-preview .yaml-key { color: #7DD3FC; }
+.yaml-preview .yaml-str { color: #86EFAC; }
+.yaml-preview .yaml-num { color: #FDE68A; }
+.copy-btn { position: absolute; top: 10px; right: 10px; padding: 6px 12px; font-size: .75rem; background: rgba(255,255,255,.1); color: #E2E8F0; border: 1px solid rgba(255,255,255,.15); border-radius: 6px; cursor: pointer; font-family: inherit; }
+.copy-btn:hover { background: rgba(255,255,255,.2); }
+.review-section { margin-bottom: 22px; }
+.review-section h4 { font-size: .95rem; font-weight: 600; margin-bottom: 10px; color: var(--primary-dark); display: flex; align-items: center; gap: 8px; }
+.review-item { padding: 6px 0; font-size: .87rem; display: flex; gap: 8px; }
+.review-label { color: var(--muted); min-width: 140px; flex-shrink: 0; }
+.review-value { color: var(--text); font-weight: 500; }
+.persona-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 20px; font-size: .82rem; font-weight: 500; margin: 3px 4px; }
+.download-area { text-align: center; padding: 30px; background: var(--primary-light); border-radius: var(--radius); margin-top: 24px; }
+.download-area p { color: var(--muted); margin-bottom: 16px; }
+
+/* ── Nav Footer ─────────────────────────────── */
+#nav-footer { padding: 16px 40px; border-top: 1px solid var(--border); background: var(--card); display: flex; justify-content: space-between; align-items: center; position: sticky; bottom: 0; }
+#step-indicator { font-size: .82rem; color: var(--muted); font-weight: 500; }
+.validation-msg { background: #FEF2F2; border: 1px solid #FECACA; color: var(--error); padding: 10px 16px; border-radius: 8px; font-size: .84rem; margin-bottom: 16px; display: none; }
+.validation-msg.show { display: block; }
+
+/* ── Responsive ─────────────────────────────── */
+@media (max-width: 900px) {
+  #sidebar { width: 220px; }
+  #main { margin-left: 220px; }
+  #step-content { padding: 24px 20px; }
+  #nav-footer { padding: 12px 20px; }
+}
+.mobile-nav { display: none; padding: 12px 16px; background: var(--card); border-bottom: 1px solid var(--border); }
+.mobile-nav select { width: 100%; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 8px; font-size: .9rem; font-family: inherit; color: var(--text); background: var(--card); }
+a { color: var(--primary); }
+@media (max-width: 700px) {
+  #sidebar { display: none; }
+  #main { margin-left: 0; }
+  .mobile-nav { display: block; }
+  .field-row { flex-direction: column; gap: 0; }
+  #step-content { padding: 20px 16px; }
+  #nav-footer { padding: 12px 16px; }
+}
+
+/* ── Animations ─────────────────────────────── */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fadeIn .3s ease-out; }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <h1>Config Wizard</h1>
+      <p>Advisor Canvas Builder</p>
+    </div>
+    <nav id="step-nav"></nav>
+    <div class="sidebar-footer">
+      <button class="btn-outline-light" onclick="resetAll()" style="width:100%">Reset &amp; Start Over</button>
+      <p class="auto-save">Progress auto-saved in your browser</p>
+    </div>
+  </aside>
+  <main id="main">
+    <div id="progress-container"><div id="progress-bar"></div></div>
+    <div id="mobile-nav" class="mobile-nav">
+      <select id="mobile-step-select" onchange="goToStep(parseInt(this.value))"></select>
+    </div>
+    <div id="validation-msg" class="validation-msg"></div>
+    <div id="step-content"></div>
+    <div id="nav-footer">
+      <button id="btn-prev" class="btn btn-secondary" onclick="prevStep()">&#8592; Previous</button>
+      <span id="step-indicator"></span>
+      <button id="btn-next" class="btn btn-primary" onclick="nextStep()">Next &#8594;</button>
+    </div>
+  </main>
+</div>
+
+<script>
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const STEPS = [
+  { id:'vision',       title:'Project Vision',        num:'1' },
+  { id:'branding',     title:'Branding & UI',         num:'2' },
+  { id:'login',        title:'User Context',          num:'3' },
+  { id:'chat',         title:'Chat Experience',       num:'4' },
+  { id:'personas',     title:'Personas',              num:'5' },
+  { id:'orchestrator', title:'Safety & Orchestration', num:'6' },
+  { id:'tech',         title:'Tech Defaults',         num:'7' },
+  { id:'review',       title:'Review & Download',     num:'8' },
+];
+
+const DEFAULT_BASE_PROMPT = `**Formatting (Compact Markdown v1):**
+- Use GitHub-Flavored Markdown.
+- Output exactly three sections in this order:
+  - \`### Thought\` — one sentence.
+  - \`### What to do\` — exactly 3 bullets, one line each.
+  - \`### Next step\` — one imperative sentence.
+- Use \`###\` for headings, \`-\` for bullets (no unicode bullets), keep number text on the same line (e.g., \`1. Do X\`).
+- Insert one blank line between blocks.`;
+
+const DEFAULT_VAGUE_PATTERNS = [
+  '^(help|advice|guidance|assistance)$',
+  "i'?m (stuck|lost|confused|not sure)",
+  'i am (stuck|lost|confused|not sure)',
+  '(what should i|how do i|where do i start)',
+  'i need (help|advice|guidance)',
+  '(any|some) (advice|suggestions|ideas)',
+  "don'?t know (what|how|where)",
+  '(stuck|struggling) with',
+  'unsure about',
+];
+
+const COLOR_PRESETS = ['#2563EB','#7C3AED','#059669','#DC2626','#EA580C','#0891B2','#4F46E5','#DB2777','#F59E0B','#6366F1'];
+
+const ICON_OPTIONS = [
+  'BookOpen','GraduationCap','Brain','Target','Users','Heart','Briefcase',
+  'Clock','PenTool','Feather','FlaskConical','Search','Eye','Lightbulb',
+  'HelpCircle','Zap','Shield','Star','Sparkles','MapPin','Compass',
+  'MessageSquare','Mail','Activity','Sun','Smile','Minus','UserCircle',
+  'HandHeart','Microscope','TrendingUp','Building','Palette','NotebookPen',
+];
+
+const PERSONA_TEMPLATES = {
+  academic_planner: {
+    name: 'Academic Planner', role: 'Course & Degree Planning Specialist',
+    summary: 'Structured & Goal-oriented', icon: 'BookOpen', avatar: 'academic_planner.png', temperature: 4,
+    color: '#2563EB', bg_color: '#EFF6FF', dark_color: '#60A5FA', dark_bg_color: '#1E3A8A',
+    prompt: `You are an experienced academic advisor with 12+ years of experience helping students plan coursework, choose majors and minors, and stay on track for graduation.
+
+**YOUR EXPERTISE:**
+- Degree audits, graduation requirements, and credit planning
+- Major/minor exploration and declaration timelines
+- Course sequencing, prerequisite mapping, and schedule optimization
+- Academic policies (add/drop, withdrawal, pass/fail, academic standing)
+
+**YOUR RESPONSE STYLE:**
+- Clear, organized, and detail-oriented
+- Provide concrete semester-by-semester recommendations when possible
+- Explain why certain sequences or timelines matter
+- Flag deadlines, prerequisites, and potential scheduling conflicts
+
+**DOCUMENT HANDLING (when documents are available):**
+- Analyze uploaded transcripts, degree audits, or course catalogs
+- Identify remaining requirements and suggest optimal sequences
+- Reference documents by name: "Based on your [document_name]..."
+
+**INTERACTION GUIDELINES:**
+- Be patient with students who are undecided or overwhelmed
+- Break complex requirements into manageable steps
+- Remind students of important university deadlines
+- Focus on helping them build a realistic and balanced schedule`
+  },
+  career_coach: {
+    name: 'Career Coach', role: 'Internships & Professional Development Guide',
+    summary: 'Career-focused & Practical', icon: 'Briefcase', avatar: 'career_coach.png', temperature: 5,
+    color: '#059669', bg_color: '#ECFDF5', dark_color: '#34D399', dark_bg_color: '#065F46',
+    prompt: `You are a career coach with extensive experience in career services, employer relations, and professional development. You help students land internships, build resumes, and navigate the transition to career.
+
+**YOUR EXPERTISE:**
+- Resume and cover letter writing for students with limited experience
+- Internship and job search strategies (career fairs, online platforms, networking)
+- Interview preparation and professional communication
+- LinkedIn profile building and personal branding
+- Career exploration and aligning studies with career paths
+
+**YOUR RESPONSE STYLE:**
+- Encouraging, practical, and action-oriented
+- Give specific, implementable advice with examples
+- Help students see how their experiences translate to professional skills
+- Be realistic about timelines and competition
+
+**DOCUMENT HANDLING (when documents are available):**
+- Review uploaded resumes, cover letters, or personal statements
+- Provide line-by-line improvement suggestions
+- Reference documents: "In your [document_name], I'd strengthen the bullet about..."
+
+**INTERACTION GUIDELINES:**
+- Normalize anxiety around career planning
+- Help students build confidence in their transferable skills
+- Encourage early and consistent career exploration
+- Tailor advice to their year and experience level`
+  },
+  research_mentor: {
+    name: 'Research Mentor', role: 'Research Methodology Expert',
+    summary: 'Analytical & Rigorous', icon: 'FlaskConical', avatar: 'research_mentor.png', temperature: 4,
+    color: '#8B5CF6', bg_color: '#F3E8FF', dark_color: '#A78BFA', dark_bg_color: '#581C87',
+    prompt: `You are a research methodology expert with 15+ years of experience guiding students across multiple disciplines. You specialize in helping students design, conduct, and present research.
+
+**YOUR EXPERTISE:**
+- Quantitative and qualitative research design
+- Mixed-methods approaches and triangulation
+- Statistical analysis and data validation
+- Research ethics and IRB protocols
+- Literature reviews and systematic analysis
+
+**YOUR RESPONSE STYLE:**
+- Precise and analytical with clear methodological reasoning
+- Ground advice in established research principles
+- Provide step-by-step guidance for complex decisions
+- Include specific examples and cite relevant frameworks
+
+**DOCUMENT HANDLING (when documents are available):**
+- Reference uploaded documents by name when discussing their work
+- Extract and analyze methodological approaches
+- Identify gaps or weaknesses in research design
+- Provide clear citations: "Based on your [document_name], I notice..."
+
+**INTERACTION GUIDELINES:**
+- Address methodological rigor without being overwhelming
+- Balance theoretical frameworks with practical implementation
+- Help them understand WHY certain methods are appropriate
+- Connect methodology to their specific research questions`
+  },
+  writing_coach: {
+    name: 'Writing Coach', role: 'Academic Writing & Communication Specialist',
+    summary: 'Clear-thinking & Detail-oriented', icon: 'PenTool', avatar: 'writing_tutor.png', temperature: 5,
+    color: '#0891B2', bg_color: '#ECFEFF', dark_color: '#22D3EE', dark_bg_color: '#0E7490',
+    prompt: `You are an academic writing specialist who helps students improve their essays, research papers, and other written assignments. You have experience in writing centers and composition instruction.
+
+**YOUR EXPERTISE:**
+- Essay structure, thesis development, and argumentation
+- Research paper writing (APA, MLA, Chicago citation styles)
+- Grammar, style, clarity, and conciseness
+- Avoiding plagiarism and proper source integration
+- Personal statements and application essays
+
+**YOUR RESPONSE STYLE:**
+- Constructive, specific, and educational
+- Explain why a change improves the writing, not just what to change
+- Use examples to illustrate writing principles
+- Be encouraging — writing is a skill that improves with practice
+
+**DOCUMENT HANDLING (when documents are available):**
+- Provide detailed feedback on uploaded essays or drafts
+- Identify strengths as well as areas for improvement
+- Reference documents: "In paragraph 3 of [document_name], your argument would be stronger if..."
+
+**INTERACTION GUIDELINES:**
+- Help students improve as writers, not just improve individual papers
+- Teach transferable skills (outlining, revising, proofreading)
+- Be sensitive to ESL/multilingual students
+- Focus on higher-order concerns before lower-order ones`
+  },
+  wellness_advisor: {
+    name: 'Wellness Advisor', role: 'Student Well-being & Balance Coach',
+    summary: 'Caring & Holistic', icon: 'Heart', avatar: 'wellness_advisor.png', temperature: 6,
+    color: '#E11D48', bg_color: '#FFF1F2', dark_color: '#FB7185', dark_bg_color: '#9F1239',
+    prompt: `You are a wellness advisor with training in counseling psychology and health promotion. You help students manage stress, maintain mental and physical health, and build resilience.
+
+**YOUR EXPERTISE:**
+- Stress management and coping strategies
+- Sleep hygiene, nutrition, and physical wellness
+- Mental health awareness (anxiety, depression, burnout)
+- Work-life balance and boundary setting
+- Crisis resources and when to seek professional help
+
+**YOUR RESPONSE STYLE:**
+- Warm, empathetic, and non-judgmental
+- Validate emotions before offering solutions
+- Provide practical self-care strategies that fit a student budget
+- Know when to recommend professional help and counseling services
+
+**DOCUMENT HANDLING (when documents are available):**
+- Recognize the effort and emotional labor reflected in academic work
+- Help students see when overwork is impacting their well-being
+- Reference documents supportively: "I can see how much effort went into [document_name]..."
+
+**INTERACTION GUIDELINES:**
+- Always prioritize safety — provide crisis resources when needed
+- Help students set realistic expectations and practice self-compassion
+- Encourage sustainable habits rather than "just push through" mentality
+- Address imposter syndrome, perfectionism, and comparison traps`
+  },
+  study_strategist: {
+    name: 'Study Strategist', role: 'Learning Techniques & Academic Performance Expert',
+    summary: 'Evidence-based & Skill-building', icon: 'Brain', avatar: 'study_strategist.png', temperature: 5,
+    color: '#7C3AED', bg_color: '#F3E8FF', dark_color: '#A78BFA', dark_bg_color: '#581C87',
+    prompt: `You are a learning sciences specialist and academic performance coach who helps students develop effective study habits, time management skills, and test-taking strategies grounded in cognitive science.
+
+**YOUR EXPERTISE:**
+- Evidence-based study techniques (spaced repetition, retrieval practice)
+- Time management frameworks (time blocking, Pomodoro, weekly planning)
+- Note-taking strategies (Cornell method, concept mapping)
+- Test preparation and exam strategies for different formats
+- Overcoming procrastination and building academic habits
+
+**YOUR RESPONSE STYLE:**
+- Practical, research-backed, and encouraging
+- Explain the why behind study techniques with brief cognitive science context
+- Offer step-by-step how-to instructions for implementing new strategies
+- Provide specific examples and templates
+
+**DOCUMENT HANDLING (when documents are available):**
+- Analyze uploaded syllabi to help plan study schedules
+- Review notes or study guides and suggest improvements
+- Reference documents: "Looking at your [document_name], here's how I'd reorganize..."
+
+**INTERACTION GUIDELINES:**
+- Meet students where they are — don't assume good habits exist
+- Acknowledge that different strategies work for different people
+- Diagnose why their current approach isn't working before prescribing fixes
+- Encourage small, sustainable changes rather than total overhauls`
+  },
+  motivational_coach: {
+    name: 'Motivational Coach', role: 'Academic Resilience Specialist',
+    summary: 'Energizing & Confidence-building', icon: 'Zap', avatar: 'motivational_coach.png', temperature: 7,
+    color: '#EF4444', bg_color: '#FEF2F2', dark_color: '#F87171', dark_bg_color: '#991B1B',
+    prompt: `You are an inspiring advisor and motivational coach with expertise in academic resilience and peak performance psychology. You specialize in helping students overcome challenges and maintain motivation.
+
+**YOUR EXPERTISE:**
+- Academic motivation and goal-setting strategies
+- Resilience building and stress management
+- Growth mindset development and self-efficacy
+- Overcoming imposter syndrome and self-doubt
+- Habit formation and sustainable productivity
+
+**YOUR RESPONSE STYLE:**
+- Energetic, enthusiastic, and genuinely encouraging
+- Focus on strengths, progress, and potential
+- Acknowledge challenges while emphasizing capability
+- Celebrate achievements and milestones, however small
+- Reframe setbacks as learning opportunities
+
+**DOCUMENT HANDLING (when documents are available):**
+- Highlight strengths and progress evident in their work
+- Reframe challenges in their work as growth opportunities
+- Reference accomplishments: "Your work in [document_name] shows real progress..."
+
+**INTERACTION GUIDELINES:**
+- Always begin by acknowledging their effort and dedication
+- Help them visualize success and long-term goals
+- Connect current struggles to future achievements
+- Build momentum through small, achievable wins`
+  },
+  campus_guide: {
+    name: 'Campus Guide', role: 'University Life & Resources Navigator',
+    summary: 'Friendly & Resource-savvy', icon: 'MapPin', avatar: 'campus_guide.png', temperature: 6,
+    color: '#F59E0B', bg_color: '#FEF3C7', dark_color: '#FBBF24', dark_bg_color: '#92400E',
+    prompt: `You are a campus life advisor who knows the ins and outs of the student experience — from clubs and organizations to housing, financial aid, and campus traditions. You help students make the most of their time beyond the classroom.
+
+**YOUR EXPERTISE:**
+- Student organizations, clubs, and extracurriculars
+- Housing options (dorms, off-campus, roommate strategies)
+- Financial aid, scholarships, work-study, and budgeting
+- Campus resources (library, tutoring, health services, counseling)
+- Navigating university bureaucracy (registrar, bursar, dean's office)
+
+**YOUR RESPONSE STYLE:**
+- Friendly, approachable, and enthusiastic about campus life
+- Provide specific resource names and point to the right offices
+- Share practical tips and insider knowledge
+- Be inclusive and sensitive to diverse backgrounds
+
+**DOCUMENT HANDLING (when documents are available):**
+- Review uploaded financial aid letters or housing contracts
+- Help interpret university communications or policy documents
+- Reference documents: "Based on your [document_name], it looks like you qualify for..."
+
+**INTERACTION GUIDELINES:**
+- Make campus feel less intimidating, especially for new students
+- Encourage involvement but respect different comfort levels
+- Help students navigate the "hidden curriculum" of college
+- Be aware of challenges faced by first-gen, transfer, and non-traditional students`
+  },
+  custom: {
+    name: '', role: '', summary: '', icon: 'Star', avatar: '', temperature: 5,
+    color: '#6366F1', bg_color: '#EEF2FF', dark_color: '#818CF8', dark_bg_color: '#3730A3',
+    prompt: ''
+  }
+};
+
+// ============================================================================
+// STATE
+// ============================================================================
+
+const DEFAULT_STATE = {
+  currentStep: 0,
+  completedSteps: [],
+  vision: { purpose: '', audience: '', outcomes: '' },
+  app: { title: '', subtitle: '', primary_color: '#7C3AED', logo_icon: '', footer_text: '' },
+  homepage: {
+    headline_prefix: '', headline_highlight: '', description: '',
+    features_title: '',
+    features: [
+      { title: '', description: '', icon: 'Users' },
+      { title: '', description: '', icon: 'Brain' },
+      { title: '', description: '', icon: 'Target' }
+    ]
+  },
+  login: {
+    subtitle: '', signup_subtitle: '',
+    academic_stages: [{ value: '', label: 'Select your stage' }]
+  },
+  chat_page: { placeholder: '', examples: [] },
+  personas: { base_prompt: DEFAULT_BASE_PROMPT, items: [] },
+  orchestrator: {
+    avatar: '',
+    vague_patterns: [...DEFAULT_VAGUE_PATTERNS],
+    min_words_without_keywords: 6,
+    specific_keywords: [],
+    clarification_questions: [],
+    clarification_suggestions: []
+  },
+  tech: {
+    database_name: '', gemini_model: 'gemini-2.0-flash',
+    ollama_model: 'llama3.2:1b', ollama_base_url: 'http://localhost:11434',
+    chroma_collection: ''
+  }
+};
+
+let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+
+function saveState() {
+  try { localStorage.setItem('advisor-wizard-state', JSON.stringify(state)); } catch(e) {}
+}
+const debouncedSave = debounce(saveState, 400);
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem('advisor-wizard-state');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      state = deepMerge(JSON.parse(JSON.stringify(DEFAULT_STATE)), parsed);
+    }
+  } catch(e) { console.warn('Could not load saved state'); }
+}
+
+function resetAll() {
+  if (!confirm('This will erase all your progress. Are you sure?')) return;
+  localStorage.removeItem('advisor-wizard-state');
+  state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+  render();
+}
+
+// ============================================================================
+// UTILITIES
+// ============================================================================
+
+function debounce(fn, ms) {
+  let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
+
+function deepMerge(target, source) {
+  for (const key of Object.keys(source)) {
+    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key]) && target[key]) {
+      target[key] = deepMerge(target[key], source[key]);
+    } else {
+      target[key] = source[key];
+    }
+  }
+  return target;
+}
+
+function setPath(obj, path, val) {
+  const p = path.split('.');
+  let cur = obj;
+  for (let i = 0; i < p.length - 1; i++) {
+    const k = /^\d+$/.test(p[i]) ? parseInt(p[i]) : p[i];
+    cur = cur[k];
+  }
+  const last = /^\d+$/.test(p[p.length-1]) ? parseInt(p[p.length-1]) : p[p.length-1];
+  cur[last] = val;
+}
+
+function getPath(obj, path) {
+  return path.split('.').reduce((o, k) => o == null ? undefined : o[/^\d+$/.test(k) ? parseInt(k) : k], obj);
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = String(s ?? ''); return d.innerHTML; }
+function slugify(s) { return (s||'').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''); }
+function isHex(s) { return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(s); }
+
+function lighten(hex, pct) {
+  let r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  r = Math.min(255, r + Math.round((255-r)*pct));
+  g = Math.min(255, g + Math.round((255-g)*pct));
+  b = Math.min(255, b + Math.round((255-b)*pct));
+  return '#' + [r,g,b].map(c => c.toString(16).padStart(2,'0')).join('');
+}
+function darken(hex, pct) {
+  let r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  r = Math.max(0, Math.round(r*(1-pct)));
+  g = Math.max(0, Math.round(g*(1-pct)));
+  b = Math.max(0, Math.round(b*(1-pct)));
+  return '#' + [r,g,b].map(c => c.toString(16).padStart(2,'0')).join('');
+}
+
+// ============================================================================
+// FORM HELPERS
+// ============================================================================
+
+function fieldHTML(label, bind, value, opts = {}) {
+  const type = opts.type || 'text';
+  const ph = opts.placeholder || '';
+  const helper = opts.helper || '';
+  const tag = opts.tag || 'input';
+  const extra = opts.extra || '';
+  let input;
+  if (tag === 'textarea') {
+    input = `<textarea data-bind="${bind}" placeholder="${esc(ph)}" rows="${opts.rows||3}" ${extra}>${esc(value||'')}</textarea>`;
+  } else if (tag === 'select') {
+    input = `<select data-bind="${bind}" ${extra}>${opts.options.map(o =>
+      `<option value="${esc(o.value)}" ${o.value===(value||'') ? 'selected':''}>${esc(o.label)}</option>`
+    ).join('')}</select>`;
+  } else {
+    input = `<input type="${type}" data-bind="${bind}" value="${esc(value||'')}" placeholder="${esc(ph)}" ${extra}>`;
+  }
+  return `<div class="field">${label ? `<label>${label}</label>` : ''}${input}${helper ? `<div class="helper">${helper}</div>` : ''}</div>`;
+}
+
+function colorFieldHTML(label, bind, value) {
+  const v = value || '#7C3AED';
+  return `<div class="field"><label>${label}</label>
+    <div class="color-field">
+      <input type="color" data-color-for="${bind}" value="${v}">
+      <input type="text" data-bind="${bind}" value="${esc(v)}" placeholder="#7C3AED" style="width:120px">
+      <div class="color-swatch" style="background:${v}"></div>
+    </div>
+    <div class="color-presets">${COLOR_PRESETS.map(c =>
+      `<div class="color-preset ${c===v?'active':''}" data-preset-for="${bind}" data-color="${c}" style="background:${c}" title="${c}"></div>`
+    ).join('')}</div>
+  </div>`;
+}
+
+function iconSelectHTML(label, bind, value) {
+  const options = [{value:'', label:'Choose an icon...'}].concat(ICON_OPTIONS.map(i => ({value:i, label:i})));
+  return fieldHTML(label, bind, value, {
+    tag: 'select', options,
+    helper: 'Browse icons at <a href="https://lucide.dev/icons" target="_blank" style="color:var(--primary)">lucide.dev/icons</a>'
+  });
+}
+
+// ============================================================================
+// STEP RENDERERS
+// ============================================================================
+
+function renderVision() {
+  return `<div class="step-header"><h2>What's the Big Picture?</h2>
+    <p>Let's start by understanding what your advisor application is all about. Your answers here will guide every choice that follows.</p></div>
+    <div class="info-box"><strong>Tip:</strong> Think about who will use this app and what they need most. Are you helping undergrads pick classes? Guiding employees through onboarding? Supporting patients with health decisions? The clearer your vision, the better the final product.</div>
+    ${fieldHTML('What is this advisor application for?', 'vision.purpose', state.vision.purpose, {
+      tag:'textarea', rows:4,
+      placeholder:'e.g. Help undergraduate students navigate their college experience, from choosing a major to preparing for careers after graduation.',
+      helper:'Describe the main goal of the application in 1-3 sentences.'
+    })}
+    ${fieldHTML('Who is your target audience?', 'vision.audience', state.vision.audience, {
+      placeholder:'e.g. Undergraduate students at a 4-year university',
+      helper:'Be specific — the more you know about your users, the better the guidance will be.'
+    })}
+    ${fieldHTML('What key outcomes should users get from this app?', 'vision.outcomes', state.vision.outcomes, {
+      tag:'textarea', rows:3,
+      placeholder:'e.g. Personalized academic planning, career guidance, study strategies, and mental health support',
+      helper:'List the main benefits or outcomes users should experience.'
+    })}`;
+}
+
+function renderBranding() {
+  const a = state.app, h = state.homepage;
+  return `<div class="step-header"><h2>Design Your Application</h2>
+    <p>Set the look, feel, and messaging. These choices shape the first impression for every user.</p></div>
+
+    <div class="step-section"><h3>App Identity</h3>
+    <div class="field-row">
+      ${fieldHTML('App Title', 'app.title', a.title, { placeholder:'e.g. Undergraduate Advisor Canvas' })}
+      ${fieldHTML('App Subtitle', 'app.subtitle', a.subtitle, { placeholder:'e.g. AI-Powered Guidance for Your College Journey' })}
+    </div>
+    ${colorFieldHTML('Primary Brand Color', 'app.primary_color', a.primary_color)}
+    <div class="field-row">
+      ${iconSelectHTML('Logo Icon (optional)', 'app.logo_icon', a.logo_icon)}
+      ${fieldHTML('Footer Text', 'app.footer_text', a.footer_text, { placeholder:'e.g. © 2025 University Name. All rights reserved.' })}
+    </div></div>
+
+    <div class="step-section"><h3>Homepage Content</h3>
+    <div class="info-box">The homepage headline displays as: "<strong>[Prefix] <span style="color:var(--primary)">[Highlight]</span></strong>". For example: "Navigate College with <span style="color:var(--primary)">Expert AI Advisors</span>"</div>
+    <div class="field-row">
+      ${fieldHTML('Headline Prefix', 'homepage.headline_prefix', h.headline_prefix, { placeholder:'e.g. Navigate College with' })}
+      ${fieldHTML('Headline Highlight', 'homepage.headline_highlight', h.headline_highlight, { placeholder:'e.g. Expert AI Advisors' })}
+    </div>
+    ${fieldHTML('Description', 'homepage.description', h.description, {
+      tag:'textarea', rows:3,
+      placeholder:'e.g. Get personalized guidance on academics, career planning, campus life, and more from a diverse panel of AI advisors.'
+    })}
+    ${fieldHTML('Features Section Title', 'homepage.features_title', h.features_title, { placeholder:'e.g. Why Use Our Advisor?' })}
+    </div>
+
+    <div class="step-section"><h3>Feature Cards (3 highlights for the homepage)</h3>
+    ${h.features.map((f,i) => `<div class="card expanded">
+      <div class="field-row">
+        ${fieldHTML('Title', 'homepage.features.'+i+'.title', f.title, {placeholder:'e.g. Well-Rounded Guidance'})}
+        ${iconSelectHTML('Icon', 'homepage.features.'+i+'.icon', f.icon)}
+      </div>
+      ${fieldHTML('Description', 'homepage.features.'+i+'.description', f.description, {placeholder:'e.g. Receive advice on academics, career, and well-being from specialized advisors'})}
+    </div>`).join('')}
+    </div>`;
+}
+
+function renderLogin() {
+  const l = state.login;
+  return `<div class="step-header"><h2>Configure User Onboarding</h2>
+    <p>Set up the login and sign-up experience. The "academic stages" define the dropdown menu users see when creating their account.</p></div>
+
+    <div class="field-row">
+      ${fieldHTML('Login Page Subtitle', 'login.subtitle', l.subtitle, { placeholder:'e.g. Sign in to continue your academic journey' })}
+      ${fieldHTML('Sign-up Page Subtitle', 'login.signup_subtitle', l.signup_subtitle, { placeholder:'e.g. Create your account to get personalized guidance' })}
+    </div>
+
+    <div class="step-section"><h3>Academic Stages / User Categories</h3>
+    <div class="info-box">The first item is typically a placeholder like "Select your stage" with an empty value. Each subsequent item needs a short <strong>value</strong> (used internally) and a <strong>label</strong> (shown to the user).</div>
+    <div id="stages-list">
+      ${l.academic_stages.map((s,i) => `<div class="dyn-list-item">
+        <input type="text" data-stage="${i}" data-field="value" value="${esc(s.value)}" placeholder="value (e.g. freshman)" style="width:35%">
+        <input type="text" data-stage="${i}" data-field="label" value="${esc(s.label)}" placeholder="label (e.g. Freshman - 1st Year)" style="flex:1">
+        ${i > 0 ? `<button class="btn btn-danger btn-sm btn-remove" data-remove-stage="${i}">Remove</button>` : ''}
+      </div>`).join('')}
+    </div>
+    <button class="btn-add" id="add-stage">+ Add Stage</button></div>`;
+}
+
+function renderChat() {
+  const c = state.chat_page;
+  return `<div class="step-header"><h2>Design the Chat Interface</h2>
+    <p>Configure the chat input placeholder and example prompt cards that help users get started with suggestions.</p></div>
+
+    ${fieldHTML('Chat Input Placeholder', 'chat_page.placeholder', c.placeholder, {
+      placeholder:'e.g. Ask your advisors anything about college life, classes, or career plans...'
+    })}
+
+    <div class="step-section"><h3>Example Prompt Cards</h3>
+    <div class="info-box">These cards appear above the chat input and give users quick conversation starters. Each card has a theme, 2–3 example prompts, and a color scheme. We recommend 3–4 cards.</div>
+    <div id="examples-list">
+      ${c.examples.map((ex,i) => renderExampleCard(ex, i)).join('')}
+    </div>
+    <button class="btn-add" id="add-example">+ Add Prompt Card</button>
+    </div>`;
+}
+
+function renderExampleCard(ex, i) {
+  return `<div class="card" data-example="${i}">
+    <div class="card-header" data-toggle-card="${i}">
+      <h4><span class="color-swatch" style="background:${ex.color||'#3B82F6'}"></span> ${esc(ex.title||'New Card')}</h4>
+      <span><button class="btn btn-danger btn-sm" data-remove-example="${i}">Remove</button> <button class="card-toggle" data-toggle-card="${i}">expand</button></span>
+    </div>
+    <div class="card-body">
+      <div class="field-row">
+        ${fieldHTML('Card Title', 'chat_page.examples.'+i+'.title', ex.title, {placeholder:'e.g. Academic Planning'})}
+        ${iconSelectHTML('Icon', 'chat_page.examples.'+i+'.icon', ex.icon)}
+      </div>
+      ${fieldHTML('Avatar Image', 'chat_page.examples.'+i+'.avatar', ex.avatar, {
+        placeholder:'e.g. academic_planner.png',
+        helper:'Filename of the avatar image in the <code>public/avatars/</code> folder. Leave blank for no avatar.'
+      })}
+      <div class="field-row">
+        ${colorFieldHTML('Text Color', 'chat_page.examples.'+i+'.color', ex.color)}
+        ${colorFieldHTML('Background Color', 'chat_page.examples.'+i+'.bg_color', ex.bg_color)}
+      </div>
+      <div class="field"><label>Suggestions (2–3 example prompts)</label>
+        <div class="suggestions-list" data-example-suggestions="${i}">
+          ${(ex.suggestions||[]).map((s,j) => `<div class="dyn-list-item">
+            <input type="text" data-sug-example="${i}" data-sug-idx="${j}" value="${esc(s)}" placeholder="e.g. How do I choose a major?">
+            <button class="btn btn-danger btn-sm" data-remove-sug="${i}-${j}">Remove</button>
+          </div>`).join('')}
+        </div>
+        <button class="btn-add btn-sm" data-add-sug="${i}" style="margin-top:6px">+ Add Suggestion</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderPersonas() {
+  const p = state.personas;
+  return `<div class="step-header"><h2>Create Your Advisor Personas</h2>
+    <p>This is the heart of your application. Each persona is an AI advisor with a unique personality, expertise, and communication style. We recommend 3–6 personas.</p></div>
+
+    <div class="step-section"><h3>Shared Base Prompt</h3>
+    <div class="info-box">This formatting instruction is added to every persona's prompt. It ensures all advisors produce consistently structured responses. You can customize it or keep the default.</div>
+    ${fieldHTML('', 'personas.base_prompt', p.base_prompt, {
+      tag:'textarea', rows:8,
+      placeholder:'Shared formatting rules for all personas...'
+    })}</div>
+
+    <div class="step-section"><h3>Add Personas from Templates</h3>
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:12px">Click a template to add a pre-configured persona, then customize it. Or choose "Custom" to start blank.</p>
+    <div class="template-grid">
+      ${Object.entries(PERSONA_TEMPLATES).map(([key, t]) => `<button class="template-btn" data-add-template="${key}">
+        <div class="t-name">${t.name || 'Custom (Blank)'}</div>
+        <div class="t-desc">${t.role || 'Start from scratch'}</div>
+      </button>`).join('')}
+    </div></div>
+
+    <div class="step-section"><h3>Your Personas (${p.items.length})</h3>
+    <div id="personas-list">
+      ${p.items.map((per, i) => renderPersonaCard(per, i)).join('')}
+      ${p.items.length === 0 ? '<p style="color:var(--muted);font-size:.88rem;padding:12px 0">No personas yet. Click a template above to get started.</p>' : ''}
+    </div></div>`;
+}
+
+function renderPersonaCard(per, i) {
+  const isLast = i === state.personas.items.length - 1;
+  return `<div class="card ${isLast ? 'expanded' : ''}" data-persona="${i}">
+    <div class="card-header" data-toggle-persona="${i}">
+      <h4><span class="color-swatch" style="background:${per.color||'#6366F1'}"></span> ${esc(per.name||'Unnamed Persona')} <span style="font-weight:400;color:var(--muted);font-size:.8rem">— ${esc(per.role||'No role')}</span></h4>
+      <span><button class="btn btn-danger btn-sm" data-remove-persona="${i}">Remove</button> <button class="card-toggle" data-toggle-persona="${i}">expand</button></span>
+    </div>
+    <div class="card-body">
+      <div class="field-row">
+        ${fieldHTML('Name', 'personas.items.'+i+'.name', per.name, {placeholder:'e.g. Academic Planner'})}
+        ${fieldHTML('Role', 'personas.items.'+i+'.role', per.role, {placeholder:'e.g. Course & Degree Planning Specialist'})}
+      </div>
+      <div class="field-row">
+        ${fieldHTML('Summary', 'personas.items.'+i+'.summary', per.summary, {placeholder:'e.g. Structured & Goal-oriented'})}
+        ${iconSelectHTML('Icon', 'personas.items.'+i+'.icon', per.icon)}
+      </div>
+      ${fieldHTML('Avatar Image', 'personas.items.'+i+'.avatar', per.avatar, {
+        placeholder:'e.g. academic_planner.png',
+        helper:'Filename of the avatar image in <code>phd-advisor-frontend/public/avatars/</code>. The image should be placed there by your technical team.'
+      })}
+      <div class="field"><label>Temperature (Creativity Level)</label>
+        <div class="temp-slider">
+          <input type="range" min="1" max="10" value="${per.temperature||5}" data-bind="personas.items.${i}.temperature" data-temp-slider="${i}">
+          <span class="temp-value" id="temp-val-${i}">${per.temperature||5}</span>
+        </div>
+        <div class="temp-labels"><span>1 — Focused &amp; Consistent</span><span>10 — Creative &amp; Varied</span></div>
+        <div class="helper">For factual advice, try 3–5. For creative or empathetic guidance, try 6–9.</div>
+      </div>
+      <div class="field-row">
+        ${colorFieldHTML('Color', 'personas.items.'+i+'.color', per.color)}
+        ${colorFieldHTML('Background', 'personas.items.'+i+'.bg_color', per.bg_color)}
+      </div>
+      <div class="field-row">
+        ${colorFieldHTML('Dark Mode Color', 'personas.items.'+i+'.dark_color', per.dark_color)}
+        ${colorFieldHTML('Dark Mode Background', 'personas.items.'+i+'.dark_bg_color', per.dark_bg_color)}
+      </div>
+      ${fieldHTML('Persona Prompt', 'personas.items.'+i+'.persona_prompt', per.persona_prompt, {
+        tag:'textarea', rows:14,
+        placeholder:'Describe this persona\'s expertise, response style, document handling, and interaction guidelines...',
+        helper:'This is the system prompt that defines how this AI persona behaves. Follow the template format with sections for Expertise, Response Style, Document Handling, and Interaction Guidelines.'
+      })}
+    </div>
+  </div>`;
+}
+
+function renderOrchestrator() {
+  const o = state.orchestrator;
+  return `<div class="step-header"><h2>Safety &amp; Orchestration</h2>
+    <p>Configure how the system handles vague or unclear messages. These settings help the app ask for clarification instead of giving unhelpful responses.</p></div>
+
+    <div class="info-box">These defaults work well for most applications. Only adjust them if you have specific needs. The vague patterns use regular expressions — if you're unsure, leave them as-is.</div>
+
+    ${fieldHTML('Orchestrator Avatar', 'orchestrator.avatar', o.avatar, {
+      placeholder:'e.g. orchestrator.png',
+      helper:'Avatar image shown when the system sends clarification messages. Filename in <code>public/avatars/</code>.'
+    })}
+
+    <div class="step-section"><h3>Domain-Specific Keywords</h3>
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:10px">Words that indicate a user's message is on-topic. If a message contains these keywords, the system won't ask for clarification.</p>
+    <div id="keywords-list">
+      ${o.specific_keywords.map((k,i) => `<div class="dyn-list-item">
+        <input type="text" data-keyword="${i}" value="${esc(k)}" placeholder="e.g. major, course, internship">
+        <button class="btn btn-danger btn-sm" data-remove-keyword="${i}">Remove</button>
+      </div>`).join('')}
+    </div>
+    <button class="btn-add" id="add-keyword">+ Add Keyword</button></div>
+
+    <div class="step-section"><h3>Clarification Questions</h3>
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:10px">When a message is vague, the system will ask one of these questions.</p>
+    <div id="clarq-list">
+      ${o.clarification_questions.map((q,i) => `<div class="dyn-list-item">
+        <input type="text" data-clarq="${i}" value="${esc(q)}" placeholder="e.g. What specific aspect would you like guidance on?">
+        <button class="btn btn-danger btn-sm" data-remove-clarq="${i}">Remove</button>
+      </div>`).join('')}
+    </div>
+    <button class="btn-add" id="add-clarq">+ Add Question</button></div>
+
+    <div class="step-section"><h3>Clarification Suggestions</h3>
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:10px">Quick-action buttons shown alongside clarification questions.</p>
+    <div id="clarsug-list">
+      ${o.clarification_suggestions.map((s,i) => `<div class="dyn-list-item">
+        <input type="text" data-clarsug="${i}" value="${esc(s)}" placeholder="e.g. Ask about choosing a major">
+        <button class="btn btn-danger btn-sm" data-remove-clarsug="${i}">Remove</button>
+      </div>`).join('')}
+    </div>
+    <button class="btn-add" id="add-clarsug">+ Add Suggestion</button></div>
+
+    ${fieldHTML('Min Words Without Keywords', 'orchestrator.min_words_without_keywords', o.min_words_without_keywords, {
+      type:'number', helper:'Minimum word count before clarification triggers (if no domain keywords are found). Default: 6.'
+    })}
+
+    <div class="step-section"><h3>Vague Message Patterns (Advanced)</h3>
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:10px">Regex patterns that trigger clarification. Only edit these if you know regular expressions.</p>
+    <div id="vague-list">
+      ${o.vague_patterns.map((p,i) => `<div class="dyn-list-item">
+        <input type="text" data-vague="${i}" value="${esc(p)}" style="font-family:monospace;font-size:.82rem">
+        <button class="btn btn-danger btn-sm" data-remove-vague="${i}">Remove</button>
+      </div>`).join('')}
+    </div>
+    <button class="btn-add" id="add-vague">+ Add Pattern</button></div>`;
+}
+
+function renderTech() {
+  const t = state.tech;
+  const dbName = t.database_name || slugify(state.app.title) || 'advisor_app';
+  const chromaName = t.chroma_collection || (slugify(state.app.title) ? slugify(state.app.title) + '_documents' : 'advisor_documents');
+  return `<div class="step-header"><h2>Technical Configuration</h2>
+    <p>These settings are pre-filled with sensible defaults. You typically don't need to change them — they'll be configured by your technical team.</p></div>
+
+    <div class="info-box warn-box"><strong>Note:</strong> API keys and connection strings are intentionally left blank. They should be set as environment variables on the server, not stored in the config file.</div>
+
+    <div class="step-section"><h3>Database</h3>
+    ${fieldHTML('Database Name', 'tech.database_name', t.database_name, {
+      placeholder: dbName,
+      helper:'Auto-derived from your app title. Used for MongoDB database name.'
+    })}</div>
+
+    <div class="step-section"><h3>AI Models</h3>
+    <div class="field-row">
+      ${fieldHTML('Gemini Model', 'tech.gemini_model', t.gemini_model, {
+        tag:'select',
+        options:[
+          {value:'gemini-2.0-flash', label:'gemini-2.0-flash (recommended)'},
+          {value:'gemini-1.5-pro', label:'gemini-1.5-pro'},
+          {value:'gemini-1.5-flash', label:'gemini-1.5-flash'},
+        ]
+      })}
+      ${fieldHTML('Ollama Model', 'tech.ollama_model', t.ollama_model, {
+        placeholder:'llama3.2:1b', helper:'Local model for offline use'
+      })}
+    </div>
+    ${fieldHTML('Ollama Base URL', 'tech.ollama_base_url', t.ollama_base_url, {
+      type:'url', placeholder:'http://localhost:11434'
+    })}</div>
+
+    <div class="step-section"><h3>RAG (Document Search)</h3>
+    ${fieldHTML('ChromaDB Collection Name', 'tech.chroma_collection', t.chroma_collection, {
+      placeholder: chromaName,
+      helper:'Auto-derived from your app title. Used for the vector database collection.'
+    })}</div>`;
+}
+
+function renderReview() {
+  const a = state.app, h = state.homepage, l = state.login, c = state.chat_page, p = state.personas, o = state.orchestrator, v = state.vision;
+  return `<div class="step-header"><h2>Review &amp; Download</h2>
+    <p>Here's a complete summary of your configuration. Review everything, then download your config file.</p></div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="summary">Summary</button>
+      <button class="tab-btn" data-tab="yaml">YAML Preview</button>
+    </div>
+
+    <div class="tab-content active" id="tab-summary">
+      ${v.purpose ? `<div class="review-section"><h4>Project Vision</h4>
+        <div class="review-item"><span class="review-label">Purpose</span><span class="review-value">${esc(v.purpose)}</span></div>
+        <div class="review-item"><span class="review-label">Audience</span><span class="review-value">${esc(v.audience)}</span></div>
+        <div class="review-item"><span class="review-label">Outcomes</span><span class="review-value">${esc(v.outcomes)}</span></div>
+      </div>` : ''}
+
+      <div class="review-section"><h4>Branding &amp; UI</h4>
+        <div class="review-item"><span class="review-label">Title</span><span class="review-value">${esc(a.title)||'<em style="color:var(--muted)">Not set</em>'}</span></div>
+        <div class="review-item"><span class="review-label">Subtitle</span><span class="review-value">${esc(a.subtitle)||'<em style="color:var(--muted)">Not set</em>'}</span></div>
+        <div class="review-item"><span class="review-label">Primary Color</span><span class="review-value"><span class="color-swatch" style="background:${a.primary_color};display:inline-block;vertical-align:middle;margin-right:6px"></span>${a.primary_color}</span></div>
+        <div class="review-item"><span class="review-label">Headline</span><span class="review-value">${esc(h.headline_prefix)} <strong style="color:${a.primary_color}">${esc(h.headline_highlight)}</strong></span></div>
+        <div class="review-item"><span class="review-label">Features</span><span class="review-value">${h.features.filter(f=>f.title).map(f=>'• '+esc(f.title)).join('<br>')}</span></div>
+      </div>
+
+      <div class="review-section"><h4>User Stages</h4>
+        ${l.academic_stages.filter(s=>s.label&&s.label!=='Select your stage').map(s =>
+          `<div class="review-item"><span class="review-label" style="min-width:100px">${esc(s.value)}</span><span class="review-value">${esc(s.label)}</span></div>`
+        ).join('')}
+      </div>
+
+      <div class="review-section"><h4>Chat Experience</h4>
+        <div class="review-item"><span class="review-label">Placeholder</span><span class="review-value">${esc(c.placeholder)||'<em style="color:var(--muted)">Not set</em>'}</span></div>
+        <div class="review-item"><span class="review-label">Prompt Cards</span><span class="review-value">${c.examples.length} card(s): ${c.examples.map(e=>esc(e.title||'Untitled')).join(', ')}</span></div>
+      </div>
+
+      <div class="review-section"><h4>Personas (${p.items.length})</h4>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          ${p.items.map(per => `<span class="persona-chip" style="background:${per.bg_color||'#EEF2FF'};color:${per.color||'#6366F1'}">${esc(per.name||'Unnamed')}</span>`).join('')}
+        </div>
+        ${p.items.map(per => `<div class="review-item" style="margin-top:6px">
+          <span class="review-label">${esc(per.name)}</span>
+          <span class="review-value">${esc(per.role)} — Temp: ${per.temperature}/10</span>
+        </div>`).join('')}
+      </div>
+
+      <div class="review-section"><h4>Orchestration</h4>
+        <div class="review-item"><span class="review-label">Keywords</span><span class="review-value">${o.specific_keywords.length} keyword(s)</span></div>
+        <div class="review-item"><span class="review-label">Clarification Qs</span><span class="review-value">${o.clarification_questions.length} question(s)</span></div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-yaml">
+      <div style="position:relative">
+        <button class="copy-btn" onclick="copyYAML()">Copy to clipboard</button>
+        <pre class="yaml-preview" id="yaml-output">${escapeYAMLForHTML(generateYAML())}</pre>
+      </div>
+    </div>
+
+    <div class="download-area">
+      <p>Your configuration file is ready!</p>
+      <button class="btn btn-primary btn-lg" onclick="downloadYAML()">Download config.yaml</button>
+      <p style="margin-top:12px;font-size:.78rem">Give this file to your technical team, or use Cursor to create a new repository on GitHub.</p>
+    </div>`;
+}
+
+function escapeYAMLForHTML(yaml) {
+  return esc(yaml);
+}
+
+// ============================================================================
+// YAML GENERATOR
+// ============================================================================
+
+function generateYAML() {
+  const s = state;
+  const q = v => `"${(v||'').replace(/\\/g,'\\\\').replace(/"/g,'\\"')}"`;
+  const dbName = s.tech.database_name || slugify(s.app.title) || 'advisor_app';
+  const chromaName = s.tech.chroma_collection || (slugify(s.app.title) ? slugify(s.app.title) + '_documents' : 'advisor_documents');
+
+  function blockStr(text, indent) {
+    if (!text) return '""';
+    const pad = ' '.repeat(indent);
+    return '|\n' + text.split('\n').map(l => pad + l).join('\n');
+  }
+
+  function foldedStr(text, indent) {
+    if (!text) return '""';
+    const pad = ' '.repeat(indent);
+    const words = text.replace(/\n/g,' ').split(/\s+/);
+    let lines = []; let cur = '';
+    for (const w of words) {
+      if (cur && (cur.length + w.length + 1) > 76) { lines.push(pad + cur); cur = w; }
+      else { cur = cur ? cur + ' ' + w : w; }
+    }
+    if (cur) lines.push(pad + cur);
+    return '>-\n' + lines.join('\n');
+  }
+
+  let y = '';
+  y += '# ============================================================================\n';
+  y += `# ${s.app.title || 'Advisor Canvas'} \u2014 Application Configuration\n`;
+  y += '# ============================================================================\n';
+  y += '# Edit this single file to create a new advisor application.\n';
+  y += '# Restart the backend after making changes.\n';
+  y += '#\n';
+  y += `# Colors use hex format (e.g. "${s.app.primary_color || '#7C3AED'}").\n`;
+  y += '# Icons use Lucide icon names (see https://lucide.dev/icons).\n';
+  y += '# Avatars are image filenames in phd-advisor-frontend/public/avatars/.\n';
+  y += '# ============================================================================\n\n';
+
+  y += '# \u2500\u2500 Branding & UI \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n';
+  y += 'app:\n';
+  y += `  title: ${q(s.app.title)}\n`;
+  y += `  subtitle: ${q(s.app.subtitle)}\n`;
+  y += `  primary_color: ${q(s.app.primary_color)}\n`;
+  if (s.app.logo_icon) y += `  logo_icon: ${q(s.app.logo_icon)}\n`;
+  y += `  footer_text: ${q(s.app.footer_text)}\n\n`;
+
+  y += 'homepage:\n';
+  y += `  headline_prefix: ${q(s.homepage.headline_prefix)}\n`;
+  y += `  headline_highlight: ${q(s.homepage.headline_highlight)}\n`;
+  y += `  description: ${foldedStr(s.homepage.description, 4)}\n`;
+  y += `  features_title: ${q(s.homepage.features_title)}\n`;
+  y += '  features:\n';
+  for (const f of s.homepage.features) {
+    y += `    - title: ${q(f.title)}\n`;
+    y += `      description: ${q(f.description)}\n`;
+    y += `      icon: ${q(f.icon)}\n`;
+  }
+  y += '\n';
+
+  y += 'login:\n';
+  y += `  subtitle: ${q(s.login.subtitle)}\n`;
+  y += `  signup_subtitle: ${q(s.login.signup_subtitle)}\n`;
+  y += '  academic_stages:\n';
+  for (const st of s.login.academic_stages) {
+    y += `    - { value: ${q(st.value)}, label: ${q(st.label)} }\n`;
+  }
+  y += '\n';
+
+  y += 'chat_page:\n';
+  y += `  placeholder: ${q(s.chat_page.placeholder)}\n`;
+  y += '  examples:\n';
+  for (const ex of s.chat_page.examples) {
+    y += `    - title: ${q(ex.title)}\n`;
+    y += `      icon: ${q(ex.icon)}\n`;
+    if (ex.avatar) y += `      avatar: ${q(ex.avatar)}\n`;
+    y += `      color: ${q(ex.color)}\n`;
+    y += `      bg_color: ${q(ex.bg_color)}\n`;
+    y += '      suggestions:\n';
+    for (const sg of (ex.suggestions||[])) {
+      y += `        - ${q(sg)}\n`;
+    }
+  }
+  y += '\n';
+
+  y += '# \u2500\u2500 Personas \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n';
+  y += 'personas:\n';
+  y += `  base_prompt: ${blockStr(s.personas.base_prompt, 4)}\n\n`;
+  y += '  items:\n';
+  for (const p of s.personas.items) {
+    const pid = p.id || slugify(p.name) || 'persona';
+    y += `    - id: ${pid}\n`;
+    y += `      name: ${q(p.name)}\n`;
+    y += `      role: ${q(p.role)}\n`;
+    y += `      summary: ${q(p.summary)}\n`;
+    y += `      color: ${q(p.color)}\n`;
+    y += `      bg_color: ${q(p.bg_color)}\n`;
+    y += `      dark_color: ${q(p.dark_color)}\n`;
+    y += `      dark_bg_color: ${q(p.dark_bg_color)}\n`;
+    y += `      icon: ${q(p.icon)}\n`;
+    if (p.avatar) y += `      avatar: ${q(p.avatar)}\n`;
+    y += `      temperature: ${p.temperature||5}\n`;
+    y += `      persona_prompt: ${blockStr(p.persona_prompt, 8)}\n\n`;
+  }
+
+  y += '# \u2500\u2500 Orchestrator / Clarification \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n';
+  y += 'orchestrator:\n';
+  if (s.orchestrator.avatar) y += `  avatar: ${q(s.orchestrator.avatar)}\n`;
+  y += '  vague_patterns:\n';
+  for (const vp of s.orchestrator.vague_patterns) y += `    - ${q(vp)}\n`;
+  y += '\n';
+  y += `  min_words_without_keywords: ${s.orchestrator.min_words_without_keywords}\n\n`;
+  y += '  specific_keywords:\n';
+  for (const kw of s.orchestrator.specific_keywords) y += `    - ${q(kw)}\n`;
+  y += '\n';
+  y += '  clarification_questions:\n';
+  for (const cq of s.orchestrator.clarification_questions) y += `    - ${q(cq)}\n`;
+  y += '\n';
+  y += '  clarification_suggestions:\n';
+  for (const cs of s.orchestrator.clarification_suggestions) y += `    - ${q(cs)}\n`;
+  y += '\n';
+
+  y += '# \u2500\u2500 Backend Settings (private \u2014 never sent to frontend) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n';
+  y += 'auth:\n';
+  y += '  jwt_secret: ""    # Falls back to JWT_SECRET_KEY env var\n';
+  y += '  algorithm: "HS256"\n';
+  y += '  token_expiry_minutes: 43200    # 30 days\n\n';
+  y += 'mongodb:\n';
+  y += '  connection_string: ""    # Falls back to MONGODB_CONNECTION_STRING env var\n';
+  y += `  database_name: ${q(dbName)}\n\n`;
+  y += 'llm:\n';
+  y += '  gemini:\n';
+  y += '    api_key: ""    # Falls back to GEMINI_API_KEY env var\n';
+  y += `    model: ${q(s.tech.gemini_model)}\n`;
+  y += '  ollama:\n';
+  y += `    model: ${q(s.tech.ollama_model)}\n`;
+  y += `    base_url: ${q(s.tech.ollama_base_url)}\n\n`;
+  y += 'rag:\n';
+  y += '  embedding_model: "all-MiniLM-L6-v2"\n';
+  y += `  chroma_collection: ${q(chromaName)}\n`;
+
+  return y;
+}
+
+function downloadYAML() {
+  const yaml = generateYAML();
+  const blob = new Blob([yaml], { type: 'text/yaml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'config.yaml';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function copyYAML() {
+  const yaml = generateYAML();
+  navigator.clipboard.writeText(yaml).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy to clipboard'; }, 2000);
+  });
+}
+
+// ============================================================================
+// VALIDATION
+// ============================================================================
+
+function validateStep(idx) {
+  const msgs = [];
+  switch(idx) {
+    case 0: break;
+    case 1:
+      if (!state.app.title.trim()) msgs.push('App title is required.');
+      if (!isHex(state.app.primary_color)) msgs.push('Primary color must be a valid hex color (e.g. #7C3AED).');
+      break;
+    case 2: break;
+    case 3: break;
+    case 4: break;
+    case 5:
+      if (state.personas.items.length === 0) msgs.push('Add at least one persona to continue.');
+      for (const p of state.personas.items) {
+        if (!p.name.trim()) msgs.push('Each persona needs a name.');
+        if (!p.persona_prompt.trim()) msgs.push(`Persona "${p.name||'Unnamed'}" needs a prompt.`);
+        if (p.temperature < 1 || p.temperature > 10) msgs.push(`Temperature for "${p.name}" must be 1-10.`);
+      }
+      break;
+    case 6: break;
+    case 7: break;
+  }
+  return msgs;
+}
+
+// ============================================================================
+// NAVIGATION & RENDERING
+// ============================================================================
+
+const RENDERERS = [renderVision, renderBranding, renderLogin, renderChat, renderPersonas, renderOrchestrator, renderTech, renderReview];
+
+function render() {
+  updateSidebar();
+  updateProgress();
+  renderCurrentStep();
+  updateNavButtons();
+}
+
+function renderCurrentStep() {
+  const container = document.getElementById('step-content');
+  container.innerHTML = `<div class="fade-in">${RENDERERS[state.currentStep]()}</div>`;
+  bindEvents();
+  hideValidation();
+}
+
+function updateSidebar() {
+  const nav = document.getElementById('step-nav');
+  nav.innerHTML = STEPS.map((s, i) => {
+    const cls = ['step-item'];
+    if (i === state.currentStep) cls.push('current');
+    if (state.completedSteps.includes(i)) cls.push('completed');
+    return `<div class="${cls.join(' ')}" data-go-step="${i}">
+      <div class="step-num">${state.completedSteps.includes(i) ? '&#10003;' : s.num}</div>
+      <span>${s.title}</span>
+    </div>`;
+  }).join('');
+
+  const mobileSelect = document.getElementById('mobile-step-select');
+  if (mobileSelect) {
+    mobileSelect.innerHTML = STEPS.map((s, i) => {
+      const check = state.completedSteps.includes(i) ? ' \u2713' : '';
+      return `<option value="${i}" ${i===state.currentStep?'selected':''}>${s.num}. ${s.title}${check}</option>`;
+    }).join('');
+  }
+}
+
+function updateProgress() {
+  const pct = Math.round(((state.currentStep) / (STEPS.length - 1)) * 100);
+  document.getElementById('progress-bar').style.width = pct + '%';
+  document.getElementById('step-indicator').textContent = `Step ${state.currentStep + 1} of ${STEPS.length}`;
+}
+
+function updateNavButtons() {
+  document.getElementById('btn-prev').style.visibility = state.currentStep === 0 ? 'hidden' : 'visible';
+  const nextBtn = document.getElementById('btn-next');
+  if (state.currentStep === STEPS.length - 1) {
+    nextBtn.style.display = 'none';
+  } else {
+    nextBtn.style.display = '';
+    nextBtn.textContent = 'Next \u2192';
+  }
+}
+
+function goToStep(idx) {
+  if (idx < 0 || idx >= STEPS.length) return;
+  collectCurrentStepData();
+  state.currentStep = idx;
+  saveState();
+  render();
+  document.getElementById('step-content').scrollTop = 0;
+  window.scrollTo(0, 0);
+}
+
+function nextStep() {
+  collectCurrentStepData();
+  const errors = validateStep(state.currentStep);
+  if (errors.length > 0) { showValidation(errors); return; }
+  if (!state.completedSteps.includes(state.currentStep)) state.completedSteps.push(state.currentStep);
+  goToStep(state.currentStep + 1);
+}
+
+function prevStep() {
+  collectCurrentStepData();
+  goToStep(state.currentStep - 1);
+}
+
+function showValidation(msgs) {
+  const el = document.getElementById('validation-msg');
+  el.innerHTML = msgs.map(m => `&#9888; ${esc(m)}`).join('<br>');
+  el.classList.add('show');
+}
+
+function hideValidation() {
+  document.getElementById('validation-msg').classList.remove('show');
+}
+
+function collectCurrentStepData() {}
+
+// ============================================================================
+// EVENT BINDING
+// ============================================================================
+
+function bindEvents() {
+  document.querySelectorAll('[data-bind]').forEach(el => {
+    const path = el.dataset.bind;
+    const evtType = el.tagName === 'SELECT' ? 'change' : 'input';
+    el.addEventListener(evtType, e => {
+      let val = e.target.value;
+      if (el.type === 'number' || el.type === 'range') val = parseInt(val) || 0;
+      setPath(state, path, val);
+      debouncedSave();
+
+      if (el.type === 'range' && el.dataset.tempSlider !== undefined) {
+        const idx = el.dataset.tempSlider;
+        const display = document.getElementById('temp-val-' + idx);
+        if (display) display.textContent = val;
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-color-for]').forEach(el => {
+    el.addEventListener('input', e => {
+      const bind = el.dataset.colorFor;
+      const textInput = document.querySelector(`[data-bind="${bind}"]`);
+      if (textInput) { textInput.value = e.target.value; textInput.dispatchEvent(new Event('input')); }
+      const swatch = el.parentElement.querySelector('.color-swatch');
+      if (swatch) swatch.style.background = e.target.value;
+    });
+  });
+
+  document.querySelectorAll('[data-preset-for]').forEach(el => {
+    el.addEventListener('click', () => {
+      const bind = el.dataset.presetFor;
+      const color = el.dataset.color;
+      setPath(state, bind, color);
+      const textInput = document.querySelector(`[data-bind="${bind}"]`);
+      if (textInput) textInput.value = color;
+      const colorInput = document.querySelector(`[data-color-for="${bind}"]`);
+      if (colorInput) colorInput.value = color;
+      const swatch = el.closest('.field').querySelector('.color-swatch');
+      if (swatch) swatch.style.background = color;
+      el.closest('.color-presets').querySelectorAll('.color-preset').forEach(p => p.classList.remove('active'));
+      el.classList.add('active');
+      debouncedSave();
+    });
+  });
+
+  bindDynamicLists();
+  bindCardToggles();
+  bindPersonaTemplates();
+  bindTabSwitching();
+}
+
+function bindDynamicLists() {
+  const addStage = document.getElementById('add-stage');
+  if (addStage) addStage.onclick = () => {
+    state.login.academic_stages.push({ value: '', label: '' });
+    saveState(); renderCurrentStep();
+  };
+
+  document.querySelectorAll('[data-remove-stage]').forEach(el => {
+    el.onclick = () => {
+      state.login.academic_stages.splice(parseInt(el.dataset.removeStage), 1);
+      saveState(); renderCurrentStep();
+    };
+  });
+
+  document.querySelectorAll('[data-stage]').forEach(el => {
+    el.addEventListener('input', e => {
+      const idx = parseInt(el.dataset.stage);
+      const field = el.dataset.field;
+      state.login.academic_stages[idx][field] = e.target.value;
+      debouncedSave();
+    });
+  });
+
+  const addExample = document.getElementById('add-example');
+  if (addExample) addExample.onclick = () => {
+    state.chat_page.examples.push({
+      title: '', icon: 'BookOpen', avatar: '', color: '#3B82F6', bg_color: '#EFF6FF', suggestions: ['']
+    });
+    saveState(); renderCurrentStep();
+  };
+
+  document.querySelectorAll('[data-remove-example]').forEach(el => {
+    el.onclick = e => {
+      e.stopPropagation();
+      state.chat_page.examples.splice(parseInt(el.dataset.removeExample), 1);
+      saveState(); renderCurrentStep();
+    };
+  });
+
+  document.querySelectorAll('[data-add-sug]').forEach(el => {
+    el.onclick = () => {
+      const idx = parseInt(el.dataset.addSug);
+      state.chat_page.examples[idx].suggestions.push('');
+      saveState(); renderCurrentStep();
+    };
+  });
+
+  document.querySelectorAll('[data-remove-sug]').forEach(el => {
+    el.onclick = () => {
+      const [exIdx, sugIdx] = el.dataset.removeSug.split('-').map(Number);
+      state.chat_page.examples[exIdx].suggestions.splice(sugIdx, 1);
+      saveState(); renderCurrentStep();
+    };
+  });
+
+  document.querySelectorAll('[data-sug-example]').forEach(el => {
+    el.addEventListener('input', e => {
+      const exIdx = parseInt(el.dataset.sugExample);
+      const sugIdx = parseInt(el.dataset.sugIdx);
+      state.chat_page.examples[exIdx].suggestions[sugIdx] = e.target.value;
+      debouncedSave();
+    });
+  });
+
+  const addKeyword = document.getElementById('add-keyword');
+  if (addKeyword) addKeyword.onclick = () => {
+    state.orchestrator.specific_keywords.push('');
+    saveState(); renderCurrentStep();
+  };
+
+  document.querySelectorAll('[data-remove-keyword]').forEach(el => {
+    el.onclick = () => {
+      state.orchestrator.specific_keywords.splice(parseInt(el.dataset.removeKeyword), 1);
+      saveState(); renderCurrentStep();
+    };
+  });
+
+  document.querySelectorAll('[data-keyword]').forEach(el => {
+    el.addEventListener('input', e => {
+      state.orchestrator.specific_keywords[parseInt(el.dataset.keyword)] = e.target.value;
+      debouncedSave();
+    });
+  });
+
+  const addClarq = document.getElementById('add-clarq');
+  if (addClarq) addClarq.onclick = () => {
+    state.orchestrator.clarification_questions.push('');
+    saveState(); renderCurrentStep();
+  };
+  document.querySelectorAll('[data-remove-clarq]').forEach(el => {
+    el.onclick = () => {
+      state.orchestrator.clarification_questions.splice(parseInt(el.dataset.removeClarq), 1);
+      saveState(); renderCurrentStep();
+    };
+  });
+  document.querySelectorAll('[data-clarq]').forEach(el => {
+    el.addEventListener('input', e => {
+      state.orchestrator.clarification_questions[parseInt(el.dataset.clarq)] = e.target.value;
+      debouncedSave();
+    });
+  });
+
+  const addClarsug = document.getElementById('add-clarsug');
+  if (addClarsug) addClarsug.onclick = () => {
+    state.orchestrator.clarification_suggestions.push('');
+    saveState(); renderCurrentStep();
+  };
+  document.querySelectorAll('[data-remove-clarsug]').forEach(el => {
+    el.onclick = () => {
+      state.orchestrator.clarification_suggestions.splice(parseInt(el.dataset.removeClarsug), 1);
+      saveState(); renderCurrentStep();
+    };
+  });
+  document.querySelectorAll('[data-clarsug]').forEach(el => {
+    el.addEventListener('input', e => {
+      state.orchestrator.clarification_suggestions[parseInt(el.dataset.clarsug)] = e.target.value;
+      debouncedSave();
+    });
+  });
+
+  const addVague = document.getElementById('add-vague');
+  if (addVague) addVague.onclick = () => {
+    state.orchestrator.vague_patterns.push('');
+    saveState(); renderCurrentStep();
+  };
+  document.querySelectorAll('[data-remove-vague]').forEach(el => {
+    el.onclick = () => {
+      state.orchestrator.vague_patterns.splice(parseInt(el.dataset.removeVague), 1);
+      saveState(); renderCurrentStep();
+    };
+  });
+  document.querySelectorAll('[data-vague]').forEach(el => {
+    el.addEventListener('input', e => {
+      state.orchestrator.vague_patterns[parseInt(el.dataset.vague)] = e.target.value;
+      debouncedSave();
+    });
+  });
+
+  document.querySelectorAll('[data-remove-persona]').forEach(el => {
+    el.onclick = e => {
+      e.stopPropagation();
+      const idx = parseInt(el.dataset.removePersona);
+      if (confirm(`Remove persona "${state.personas.items[idx].name||'Unnamed'}"?`)) {
+        state.personas.items.splice(idx, 1);
+        saveState(); renderCurrentStep();
+      }
+    };
+  });
+}
+
+function bindCardToggles() {
+  document.querySelectorAll('[data-toggle-card]').forEach(el => {
+    el.addEventListener('click', e => {
+      if (e.target.closest('.btn-danger') || e.target.closest('.btn-remove')) return;
+      const card = el.closest('.card');
+      card.classList.toggle('expanded');
+    });
+  });
+  document.querySelectorAll('[data-toggle-persona]').forEach(el => {
+    el.addEventListener('click', e => {
+      if (e.target.closest('.btn-danger')) return;
+      const card = el.closest('.card');
+      card.classList.toggle('expanded');
+    });
+  });
+}
+
+function bindPersonaTemplates() {
+  document.querySelectorAll('[data-add-template]').forEach(el => {
+    el.onclick = () => {
+      const key = el.dataset.addTemplate;
+      const t = PERSONA_TEMPLATES[key];
+      const persona = {
+        id: slugify(t.name) || 'persona_' + (state.personas.items.length + 1),
+        name: t.name, role: t.role, summary: t.summary, icon: t.icon,
+        avatar: t.avatar || '',
+        temperature: t.temperature, color: t.color, bg_color: t.bg_color,
+        dark_color: t.dark_color, dark_bg_color: t.dark_bg_color,
+        persona_prompt: t.prompt
+      };
+      state.personas.items.push(persona);
+      saveState(); renderCurrentStep();
+    };
+  });
+}
+
+function bindTabSwitching() {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      if (btn.dataset.tab === 'yaml') {
+        document.getElementById('yaml-output').textContent = generateYAML();
+      }
+    });
+  });
+}
+
+document.getElementById('step-nav').addEventListener('click', e => {
+  const item = e.target.closest('[data-go-step]');
+  if (item) goToStep(parseInt(item.dataset.goStep));
+});
+
+// ============================================================================
+// INIT
+// ============================================================================
+
+loadState();
+render();
+</script>
+</body>
+</html>
