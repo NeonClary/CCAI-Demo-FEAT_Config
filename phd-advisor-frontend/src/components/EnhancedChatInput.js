@@ -16,6 +16,8 @@ const EnhancedChatInput = ({
   const [showDocuments, setShowDocuments] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const textareaRef = useRef(null);
+  const uploadRef = useRef(null);
+  const uploadBtnRef = useRef(null);
 
   const handleSend = () => {
     if (!inputMessage.trim() || isLoading || isUploading) return;
@@ -67,6 +69,21 @@ const EnhancedChatInput = ({
     }
   }, [inputMessage]);
 
+  // Close upload panel when clicking outside
+  useEffect(() => {
+    if (!showUpload) return;
+    const handleClickOutside = (e) => {
+      if (
+        uploadRef.current && !uploadRef.current.contains(e.target) &&
+        uploadBtnRef.current && !uploadBtnRef.current.contains(e.target)
+      ) {
+        setShowUpload(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showUpload]);
+
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -98,7 +115,7 @@ const EnhancedChatInput = ({
     <div className="enhanced-chat-input-container">
       {/* File Upload Area */}
       {showUpload && (
-        <div className="floating-upload-section">
+        <div className="floating-upload-section" ref={uploadRef}>
           <FileUpload 
             onFileUploaded={handleFileUploaded}
             isUploading={isUploading}
@@ -184,6 +201,7 @@ const EnhancedChatInput = ({
           {/* Left - File Controls */}
           <div className="file-controls">
             <button
+              ref={uploadBtnRef}
               onClick={toggleUpload}
               className={`add-docs-btn ${showUpload ? 'active' : ''}`}
               disabled={isUploading}

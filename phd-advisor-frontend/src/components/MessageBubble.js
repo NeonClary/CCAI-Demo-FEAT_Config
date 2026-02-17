@@ -19,6 +19,7 @@ const MessageBubble = ({
   const [copiedStates, setCopiedStates] = useState({});
   const [showInfoOverlay, setShowInfoOverlay] = useState(false);
   const overlayRef = useRef(null);
+  const tooltipTimer = useRef(null);
 
   const handleCopy = async (messageId, content) => {
     try {
@@ -42,10 +43,14 @@ const MessageBubble = ({
   };
 
   const showTooltipWithDelay = (tooltipType) => {
-    setTimeout(() => setShowTooltip(tooltipType), 500);
+    clearTimeout(tooltipTimer.current);
+    tooltipTimer.current = setTimeout(() => setShowTooltip(tooltipType), 500);
   };
 
-  const hideTooltip = () => setShowTooltip(null);
+  const hideTooltip = () => {
+    clearTimeout(tooltipTimer.current);
+    setShowTooltip(null);
+  };
 
   // Close overlay when clicking outside
   useEffect(() => {
@@ -357,7 +362,7 @@ const MessageBubble = ({
                     <Maximize2 size={14} />
                   </button>
                   {showTooltip === 'expand' && (
-                    <div className="tooltip">Expand</div>
+                    <div className="tooltip">More</div>
                   )}
                 </div>
 
