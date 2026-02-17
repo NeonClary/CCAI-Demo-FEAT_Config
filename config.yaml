@@ -12,7 +12,7 @@
 # -- Branding & UI -----------------------------------------------------------
 
 app:
-  title: "Undergraduate Advisor Canvas"
+  title: "CU Undergraduate Advisor Canvas"
   subtitle: "AI-Powered Guidance for Your College Journey"
   primary_color: "#2563EB"
   logo_icon: "GraduationCap"
@@ -25,7 +25,7 @@ homepage:
     Get personalized guidance on academics, career planning, campus life, and
     more from a diverse panel of AI advisors -- each with a unique perspective
     to help you thrive as an undergraduate.
-  features_title: "Why Use Undergraduate Advisor Canvas?"
+  features_title: "Why Use CU Undergraduate Advisor Canvas?"
   features:
     - title: "Well-Rounded Guidance"
       description: "Receive advice on academics, career, well-being, and campus involvement from specialized advisors"

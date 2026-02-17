@@ -86,7 +86,10 @@ const HomePage = ({ onNavigateToChat, isAuthenticated }) => {
               <img src="/neon-logo.png" alt="" className="footer-neon-logo" />
               Neon.ai
             </a>
-            , portions copyright University of Colorado Boulder. All rights reserved.
+            , portions copyright University of Colorado Boulder. All rights reserved.{' '}
+            <a href="https://www.neon.ai/contact" target="_blank" rel="noopener noreferrer" className="footer-patents-link">
+              Patents and licensing.
+            </a>
           </p>
         </div>
       </footer>

@@ -511,6 +511,21 @@ const CanvasPage = ({ user, authToken, onNavigateToChat, onSignOut }) => {
         )}
       </div>
 
+      {/* Copyright Footer */}
+      <footer className="canvas-copyright-footer">
+        <p className="footer-text">
+          Copyright{' '}
+          <a href="https://neon.ai" target="_blank" rel="noopener noreferrer" className="footer-neon-link">
+            <img src="/neon-logo.png" alt="" className="footer-neon-logo" />
+            Neon.ai
+          </a>
+          , portions copyright University of Colorado Boulder. All rights reserved.{' '}
+          <a href="https://www.neon.ai/contact" target="_blank" rel="noopener noreferrer" className="footer-patents-link">
+            Patents and licensing.
+          </a>
+        </p>
+      </footer>
+
       {/* Print Footer */}
       {isPrintView && (
         <div className="print-footer">

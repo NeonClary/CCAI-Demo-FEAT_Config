@@ -569,3 +569,11 @@
     min-width: auto;
   }
 }
+
+/* Canvas Copyright Footer */
+.canvas-copyright-footer {
+  padding: 24px;
+  text-align: center;
+  border-top: 1px solid var(--border-light, #e5e7eb);
+  margin-top: 32px;
+}

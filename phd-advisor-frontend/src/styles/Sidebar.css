@@ -604,7 +604,7 @@
 .sidebar-neon-link {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
   color: var(--text-primary, #111827);
   text-decoration: none;
@@ -625,6 +625,26 @@
   height: 1em;
   width: auto;
   flex-shrink: 0;
+}
+
+.sidebar-copyright-text {
+  margin: 8px 0 0 0;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-secondary, #6b7280);
+}
+
+.dark .sidebar-copyright-text {
+  color: var(--text-secondary-dark, #9ca3af);
+}
+
+.sidebar-patents-link {
+  color: var(--text-secondary, #6b7280);
+  text-decoration: underline;
+}
+
+.dark .sidebar-patents-link {
+  color: var(--text-secondary-dark, #9ca3af);
 }
 
 .sidebar-footer.collapsed .sidebar-neon-link {

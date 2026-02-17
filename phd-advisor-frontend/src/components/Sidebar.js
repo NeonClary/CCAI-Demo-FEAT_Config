@@ -350,6 +350,14 @@ const Sidebar = ({
             <img src="/neon-logo.png" alt="" className="sidebar-neon-logo" />
             {!isCollapsed && <span className="sidebar-neon-text">Neon.ai</span>}
           </a>
+          {!isCollapsed && (
+            <p className="sidebar-copyright-text">
+              Copyright Neon.ai, portions copyright University of Colorado Boulder. All rights reserved.{' '}
+              <a href="https://www.neon.ai/contact" target="_blank" rel="noopener noreferrer" className="sidebar-patents-link">
+                Patents and licensing.
+              </a>
+            </p>
+          )}
         </div>
       </div>
       
