@@ -12,7 +12,7 @@ services:
       - database
     environment:
       MONGODB_CONNECTION_STRING: "mongodb://database:27017"
-      MONGODB_DATABASE: phd_advisor
+      MONGODB_DATABASE: undergrad_advisor
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-CHANGEME-by-overriding-in-dot-env-file}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-?}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
@@ -30,6 +30,20 @@ services:
       - backend
     environment:
       REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:8000}
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    networks:
+      - application
+    depends_on:
+      - database
+    environment:
+      MONGODB_CONNECTION_STRING: "mongodb://database:27017"
+      MONGODB_DATABASE: undergrad_advisor
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-?}
+    command: ["python3", "scheduler_main.py"]
   database:
     image: mongo:8.0
     volumes:

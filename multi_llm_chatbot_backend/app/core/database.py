@@ -73,6 +73,20 @@ async def create_indexes():
         await db.database.chat_sessions.create_index("user_id")
         await db.database.chat_sessions.create_index("created_at")
         await db.database.chat_sessions.create_index([("user_id", 1), ("created_at", -1)])
+
+        # Indexes for user_profiles collection
+        await db.database.user_profiles.create_index("user_id", unique=True)
+
+        # Indexes for professor_ratings collection
+        await db.database.professor_ratings.create_index("name")
+        await db.database.professor_ratings.create_index("department")
+        await db.database.professor_ratings.create_index([("name", 1), ("department", 1)])
+
+        # Indexes for courses collection
+        await db.database.courses.create_index("course_code")
+        await db.database.courses.create_index("instructor")
+        await db.database.courses.create_index("semester")
+        await db.database.courses.create_index([("course_code", 1), ("semester", 1)])
         
         logger.info("Database indexes created successfully")
     except Exception as e:

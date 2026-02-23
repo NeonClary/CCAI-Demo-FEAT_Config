@@ -17,6 +17,17 @@ app:
   primary_color: "#2563EB"
   logo_icon: "GraduationCap"
   footer_text: "© 2025 University of Colorado Boulder. All rights reserved."
+  user_avatars:
+    - { id: "grad-cap-blue", icon: "GraduationCap", color: "#2563EB", bg: "#EFF6FF" }
+    - { id: "user-blue", icon: "User", color: "#2563EB", bg: "#EFF6FF" }
+    - { id: "book-green", icon: "BookOpen", color: "#059669", bg: "#ECFDF5" }
+    - { id: "star-purple", icon: "Star", color: "#7C3AED", bg: "#F3E8FF" }
+    - { id: "heart-rose", icon: "Heart", color: "#E11D48", bg: "#FFF1F2" }
+    - { id: "brain-cyan", icon: "Brain", color: "#0891B2", bg: "#ECFEFF" }
+    - { id: "map-amber", icon: "MapPin", color: "#F59E0B", bg: "#FEF3C7" }
+    - { id: "pen-teal", icon: "PenTool", color: "#0D9488", bg: "#F0FDFA" }
+    - { id: "briefcase-green", icon: "Briefcase", color: "#059669", bg: "#ECFDF5" }
+    - { id: "sparkle-violet", icon: "Sparkles", color: "#8B5CF6", bg: "#F5F3FF" }
 
 homepage:
   headline_prefix: "Navigate College with"
@@ -363,6 +374,42 @@ personas:
         - Point students to campus writing centers for in-person support
         - Focus on higher-order concerns (argument, structure) before lower-order ones (grammar, punctuation)
 
+    - id: course_advisor
+      name: "Course Advisor"
+      role: "Course Selection & Schedule Planning Specialist"
+      summary: "Data-driven & Student-focused"
+      color: "#0D9488"
+      bg_color: "#F0FDFA"
+      dark_color: "#2DD4BF"
+      dark_bg_color: "#134E4A"
+      icon: "GraduationCap"
+      avatar: ""
+      temperature: 4
+      persona_prompt: |
+        You are a CU Boulder course selection advisor with deep knowledge of the university's course catalog, professor ratings, and scheduling system. You help undergraduate students find the best courses based on their academic requirements, schedule preferences, and professor quality.
+
+        **YOUR EXPERTISE:**
+        - CU Boulder course catalog and degree requirements
+        - Professor ratings and teaching quality metrics
+        - Schedule optimization and conflict resolution
+        - Prerequisite chains and course sequencing
+        - Registration strategy and waitlist management
+
+        **YOUR RESPONSE STYLE:**
+        - Data-driven with specific course codes and section numbers
+        - Consider professor ratings, time preferences, and workload balance
+        - When exact matches aren't available, suggest close alternatives with clear explanations
+        - Always note important caveats (prerequisites, lab sections, enrollment caps)
+
+        **SPECIAL CAPABILITY:**
+        When a student asks about specific courses, you can search the course database and professor ratings to provide concrete recommendations. If a query fails to produce exact results, loosen parameters one at a time and offer the next best options with explanations.
+
+        **INTERACTION GUIDELINES:**
+        - Ask about major, year, and schedule constraints to give better advice
+        - Consider time-of-day preferences (some students say "no 8am" but 8:15 is functionally the same)
+        - Balance course difficulty across the semester
+        - Flag courses that fill up quickly and suggest registration timing
+
 # -- Orchestrator / Clarification --------------------------------------------
 
 orchestrator:
@@ -414,6 +461,20 @@ orchestrator:
     - "paper"
     - "thesis"
     - "research"
+    - "enrollment"
+    - "section"
+    - "credit hours"
+    - "degree"
+    - "schedule"
+    - "syllabus"
+    - "waitlist"
+    - "lab"
+    - "lecture"
+    - "recitation"
+    - "semester"
+    - "summer"
+    - "winter"
+    - "office hours"
 
   clarification_questions:
     - "What specific aspect of your college experience would you like guidance on?"
@@ -449,3 +510,20 @@ llm:
 rag:
   embedding_model: "all-MiniLM-L6-v2"
   chroma_collection: "undergrad_advisor_documents"
+
+# -- Scheduling (CRON scraper configuration) ----------------------------------
+scheduling:
+  cu_semesters:
+    - { name: "Spring 2026", end_date: "2026-05-08" }
+    - { name: "Summer 2026", end_date: "2026-08-07" }
+    - { name: "Fall 2026", end_date: "2026-12-18" }
+    - { name: "Spring 2027", end_date: "2027-05-07" }
+
+# -- LemonSlice Animated Avatars ----------------------------------------------
+# Set enabled: true and provide agent IDs from lemonslice.com/agents/api
+# Per-persona agent_id overrides can be added to each persona item above
+lemonslice:
+  enabled: false
+  api_key: ""  # Falls back to LEMONSLICE_API_KEY env var
+  default_agent_id: ""
+  widget_url: "https://unpkg.com/@lemonsliceai/lemon-slice-widget"

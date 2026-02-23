@@ -10,6 +10,7 @@ from typing import Optional
 import logging
 from app.core.database import get_database
 from bson import ObjectId
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +24,10 @@ class UserInput(BaseModel):
 class ChatMessage(BaseModel):
     user_input: str
     session_id: Optional[str] = None
-    chat_session_id: Optional[str] = None  # MongoDB chat session ID
+    chat_session_id: Optional[str] = None
     response_length: str = "medium"
+    active_advisors: Optional[list] = None
+    synthesized: bool = False
 
 class ReplyToAdvisor(BaseModel):
     user_input: str
@@ -207,6 +210,23 @@ async def chat_sequential_enhanced(
         if not already_in_session:
             session.append_message("user", message.user_input)
         
+        # Load user profile as persistent memory context
+        try:
+            db_ref = get_database()
+            user_profile = await db_ref.user_profiles.find_one({"user_id": current_user.id})
+            if user_profile:
+                profile_fields = ["major", "minor", "year", "gpa_range", "career_goals",
+                                  "courses_completed", "courses_planned", "schedule_preferences",
+                                  "learning_style", "extracurriculars"]
+                profile_summary = ", ".join(
+                    f"{k}: {user_profile[k]}" for k in profile_fields
+                    if user_profile.get(k)
+                )
+                if profile_summary:
+                    session.user_profile_context = f"USER PROFILE: {profile_summary}"
+        except Exception as prof_err:
+            logger.warning(f"Could not load user profile: {prof_err}")
+
         # Check if the user's message is vague and needs clarification
         if chat_orchestrator._needs_clarification(session, message.user_input):
             clarification = await chat_orchestrator.generate_contextual_clarification(
@@ -223,10 +243,16 @@ async def chat_sequential_enhanced(
                 }
             }
         
-        # RESTORED: Get intelligently ordered personas based on context
+        # Get intelligently ordered personas based on context
+        all_persona_ids = list(chat_orchestrator.personas.keys())
+        if message.active_advisors:
+            all_persona_ids = [pid for pid in all_persona_ids if pid in message.active_advisors]
+        
+        k = min(3, len(all_persona_ids))
         top_personas = await chat_orchestrator.get_top_personas(
             session_id=session_id, 
-            k=3  # Limit to top 3 most relevant personas
+            k=k,
+            allowed_ids=all_persona_ids
         )
         
         logger.info(f"Intelligent persona order for session {session_id}: {top_personas}")
@@ -306,6 +332,22 @@ async def chat_sequential_enhanced(
                     "document_chunks_used": 0
                 })
         
+        # Synthesized mode: combine all advisor responses into one
+        if message.synthesized and len(responses) > 1:
+            synthesized = await chat_orchestrator.synthesize_responses(responses)
+            return {
+                "responses": [synthesized],
+                "session_debug": {
+                    "session_id": session_id,
+                    "documents_available": rag_stats.get('total_documents', 0),
+                    "chunks_available": rag_stats.get('total_chunks', 0),
+                    "valid_responses": 1,
+                    "selected_personas": top_personas,
+                    "synthesized": True,
+                    "total_personas_available": len(chat_orchestrator.personas)
+                }
+            }
+
         return {
             "responses": responses,
             "session_debug": {

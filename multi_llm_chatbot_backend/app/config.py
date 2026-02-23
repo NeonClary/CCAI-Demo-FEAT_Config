@@ -29,11 +29,18 @@ class FeatureConfig(BaseModel):
     icon: str = "HelpCircle"
 
 
+class UserAvatarOption(BaseModel):
+    id: str
+    icon: str = "User"
+    color: str = "#6B7280"
+    bg: str = "#F3F4F6"
+
 class AppConfig(BaseModel):
     title: str = "Advisor Canvas"
     subtitle: str = "AI-Powered Guidance"
     primary_color: str = "#7C3AED"
     footer_text: str = ""
+    user_avatars: List[UserAvatarOption] = []
 
 
 class HomepageConfig(BaseModel):
@@ -82,6 +89,7 @@ class PersonaItemConfig(BaseModel):
     avatar: str = ""
     temperature: int = 5
     persona_prompt: str = ""
+    lemonslice_agent_id: str = ""
 
 
 class PersonasConfig(BaseModel):
@@ -113,7 +121,7 @@ class AuthConfig(BaseModel):
 
 class MongoDBConfig(BaseModel):
     connection_string: str = ""
-    database_name: str = "phd_advisor"
+    database_name: str = "undergrad_advisor"
 
     @validator("connection_string", always=True)
     def _fallback_connection_string(cls, v: str) -> str:  # noqa: N805
@@ -145,7 +153,27 @@ class LLMConfig(BaseModel):
 
 class RAGConfig(BaseModel):
     embedding_model: str = "all-MiniLM-L6-v2"
-    chroma_collection: str = "phd_advisor_documents"
+    chroma_collection: str = "undergrad_advisor_documents"
+
+
+class SemesterConfig(BaseModel):
+    name: str = ""
+    end_date: str = ""
+
+
+class SchedulingConfig(BaseModel):
+    cu_semesters: List[SemesterConfig] = []
+
+
+class LemonSliceConfig(BaseModel):
+    enabled: bool = False
+    api_key: str = ""
+    default_agent_id: str = ""
+    widget_url: str = "https://unpkg.com/@lemonsliceai/lemon-slice-widget"
+
+    @validator("api_key", always=True)
+    def _fallback_api_key(cls, v: str) -> str:  # noqa: N805
+        return v or os.getenv("LEMONSLICE_API_KEY", "")
 
 
 class AppSettings(BaseModel):
@@ -160,6 +188,8 @@ class AppSettings(BaseModel):
     mongodb: MongoDBConfig = MongoDBConfig()
     llm: LLMConfig = LLMConfig()
     rag: RAGConfig = RAGConfig()
+    scheduling: SchedulingConfig = SchedulingConfig()
+    lemonslice: LemonSliceConfig = LemonSliceConfig()
 
     # ------------------------------------------------------------------
     # Convenience helpers
@@ -186,12 +216,18 @@ class AppSettings(BaseModel):
                         "dark_bg_color": p.dark_bg_color,
                         "icon": p.icon,
                         "avatar": p.avatar,
+                        "lemonslice_agent_id": p.lemonslice_agent_id,
                     }
                     for p in self.personas.items
                 ],
             },
             "orchestrator": {
                 "avatar": self.orchestrator.avatar,
+            },
+            "lemonslice": {
+                "enabled": self.lemonslice.enabled,
+                "default_agent_id": self.lemonslice.default_agent_id,
+                "widget_url": self.lemonslice.widget_url,
             },
         }
 

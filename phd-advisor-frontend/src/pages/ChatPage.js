@@ -14,6 +14,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import '../styles/ChatPage.css';
 import '../styles/EnhancedChatInput.css';
 import AdvisorStatusDropdown from '../components/AdvisorStatusDropdown';
+import OnboardingChat from '../components/OnboardingChat';
+import ProfileWalkthrough from '../components/ProfileWalkthrough';
 
 const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onSignOut }) => {
   const { config, advisors, getAdvisorColors, orchestratorAvatar } = useAppConfig();
@@ -33,6 +35,96 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onSig
   const [isSavingSession, setIsSavingSession] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Phase 1.1: User avatar
+  const [userAvatarId, setUserAvatarId] = useState(() => localStorage.getItem('userAvatarId') || (user?.avatarId ?? null));
+  const avatarOptions = config?.app?.user_avatars || [];
+
+  const handleAvatarChange = async (id) => {
+    setUserAvatarId(id);
+    localStorage.setItem('userAvatarId', id);
+    try {
+      await fetch(`${process.env.REACT_APP_API_URL}/auth/me`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatarId: id })
+      });
+    } catch (e) { console.error('Failed to save avatar:', e); }
+  };
+
+  // Phase 1.2: Active advisors
+  const allAdvisorIds = Object.keys(advisors);
+  const [activeAdvisors, setActiveAdvisors] = useState(() => {
+    const stored = localStorage.getItem('activeAdvisors');
+    return stored ? JSON.parse(stored) : null;
+  });
+
+  const handleToggleAdvisor = (id) => {
+    setActiveAdvisors(prev => {
+      const current = prev || allAdvisorIds;
+      let next;
+      if (current.includes(id)) {
+        if (current.length <= 1) return current;
+        next = current.filter(a => a !== id);
+      } else {
+        next = [...current, id];
+      }
+      localStorage.setItem('activeAdvisors', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  // Phase 1.3: Synthesized mode
+  const [synthesizedMode, setSynthesizedMode] = useState(() => localStorage.getItem('synthesizedMode') === 'true');
+  const handleToggleSynthesized = () => {
+    setSynthesizedMode(prev => {
+      localStorage.setItem('synthesizedMode', String(!prev));
+      return !prev;
+    });
+  };
+
+  // Phase 3.2/3.3: Onboarding and profile walkthrough
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showProfileForm, setShowProfileForm] = useState(false);
+  const [userProfile, setUserProfile] = useState(null);
+
+  const loadProfile = async () => {
+    try {
+      const resp = await fetch(`${process.env.REACT_APP_API_URL}/api/users/me/profile`, {
+        headers: { 'Authorization': `Bearer ${authToken}` },
+      });
+      if (resp.ok) setUserProfile(await resp.json());
+    } catch (e) { /* ignore */ }
+  };
+
+  useEffect(() => { loadProfile(); }, [authToken]);
+
+  // Phase 4.2: Reference search
+  const [refSearchPopover, setRefSearchPopover] = useState(null);
+  const [refSearchQuery, setRefSearchQuery] = useState('');
+  const [refSearchLoading, setRefSearchLoading] = useState(false);
+
+  const handleSearchReferences = async (message) => {
+    setRefSearchPopover(message.id);
+    setRefSearchLoading(true);
+    try {
+      const resp = await fetch(`${process.env.REACT_APP_API_URL}/api/search-references`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ statement: message.content?.substring(0, 500) || '' })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setRefSearchQuery(data.search_query || message.content?.substring(0, 100));
+      } else {
+        setRefSearchQuery(message.content?.substring(0, 100) || '');
+      }
+    } catch {
+      setRefSearchQuery(message.content?.substring(0, 100) || '');
+    } finally {
+      setRefSearchLoading(false);
+    }
+  };
 
   
 
@@ -410,7 +502,9 @@ const handleNewChat = async (sessionId = null) => {
         body: JSON.stringify({
           user_input: inputMessage,
           response_length: 'medium',
-          chat_session_id: currentSessionId // Include current session ID
+          chat_session_id: currentSessionId,
+          active_advisors: activeAdvisors || undefined,
+          synthesized: synthesizedMode
         }),
       });
 
@@ -739,6 +833,9 @@ const handleNewChat = async (sessionId = null) => {
         isMobileOpen={isMobileMenuOpen}
         onMobileToggle={setIsMobileMenuOpen}
         onNavigateToCanvas={onNavigateToCanvas}
+        userAvatarId={userAvatarId}
+        onAvatarChange={handleAvatarChange}
+        onOpenProfile={() => setShowProfileForm(true)}
       />
       
       <div className={`main-chat-area ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
@@ -772,6 +869,10 @@ const handleNewChat = async (sessionId = null) => {
                 thinkingAdvisors={thinkingAdvisors}
                 getAdvisorColors={getAdvisorColors}
                 isDark={isDark}
+                activeAdvisors={activeAdvisors || allAdvisorIds}
+                onToggleAdvisor={handleToggleAdvisor}
+                synthesizedMode={synthesizedMode}
+                onToggleSynthesized={handleToggleSynthesized}
               />
               
               <div className="header-controls">
@@ -850,6 +951,9 @@ const handleNewChat = async (sessionId = null) => {
                             onReply={handleReplyToMessage}
                             onExpand={handleExpandMessage}
                             onClick={handleMessageClick}
+                            onSearchReferences={handleSearchReferences}
+                            userAvatarId={userAvatarId}
+                            userAvatarOptions={avatarOptions}
                           />
                         )}
 
@@ -868,13 +972,25 @@ const handleNewChat = async (sessionId = null) => {
                         )}
 
                         {item.kind === 'single' && item.message.type === 'advisor' && (
-                          <MessageBubble
-                            message={item.message}
-                            onReply={handleReplyToMessage}
-                            onExpand={handleExpandMessage}
-                            onClick={handleMessageClick}
-                            showReplyButton={true}
-                          />
+                          <div style={{ position: 'relative' }}>
+                            <MessageBubble
+                              message={item.message}
+                              onReply={handleReplyToMessage}
+                              onExpand={handleExpandMessage}
+                              onClick={handleMessageClick}
+                              onSearchReferences={handleSearchReferences}
+                              showReplyButton={true}
+                              userAvatarId={userAvatarId}
+                              userAvatarOptions={avatarOptions}
+                            />
+                            {refSearchPopover === item.message.id && (
+                              <ReferenceSearchPopover
+                                query={refSearchQuery}
+                                loading={refSearchLoading}
+                                onClose={() => setRefSearchPopover(null)}
+                              />
+                            )}
+                          </div>
                         )}
 
                         {item.kind === 'single' && item.message.type === 'error' && (
@@ -1001,10 +1117,77 @@ const handleNewChat = async (sessionId = null) => {
                   ? `Reply to ${replyingTo.advisorName}...`
                   : chatPlaceholder
               }
+              showProfileButtons={!userProfile || userProfile.completion_pct < 100}
+              onOpenOnboarding={() => setShowOnboarding(true)}
+              onOpenProfileForm={() => setShowProfileForm(true)}
             />
           </div>
         </div>
       </div>
+
+      {showOnboarding && (
+        <OnboardingChat
+          authToken={authToken}
+          userName={user?.firstName}
+          onClose={() => { setShowOnboarding(false); loadProfile(); }}
+        />
+      )}
+
+      {showProfileForm && (
+        <ProfileWalkthrough
+          authToken={authToken}
+          existingProfile={userProfile}
+          onClose={() => { setShowProfileForm(false); loadProfile(); }}
+        />
+      )}
+    </div>
+  );
+};
+
+const ReferenceSearchPopover = ({ query, loading, onClose }) => {
+  const handleCopy = () => {
+    navigator.clipboard.writeText(query).catch(() => {});
+  };
+  const handlePerplexity = () => {
+    window.open(`https://www.perplexity.ai/?q=${encodeURIComponent(query)}`, '_blank');
+  };
+
+  return (
+    <div style={{
+      position: 'absolute', bottom: '100%', right: 0, marginBottom: 8,
+      background: 'var(--bg-primary)', border: '1px solid var(--border-primary)',
+      borderRadius: 12, padding: 16, minWidth: 280, maxWidth: 360,
+      boxShadow: '0 8px 32px rgba(0,0,0,0.15)', zIndex: 100,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>Search for References</span>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+          <X size={14} />
+        </button>
+      </div>
+      {loading ? (
+        <div style={{ color: 'var(--text-secondary)', fontSize: 12 }}>Generating search query...</div>
+      ) : (
+        <>
+          <div style={{
+            background: 'var(--bg-secondary)', borderRadius: 8, padding: '8px 10px',
+            fontSize: 12, color: 'var(--text-primary)', marginBottom: 10, lineHeight: 1.4,
+          }}>
+            {query}
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button onClick={handlePerplexity} style={{
+              padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+              background: 'var(--accent-primary)', color: '#fff', border: 'none', cursor: 'pointer',
+            }}>Open in Perplexity</button>
+            <button onClick={handleCopy} style={{
+              padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+              background: 'var(--bg-secondary)', color: 'var(--text-primary)',
+              border: '1px solid var(--border-primary)', cursor: 'pointer',
+            }}>Copy Prompt</button>
+          </div>
+        </>
+      )}
     </div>
   );
 };

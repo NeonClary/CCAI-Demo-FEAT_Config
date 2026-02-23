@@ -14,7 +14,7 @@ const ProviderDropdown = ({ currentProvider, onProviderChange, isLoading = false
       name: 'Gemini',
       description: 'Google\'s Gemini AI',
       icon: Cloud,
-      badge: 'Cloud'
+      badge: ''
     },
     {
       id: 'ollama', 

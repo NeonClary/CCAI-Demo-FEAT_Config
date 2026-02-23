@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Users, ChevronDown } from 'lucide-react';
 
-const AdvisorStatusDropdown = ({ advisors, thinkingAdvisors, getAdvisorColors, isDark }) => {
+const AdvisorStatusDropdown = ({ advisors, thinkingAdvisors, getAdvisorColors, isDark, activeAdvisors, onToggleAdvisor, synthesizedMode, onToggleSynthesized }) => {
   const [isOpen, setIsOpen] = useState(false);
   
   // Close dropdown when clicking outside
@@ -25,6 +25,7 @@ const AdvisorStatusDropdown = ({ advisors, thinkingAdvisors, getAdvisorColors, i
     ? thinkingAdvisors.filter(id => id !== 'system').length 
     : 0;
   const totalAdvisors = advisorEntries.length;
+  const activeCount = activeAdvisors ? activeAdvisors.length : totalAdvisors;
 
   const handleToggle = () => {
     setIsOpen(!isOpen);
@@ -39,7 +40,7 @@ const AdvisorStatusDropdown = ({ advisors, thinkingAdvisors, getAdvisorColors, i
         <div className="advisor-status-info">
           <Users size={16} />
           <span className="advisor-count">
-            {totalAdvisors} Advisor{totalAdvisors !== 1 ? 's' : ''}
+            {activeCount}/{totalAdvisors} Advisor{totalAdvisors !== 1 ? 's' : ''}
           </span>
           {thinkingCount > 0 && (
             <div className="thinking-badge">
@@ -82,7 +83,7 @@ const AdvisorStatusDropdown = ({ advisors, thinkingAdvisors, getAdvisorColors, i
                     <div className="advisor-name">{advisor.name}</div>
                     <div className="advisor-description">{advisor.description}</div>
                   </div>
-                  <div className="advisor-status">
+                  <div className="advisor-status" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {isThinking ? (
                       <div className="status-thinking">
                         <div className="thinking-dots">
@@ -94,11 +95,34 @@ const AdvisorStatusDropdown = ({ advisors, thinkingAdvisors, getAdvisorColors, i
                     ) : (
                       <div className="status-ready">Ready</div>
                     )}
+                    {onToggleAdvisor && (
+                      <label className="advisor-toggle" onClick={e => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={!activeAdvisors || activeAdvisors.includes(id)}
+                          disabled={activeAdvisors && activeAdvisors.includes(id) && activeAdvisors.length <= 1}
+                          onChange={() => onToggleAdvisor(id)}
+                        />
+                        <span className="toggle-slider"></span>
+                      </label>
+                    )}
                   </div>
                 </div>
               );
             })}
           </div>
+          {onToggleSynthesized && (
+            <div className="synthesized-toggle-row" style={{
+              padding: '10px 16px', borderTop: '1px solid var(--border-primary)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+            }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>Synthesized Mode</span>
+              <label className="advisor-toggle" onClick={e => e.stopPropagation()}>
+                <input type="checkbox" checked={!!synthesizedMode} onChange={onToggleSynthesized} />
+                <span className="toggle-slider"></span>
+              </label>
+            </div>
+          )}
         </div>
       )}
       
@@ -295,6 +319,22 @@ const AdvisorStatusDropdown = ({ advisors, thinkingAdvisors, getAdvisorColors, i
           font-weight: 500;
         }
         
+        .advisor-toggle {
+          position: relative; display: inline-block; width: 32px; height: 18px; flex-shrink: 0;
+        }
+        .advisor-toggle input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+          position: absolute; cursor: pointer; inset: 0;
+          background: var(--border-primary); border-radius: 9px; transition: 0.2s;
+        }
+        .toggle-slider::before {
+          content: ""; position: absolute; height: 14px; width: 14px;
+          left: 2px; bottom: 2px; background: white; border-radius: 50%; transition: 0.2s;
+        }
+        .advisor-toggle input:checked + .toggle-slider { background: var(--accent-primary); }
+        .advisor-toggle input:checked + .toggle-slider::before { transform: translateX(14px); }
+        .advisor-toggle input:disabled + .toggle-slider { opacity: 0.4; cursor: not-allowed; }
+
         @keyframes thinking-bounce {
           0%, 80%, 100% { transform: scale(0); }
           40% { transform: scale(1); }

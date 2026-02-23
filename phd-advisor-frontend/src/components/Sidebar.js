@@ -8,12 +8,15 @@ import {
   Edit3,
   LogOut,
   User,
+  UserCircle,
   Settings,
   ChevronLeft,
   ChevronRight,
   FileText
 } from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
 import { useAppConfig } from '../contexts/AppConfigContext';
+import UserAvatarPicker from './UserAvatarPicker';
 import '../styles/Sidebar.css';
 
 const Sidebar = ({ 
@@ -26,11 +29,18 @@ const Sidebar = ({
   onSidebarToggle,
   isMobileOpen = false,
   onMobileToggle,
-  onNavigateToCanvas
+  onNavigateToCanvas,
+  userAvatarId,
+  onAvatarChange,
+  onOpenProfile
 }) => {
   const { config } = useAppConfig();
   const canvasLabel = config?.app?.title ? `${config.app.title} Canvas` : 'Canvas';
   const [chatSessions, setChatSessions] = useState([]);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const avatarOptions = config?.app?.user_avatars || [];
+  const currentAvatar = avatarOptions.find(a => a.id === userAvatarId);
+  const AvatarIcon = currentAvatar ? (LucideIcons[currentAvatar.icon] || User) : User;
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -175,8 +185,17 @@ const Sidebar = ({
             <>
               <div className="user-section">
                 <div className="user-info">
-                  <div className="user-avatar">
-                    <User size={20} />
+                  <div
+                    className="user-avatar"
+                    onClick={() => setShowAvatarPicker(true)}
+                    style={{
+                      cursor: 'pointer',
+                      backgroundColor: currentAvatar?.bg || undefined,
+                      color: currentAvatar?.color || undefined,
+                    }}
+                    title="Change avatar"
+                  >
+                    <AvatarIcon size={20} />
                   </div>
                   <div className="user-details">
                     <span className="user-name">{user.firstName} {user.lastName}</span>
@@ -204,6 +223,14 @@ const Sidebar = ({
                     
                     {showUserMenu && (
                       <div className="user-menu">
+                        <button className="user-menu-item" onClick={() => { setShowUserMenu(false); setShowAvatarPicker(true); }}>
+                          <User size={16} />
+                          <span>Change Avatar</span>
+                        </button>
+                        <button className="user-menu-item" onClick={() => { setShowUserMenu(false); if (onOpenProfile) onOpenProfile(); }}>
+                          <UserCircle size={16} />
+                          <span>Profile</span>
+                        </button>
                         <button className="user-menu-item">
                           <Settings size={16} />
                           <span>Settings</span>
@@ -365,6 +392,18 @@ const Sidebar = ({
         <div 
           className="mobile-sidebar-overlay visible" 
           onClick={() => onMobileToggle(false)}
+        />
+      )}
+
+      {showAvatarPicker && avatarOptions.length > 0 && (
+        <UserAvatarPicker
+          avatarOptions={avatarOptions}
+          currentAvatarId={userAvatarId}
+          onSelect={(id) => {
+            if (onAvatarChange) onAvatarChange(id);
+            setShowAvatarPicker(false);
+          }}
+          onClose={() => setShowAvatarPicker(false)}
         />
       )}
     </>

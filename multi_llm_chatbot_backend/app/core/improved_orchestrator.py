@@ -292,7 +292,6 @@ class ImprovedChatOrchestrator:
             try:
                 user_message = session.get_latest_user_message() or ""
             except AttributeError:
-                # Fallback: manually find latest user message
                 for msg in reversed(session.messages):
                     if msg.get('role') == 'user':
                         user_message = msg.get('content', '')
@@ -306,6 +305,12 @@ class ImprovedChatOrchestrator:
                     session_id=session.session_id,
                     persona_id=persona.id
                 )
+
+            # For course_advisor: query the course/professor database
+            if persona.id == "course_advisor" and user_message:
+                course_data_context = await self._query_course_database(user_message)
+                if course_data_context:
+                    document_context = (document_context or "") + "\n\n" + course_data_context
             
             # Build enhanced context for the LLM
             enhanced_context = await self._build_enhanced_context_for_persona(
@@ -345,6 +350,64 @@ class ImprovedChatOrchestrator:
                 "response_length": response_length,
                 "context_quality": "error"
             }
+
+    async def _query_course_database(self, user_message: str) -> str:
+        """
+        Query the courses and professor_ratings MongoDB collections and
+        return a formatted text block that can be injected into the
+        course_advisor persona's context.
+        """
+        try:
+            from app.core.course_query_engine import smart_course_search
+            from app.core.bootstrap import create_llm_client
+
+            llm = create_llm_client()
+            result = await smart_course_search(user_message, llm)
+
+            lines: list[str] = []
+            lines.append("=== COURSE & PROFESSOR DATABASE RESULTS ===")
+
+            if result.get("message"):
+                lines.append(result["message"])
+
+            for course in result.get("results", []):
+                sched = course.get("schedule", {})
+                line = (
+                    f"- {course.get('course_code')} sec {course.get('section')}: "
+                    f"{course.get('title')} | Instructor: {course.get('instructor')} "
+                    f"| Schedule: {sched.get('raw', 'TBA')} | Location: {course.get('location', 'TBA')} "
+                    f"| Seats: {course.get('seats_available', '?')} "
+                    f"| Prof Rating: {course.get('professor_rating', 'N/A')}/5 "
+                    f"| Difficulty: {course.get('professor_difficulty', 'N/A')}/5 "
+                    f"| Would Take Again: {course.get('would_take_again_pct', 'N/A')}%"
+                )
+                lines.append(line)
+
+            for alt in result.get("alternatives", []):
+                if alt.get("relaxations"):
+                    lines.append(f"\n(Constraints relaxed: {', '.join(alt['relaxations'])})")
+                for course in alt.get("results", []):
+                    sched = course.get("schedule", {})
+                    line = (
+                        f"- {course.get('course_code')} sec {course.get('section')}: "
+                        f"{course.get('title')} | Instructor: {course.get('instructor')} "
+                        f"| Schedule: {sched.get('raw', 'TBA')} "
+                        f"| Prof Rating: {course.get('professor_rating', 'N/A')}/5 "
+                        f"| Would Take Again: {course.get('would_take_again_pct', 'N/A')}%"
+                    )
+                    lines.append(line)
+
+            lines.append("=== END DATABASE RESULTS ===")
+            lines.append(
+                "Use the above real data in your response. Cite specific section numbers, "
+                "professor ratings, and schedules. If no results were found, say so honestly "
+                "and suggest the student check the registrar or try different criteria."
+            )
+            return "\n".join(lines)
+
+        except Exception as e:
+            logger.warning("Course database query failed: %s", e)
+            return ""
 
     async def _retrieve_relevant_documents(self, user_input: str, session_id: str, persona_id: str = "") -> str:
         """
@@ -414,6 +477,16 @@ class ImprovedChatOrchestrator:
                     filename = doc_source.get("filename", "unknown")
                     logger.info(f"  Chunk {i+1}: {filename} (relevance: {relevance:.3f})")
             
+            # Also query global documents (student handbook, etc.)
+            try:
+                from app.core.global_rag import query_global_documents
+                global_chunks = query_global_documents(user_input, n_results=3)
+                if global_chunks:
+                    relevant_chunks = (relevant_chunks or []) + global_chunks
+                    logger.info(f"Added {len(global_chunks)} global doc chunks")
+            except Exception as ge:
+                logger.debug(f"Global RAG query skipped: {ge}")
+
             if not relevant_chunks:
                 logger.info(f"No relevant document chunks found for query: {user_input[:50]}...")
                 return ""
@@ -461,7 +534,8 @@ class ImprovedChatOrchestrator:
         enhanced_keywords = {
             "methodologist": "methodology research design experimental approach data collection sampling validity reliability statistical analysis quantitative qualitative mixed-methods procedures protocol IRB ethics",
             "theorist": "theory theoretical framework conceptual model literature review philosophy epistemology ontology paradigm abstract concepts hypothesis proposition postulate axiom",
-            "pragmatist": "practical application implementation action steps next steps recommendation solution strategy timeline concrete advice roadmap execution deliverables milestones"
+            "pragmatist": "practical application implementation action steps next steps recommendation solution strategy timeline concrete advice roadmap execution deliverables milestones",
+            "course_advisor": "course schedule class professor rating section enrollment registration prerequisite semester credit GPA degree requirement elective catalog",
         }
         return enhanced_keywords.get(persona_id, "")
 
@@ -562,6 +636,14 @@ When analyzing the document context:
 - Reference specific deadlines or milestones mentioned in their documents"""
         }
         
+        instructions["course_advisor"] = """
+When analyzing the document context:
+- Search for specific course codes, professor names, and scheduling details
+- Cross-reference professor ratings with available sections
+- Account for time preference buffers (8:15am is functionally the same as 8:00am)
+- When exact matches aren't found, progressively relax constraints and offer alternatives
+- Always include professor rating and schedule details in recommendations"""
+
         return instructions.get(persona_id, "Provide helpful guidance based on the document context.")
 
     async def _build_enhanced_context_for_persona(self, session, persona, user_message: str, document_context: str) -> List[Dict[str, str]]:
@@ -577,13 +659,18 @@ When analyzing the document context:
         # Check if we actually have meaningful document content
         has_documents = bool(document_context and document_context.strip() and len(document_context.strip()) > 50)
         
+        # Inject user profile context if available
+        user_profile_block = ""
+        if hasattr(session, 'user_profile_context') and session.user_profile_context:
+            user_profile_block = f"\n\nSTUDENT PROFILE:\n{session.user_profile_context}\nUse this background to personalise your advice.\n"
+
         # Build the system message with proper document awareness
         if has_documents:
             # Get list of uploaded documents
             uploaded_docs = session.uploaded_files if hasattr(session, 'uploaded_files') else []
             doc_list = ", ".join(uploaded_docs) if uploaded_docs else "uploaded documents"
             
-            system_message = f"""{persona.system_prompt}
+            system_message = f"""{persona.system_prompt}{user_profile_block}
 
     CURRENT SESSION CONTEXT:
     The student has uploaded the following documents: {doc_list}
@@ -601,8 +688,7 @@ When analyzing the document context:
                 "content": system_message
             })
         else:
-            # NO DOCUMENTS - Explicitly tell persona not to reference documents
-            system_message = f"""{persona.system_prompt}
+            system_message = f"""{persona.system_prompt}{user_profile_block}
 
     IMPORTANT: The student has NOT uploaded any documents yet. Do not reference any specific documents, files, or assume you have access to their research materials.
 
@@ -755,7 +841,42 @@ When analyzing the document context:
             }
         
 
-    async def get_top_personas(self, session_id: str, k: int = 3) -> List[str]:
+    async def synthesize_responses(self, responses: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Combine multiple advisor responses into a single synthesized answer."""
+        try:
+            llm = next(iter(self.personas.values())).llm
+            advisor_texts = "\n\n".join(
+                f"**{r['persona_name']}:** {r['content']}" for r in responses
+            )
+            system_prompt = (
+                "You are a synthesis assistant. Combine the following advisor perspectives "
+                "into a single coherent response. Note areas of agreement and highlight any "
+                "differences. Keep the same markdown formatting conventions."
+            )
+            result = await llm.generate(
+                system_prompt=system_prompt,
+                context=[{"role": "user", "content": advisor_texts}],
+                temperature=0.3,
+                max_tokens=2048,
+            )
+            return {
+                "persona_id": "orchestrator",
+                "persona_name": "Synthesized Response",
+                "content": result,
+                "used_documents": any(r.get("used_documents") for r in responses),
+                "document_chunks_used": sum(r.get("document_chunks_used", 0) for r in responses),
+            }
+        except Exception as e:
+            logger.error(f"Synthesis failed: {e}")
+            return responses[0] if responses else {
+                "persona_id": "orchestrator",
+                "persona_name": "Synthesized Response",
+                "content": "Unable to synthesize responses.",
+                "used_documents": False,
+                "document_chunks_used": 0,
+            }
+
+    async def get_top_personas(self, session_id: str, k: int = 3, allowed_ids: Optional[List[str]] = None) -> List[str]:
         """
         Use the LLM to rank personas based on current session context.
         Falls back to default persona order if LLM fails or returns invalid data.
@@ -763,22 +884,22 @@ When analyzing the document context:
         try:
             session = self.session_manager.get_session(session_id)
 
-            if not self.personas:
-                logger.warning("No personas registered.")
-                return []
+            pool = {pid: p for pid, p in self.personas.items()
+                    if allowed_ids is None or pid in allowed_ids}
+            if not pool:
+                logger.warning("No personas in allowed pool.")
+                return list(self.personas.keys())[:k]
 
-            # Use the LLM from one of the existing persona objects
-            llm = next(iter(self.personas.values())).llm
+            llm = next(iter(pool.values())).llm
 
             # Use recent conversation context (last 5 messages)
             recent_context = "\n".join(
                 msg['content'] for msg in session.get_recent_messages(5)
             )
 
-            # Format available persona descriptions
             persona_descriptions = "\n".join([
                 f"- ID: {p.id}\n  Name: {p.name}\n  Prompt: {p.system_prompt.strip()}"
-                for p in self.personas.values()
+                for p in pool.values()
             ])
 
             app_title = get_settings().app.title
@@ -811,15 +932,14 @@ When analyzing the document context:
                 top_ids = re.findall(r'"(.*?)"', llm_response)
                 logger.warning(f"Fallback JSON extraction used: {top_ids}")
 
-            # Step 3: Filter valid persona IDs
-            valid_ids = [pid for pid in top_ids if pid in self.personas]
+            valid_ids = [pid for pid in top_ids if pid in pool]
 
             if len(valid_ids) < k:
                 logger.warning(f"LLM returned insufficient or invalid IDs. Got: {valid_ids}")
-                return list(self.personas.keys())[:k]
+                return list(pool.keys())[:k]
 
             return valid_ids[:k]
 
         except Exception as e:
             logger.error(f"Error selecting top personas: {e}")
-            return list(self.personas.keys())[:k]
+            return list(pool.keys())[:k]

@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, FileText, X, Trash2, Download } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Send, Paperclip, FileText, X, Trash2, Download, Mic, MicOff, MessageCircle, ClipboardList, Loader2 } from 'lucide-react';
 import FileUpload from './FileUpload';
 
 const EnhancedChatInput = ({ 
@@ -9,15 +9,68 @@ const EnhancedChatInput = ({
   isLoading,
   currentChatSessionId,
   authToken, 
-  placeholder = "Ask your advisors anything..." 
+  placeholder = "Ask your advisors anything...",
+  showProfileButtons = false,
+  onOpenOnboarding,
+  onOpenProfileForm,
 }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [showUpload, setShowUpload] = useState(false);
   const [showDocuments, setShowDocuments] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
   const textareaRef = useRef(null);
   const uploadRef = useRef(null);
   const uploadBtnRef = useRef(null);
+
+  const toggleRecording = useCallback(async () => {
+    if (isRecording) {
+      mediaRecorderRef.current?.stop();
+      setIsRecording(false);
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      audioChunksRef.current = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        if (blob.size < 100) return;
+        setIsTranscribing(true);
+        try {
+          const form = new FormData();
+          form.append('audio', blob, 'recording.webm');
+          const resp = await fetch(`${process.env.REACT_APP_API_URL}/api/transcribe`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` },
+            body: form,
+          });
+          if (resp.ok) {
+            const { text } = await resp.json();
+            if (text?.trim()) {
+              setInputMessage(prev => prev ? `${prev} ${text.trim()}` : text.trim());
+            }
+          }
+        } catch (err) {
+          console.error('Transcription failed:', err);
+        } finally {
+          setIsTranscribing(false);
+        }
+      };
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Microphone access denied:', err);
+    }
+  }, [isRecording, authToken]);
 
   const handleSend = () => {
     if (!inputMessage.trim() || isLoading || isUploading) return;
@@ -222,17 +275,58 @@ const EnhancedChatInput = ({
                 <span className="docs-count">{uploadedDocuments.length}</span>
               </button>
             )}
+            {showProfileButtons && (
+              <>
+                <button
+                  onClick={onOpenOnboarding}
+                  className="add-docs-btn"
+                  type="button"
+                >
+                  <MessageCircle size={16} />
+                  <span>Tell us about yourself</span>
+                </button>
+                <button
+                  onClick={onOpenProfileForm}
+                  className="add-docs-btn"
+                  type="button"
+                >
+                  <ClipboardList size={16} />
+                  <span>Fill out profile form</span>
+                </button>
+              </>
+            )}
           </div>
 
-          {/* Right - Send Button */}
-          <button
-            onClick={handleSend}
-            disabled={!canSend}
-            className={`send-button ${canSend ? 'enabled' : 'disabled'}`}
-            type="button"
-          >
-            <Send size={16} />
-          </button>
+          {/* Right - Mic + Send */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              onClick={toggleRecording}
+              disabled={isTranscribing}
+              className={`mic-button ${isRecording ? 'listening' : ''}`}
+              type="button"
+              title={isTranscribing ? 'Transcribing...' : isRecording ? 'Stop recording' : 'Voice input'}
+              style={{
+                background: isRecording ? '#EF4444' : 'transparent',
+                border: isRecording ? '1px solid #EF4444' : '1px solid var(--border-primary)',
+                color: isRecording ? '#fff' : 'var(--text-secondary)',
+                borderRadius: '50%', width: 36, height: 36,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: isTranscribing ? 'wait' : 'pointer', transition: 'all 0.2s',
+                animation: isRecording ? 'mic-pulse 1.5s ease-in-out infinite' : 'none',
+                opacity: isTranscribing ? 0.6 : 1,
+              }}
+            >
+              {isTranscribing ? <Loader2 size={16} className="spinning" /> : isRecording ? <MicOff size={16} /> : <Mic size={16} />}
+            </button>
+            <button
+              onClick={handleSend}
+              disabled={!canSend}
+              className={`send-button ${canSend ? 'enabled' : 'disabled'}`}
+              type="button"
+            >
+              <Send size={16} />
+            </button>
+          </div>
         </div>
       </div>
     </div>

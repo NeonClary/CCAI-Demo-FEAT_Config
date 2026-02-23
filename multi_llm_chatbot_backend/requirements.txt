@@ -40,3 +40,9 @@ python-jose[cryptography]
 email-validator
 python-docx
 python-multipart
+
+# CRON scheduling (OpenClaw-inspired)
+apscheduler
+
+# Speech-to-text (Whisper)
+faster-whisper

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from datetime import datetime, timedelta
 from bson import ObjectId
-from app.models.user import UserCreate, UserLogin, User, Token, UserResponse
+from app.models.user import UserCreate, UserLogin, User, UserUpdate, Token, UserResponse
 from app.core.auth import (
     get_password_hash, 
     authenticate_user, 
@@ -118,6 +118,28 @@ async def login(user_credentials: UserLogin):
 async def get_current_user_profile(current_user: User = Depends(get_current_active_user)):
     """Get current user profile"""
     return create_user_response(current_user)
+
+@router.patch("/me", response_model=UserResponse)
+async def update_current_user(
+    updates: UserUpdate,
+    current_user: User = Depends(get_current_active_user)
+):
+    """Update current user profile fields"""
+    try:
+        db = get_database()
+        update_data = {k: v for k, v in updates.dict().items() if v is not None}
+        if not update_data:
+            return create_user_response(current_user)
+        await db.users.update_one(
+            {"_id": current_user.id},
+            {"$set": update_data}
+        )
+        updated = await db.users.find_one({"_id": current_user.id})
+        updated_user = User(**updated)
+        return create_user_response(updated_user)
+    except Exception as e:
+        logger.error(f"Error updating user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update user")
 
 @router.post("/logout")
 async def logout():

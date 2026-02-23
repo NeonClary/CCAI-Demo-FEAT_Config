@@ -1,25 +1,70 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Reply, Copy, Check, Maximize2, Info, FileText, Hash, Target } from 'lucide-react';
+import { Reply, Copy, Check, Maximize2, FileText, Hash, Target, Volume2, VolumeX, Search, X } from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
 import { useAppConfig } from '../contexts/AppConfigContext';
 import { useTheme } from '../contexts/ThemeContext';
+import LemonSliceAvatar from './LemonSliceAvatar';
+
+const stripMarkdown = (md) => {
+  if (!md) return '';
+  return md
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/#{1,6}\s?/g, '')
+    .replace(/[*_~]{1,3}([^*_~]+)[*_~]{1,3}/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+    .replace(/[-*+]\s/g, '')
+    .replace(/\n{2,}/g, '. ')
+    .replace(/\n/g, ' ')
+    .trim();
+};
 
 const MessageBubble = ({ 
   message, 
   onReply, 
   onCopy, 
   onExpand,
+  onSearchReferences,
   showReplyButton = false,
-  inlineAvatar = false 
+  inlineAvatar = false,
+  userAvatarId,
+  userAvatarOptions
 }) => {
   const { isDark } = useTheme();
   const { advisors, getAdvisorColors } = useAppConfig();
   const [showTooltip, setShowTooltip] = useState(null);
   const [copiedStates, setCopiedStates] = useState({});
-  const [showInfoOverlay, setShowInfoOverlay] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [searchPopover, setSearchPopover] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [promptCopied, setPromptCopied] = useState(false);
   const overlayRef = useRef(null);
   const tooltipTimer = useRef(null);
+
+  const handleSpeak = useCallback((content) => {
+    if (!window.speechSynthesis) return;
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const text = stripMarkdown(content);
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1;
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(utterance);
+  }, [isSpeaking]);
+
+  useEffect(() => {
+    return () => { window.speechSynthesis?.cancel(); };
+  }, []);
 
   const handleCopy = async (messageId, content) => {
     try {
@@ -38,8 +83,28 @@ const MessageBubble = ({
     if (onExpand) onExpand(messageId, persona_id);
   };
 
-  const handleInfoToggle = () => {
-    setShowInfoOverlay(!showInfoOverlay);
+  const handleSearch = async () => {
+    setSearchPopover(true);
+    setSearchLoading(true);
+    const content = message?.compact_markdown || message?.content || '';
+    try {
+      const token = localStorage.getItem('token');
+      const resp = await fetch(`${process.env.REACT_APP_API_URL}/api/search-references`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ statement: content.substring(0, 500) }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setSearchQuery(data.search_query || content.substring(0, 100));
+      } else {
+        setSearchQuery(content.substring(0, 100));
+      }
+    } catch {
+      setSearchQuery(content.substring(0, 100));
+    } finally {
+      setSearchLoading(false);
+    }
   };
 
   const showTooltipWithDelay = (tooltipType) => {
@@ -51,22 +116,6 @@ const MessageBubble = ({
     clearTimeout(tooltipTimer.current);
     setShowTooltip(null);
   };
-
-  // Close overlay when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (overlayRef.current && !overlayRef.current.contains(event.target)) {
-        setShowInfoOverlay(false);
-      }
-    };
-
-    if (showInfoOverlay) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [showInfoOverlay]);
 
   // Minimal, safe preprocessing (keep Markdown structure intact)
   const preprocessMarkdown = (content) => {
@@ -192,6 +241,11 @@ const MessageBubble = ({
 
   // USER MESSAGE
   if (message.type === 'user') {
+    const uAvatar = userAvatarOptions?.find(a => a.id === userAvatarId);
+    const UserIcon = uAvatar
+      ? (LucideIcons[uAvatar.icon] || LucideIcons.User)
+      : null;
+
     return (
       <div className="user-message-container">
         <div className="user-message">
@@ -203,6 +257,15 @@ const MessageBubble = ({
           )}
           <p>{message.content}</p>
         </div>
+        {UserIcon && (
+          <div style={{
+            width: 32, height: 32, borderRadius: '50%', flexShrink: 0, marginLeft: 8,
+            backgroundColor: uAvatar.bg, color: uAvatar.color,
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}>
+            <UserIcon size={16} />
+          </div>
+        )}
       </div>
     );
   }
@@ -258,7 +321,9 @@ const MessageBubble = ({
             className="advisor-avatar" 
             style={{ backgroundColor: colors.bgColor || 'var(--bg-muted)', overflow: 'hidden' }}
           >
-            {avatarElement(40)}
+            <LemonSliceAvatar agentId={advisor.lemonsliceAgentId} active={isSpeaking} size={40}>
+              {avatarElement(40)}
+            </LemonSliceAvatar>
           </div>
         )}
 
@@ -369,29 +434,85 @@ const MessageBubble = ({
                 <div className="tooltip-container">
                   <button 
                     className="message-action-button"
-                    onClick={handleInfoToggle}
-                    onMouseEnter={() => showTooltipWithDelay('info')}
+                    onClick={() => handleSpeak(message?.compact_markdown || message?.content || '')}
+                    onMouseEnter={() => showTooltipWithDelay('speak')}
+                    onMouseLeave={hideTooltip}
+                    style={{ 
+                      color: isSpeaking ? '#EF4444' : (colors.color || 'var(--text-secondary)'),
+                      borderColor: isSpeaking ? '#EF444440' : (colors.color ? colors.color + '40' : 'var(--border-muted)')
+                    }}
+                  >
+                    {isSpeaking ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                  </button>
+                  {showTooltip === 'speak' && (
+                    <div className="tooltip">{isSpeaking ? 'Stop speaking' : 'Speak it'}</div>
+                  )}
+                </div>
+
+                <div className="tooltip-container">
+                  <button 
+                    className="message-action-button"
+                    onClick={handleSearch}
+                    onMouseEnter={() => showTooltipWithDelay('search')}
                     onMouseLeave={hideTooltip}
                     style={{ 
                       color: colors.color || 'var(--text-secondary)',
                       borderColor: (colors.color ? colors.color + '40' : 'var(--border-muted)')
                     }}
                   >
-                    <Info size={14} />
+                    <Search size={14} />
                   </button>
-                  {showTooltip === 'info' && (
-                    <div className="tooltip">Info</div>
+                  {showTooltip === 'search' && (
+                    <div className="tooltip">Search for references</div>
                   )}
                 </div>
+
               </div>
             </div>
           )}
 
-          {showInfoOverlay && (
-            <RagInfoOverlay 
-              ragMetadata={message.ragMetadata} 
-              colors={colors}
-            />
+          {searchPopover && (
+            <div style={{
+              marginTop: 8, background: 'var(--bg-primary)',
+              border: '1px solid var(--border-primary)', borderRadius: 12,
+              padding: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>Search for References</span>
+                <button onClick={() => setSearchPopover(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                  <X size={14} />
+                </button>
+              </div>
+              {searchLoading ? (
+                <div style={{ color: 'var(--text-secondary)', fontSize: 12 }}>Generating search query...</div>
+              ) : (
+                <>
+                  <div style={{
+                    background: 'var(--bg-secondary)', borderRadius: 8, padding: '8px 10px',
+                    fontSize: 12, color: 'var(--text-primary)', marginBottom: 8, lineHeight: 1.4,
+                  }}>{searchQuery}</div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => window.open(`https://www.perplexity.ai/?q=${encodeURIComponent(searchQuery)}`, '_blank')} style={{
+                      padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+                      background: 'var(--accent-primary)', color: '#fff', border: 'none', cursor: 'pointer',
+                    }}>Open in Perplexity</button>
+                    <button onClick={() => {
+                      navigator.clipboard.writeText(searchQuery).then(() => {
+                        setPromptCopied(true);
+                        setTimeout(() => setPromptCopied(false), 2000);
+                      }).catch(() => {});
+                    }} style={{
+                      padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+                      background: promptCopied ? '#10B98120' : 'var(--bg-secondary)',
+                      color: promptCopied ? '#10B981' : 'var(--text-primary)',
+                      border: `1px solid ${promptCopied ? '#10B98140' : 'var(--border-primary)'}`,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}>{promptCopied ? '✓ Copied!' : 'Copy Prompt'}</button>
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </div>
       </div>

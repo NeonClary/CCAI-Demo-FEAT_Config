@@ -30,6 +30,7 @@ const buildAdvisors = (personaItems) => {
       darkBgColor: p.dark_bg_color || '#374151',
       icon: resolveIcon(p.icon),
       avatar: p.avatar ? `/avatars/${p.avatar}` : null,
+      lemonsliceAgentId: p.lemonslice_agent_id || '',
     };
   }
   return advisors;
