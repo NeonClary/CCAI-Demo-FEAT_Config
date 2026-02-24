@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CU AI Club — Create an Advisor Persona</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --primary: #2563EB; --primary-light: #DBEAFE; --primary-dark: #1D4ED8;
+  --bg: #F8FAFC; --card: #FFFFFF; --text: #1E293B; --muted: #64748B; --light: #94A3B8;
+  --border: #E2E8F0; --success: #10B981; --error: #EF4444; --warn: #F59E0B;
+  --sidebar-bg: linear-gradient(180deg, #0F172A 0%, #1E3A5F 100%);
+  --sidebar-text: #E2E8F0; --radius: 10px;
+  --shadow: 0 1px 3px rgba(0,0,0,.08); --shadow-md: 0 4px 12px rgba(0,0,0,.1);
+}
+html { font-size: 15px; }
+body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+a { color: var(--primary); }
+
+/* ── Password Gate ──────────────────────────── */
+#password-gate { position: fixed; inset: 0; background: rgba(15,23,42,.85); backdrop-filter: blur(8px); z-index: 200; display: flex; align-items: center; justify-content: center; }
+#password-gate.hidden { display: none; }
+.pw-card { background: var(--card); border-radius: 16px; padding: 36px 40px; max-width: 420px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,.3); text-align: center; }
+.pw-card h2 { font-size: 1.4rem; margin-bottom: 6px; }
+.pw-card p { color: var(--muted); font-size: .88rem; margin-bottom: 20px; }
+.pw-card input { width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: 10px; font-size: 1rem; font-family: inherit; text-align: center; margin-bottom: 12px; }
+.pw-card input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+.pw-error { color: var(--error); font-size: .82rem; margin-bottom: 10px; display: none; }
+.pw-error.show { display: block; }
+.pw-hint-link { font-size: .8rem; color: var(--muted); cursor: pointer; text-decoration: underline; margin-top: 8px; display: inline-block; }
+.pw-hint-link:hover { color: var(--primary); }
+.pw-hint-box { background: #FEF3C7; border: 1px solid #FDE68A; border-radius: 8px; padding: 10px 14px; margin-top: 12px; font-size: .85rem; color: #92400E; display: none; }
+.pw-hint-box.show { display: block; }
+
+/* ── Layout ─────────────────────────────────── */
+#app { display: flex; min-height: 100vh; }
+#sidebar { width: 240px; background: var(--sidebar-bg); color: var(--sidebar-text); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; z-index: 10; }
+#main { margin-left: 240px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+/* ── Sidebar ────────────────────────────────── */
+.sidebar-header { padding: 24px 20px 16px; border-bottom: 1px solid rgba(255,255,255,.1); }
+.sidebar-header h1 { font-size: 1.05rem; font-weight: 700; color: #fff; margin-bottom: 2px; }
+.sidebar-header p { font-size: .75rem; color: rgba(255,255,255,.45); }
+#step-nav { flex: 1; padding: 16px 10px; }
+.step-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; cursor: pointer; transition: all .2s; margin-bottom: 2px; font-size: .84rem; color: rgba(255,255,255,.45); }
+.step-item:hover { background: rgba(255,255,255,.08); color: rgba(255,255,255,.7); }
+.step-item.current { background: rgba(37,99,235,.4); color: #fff; font-weight: 600; }
+.step-item.completed { color: rgba(255,255,255,.7); }
+.step-num { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .72rem; font-weight: 600; border: 2px solid rgba(255,255,255,.2); flex-shrink: 0; }
+.step-item.current .step-num { background: var(--primary); border-color: var(--primary); color: #fff; }
+.step-item.completed .step-num { background: var(--success); border-color: var(--success); color: #fff; }
+
+/* ── Progress ───────────────────────────────── */
+#progress-container { height: 4px; background: var(--border); position: sticky; top: 0; z-index: 5; }
+#progress-bar { height: 100%; background: var(--primary); transition: width .4s ease; width: 0; }
+
+/* ── Step Content ───────────────────────────── */
+#step-content { flex: 1; padding: 28px 36px 20px; max-width: 820px; width: 100%; margin: 0 auto; }
+.step-header { margin-bottom: 24px; }
+.step-header h2 { font-size: 1.45rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.step-header p { color: var(--muted); font-size: .9rem; line-height: 1.55; }
+.step-section { margin-bottom: 24px; }
+.step-section h3 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; color: var(--text); padding-bottom: 6px; border-bottom: 2px solid var(--primary-light); }
+
+/* ── Tip & Info Boxes ───────────────────────── */
+.info-box { background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: var(--radius); padding: 14px 18px; margin-bottom: 18px; font-size: .84rem; color: #1E40AF; line-height: 1.5; }
+.info-box strong { font-weight: 600; }
+.tip-box { background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px; font-size: .82rem; color: #166534; line-height: 1.5; }
+.tip-box::before { content: "Tip: "; font-weight: 600; }
+.warn-box { background: #FFFBEB; border: 1px solid #FDE68A; color: #92400E; }
+
+/* ── Form Elements ──────────────────────────── */
+.field { margin-bottom: 16px; }
+.field label { display: block; font-size: .84rem; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.field .helper { font-size: .76rem; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+.field input[type="text"], .field input[type="number"], .field textarea, .field select {
+  width: 100%; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 8px; font-size: .88rem;
+  font-family: inherit; color: var(--text); background: var(--card); transition: border-color .2s, box-shadow .2s;
+}
+.field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+.field textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+.field input::placeholder, .field textarea::placeholder { color: var(--light); }
+.field-row { display: flex; gap: 14px; }
+.field-row .field { flex: 1; }
+.color-field { display: flex; align-items: center; gap: 10px; }
+.color-field input[type="color"] { width: 44px; height: 38px; border: 2px solid var(--border); border-radius: 8px; cursor: pointer; padding: 2px; }
+.color-field input[type="text"] { width: 110px; }
+.color-swatch { width: 22px; height: 22px; border-radius: 6px; border: 1px solid rgba(0,0,0,.1); flex-shrink: 0; display: inline-block; vertical-align: middle; }
+.color-presets { display: flex; gap: 5px; margin-top: 5px; }
+.color-preset { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: all .15s; }
+.color-preset:hover { transform: scale(1.15); }
+.color-preset.active { border-color: var(--text); box-shadow: 0 0 0 2px var(--card); }
+.temp-slider { display: flex; align-items: center; gap: 12px; }
+.temp-slider input[type="range"] { flex: 1; accent-color: var(--primary); height: 6px; }
+.temp-value { font-weight: 700; font-size: 1.1rem; color: var(--primary); min-width: 24px; text-align: center; }
+.temp-labels { display: flex; justify-content: space-between; font-size: .7rem; color: var(--muted); margin-top: 2px; }
+
+/* ── Buttons ────────────────────────────────── */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 22px; border-radius: 8px; font-size: .86rem; font-weight: 600; cursor: pointer; border: none; transition: all .2s; font-family: inherit; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-dark); }
+.btn-primary:disabled { background: #93C5FD; cursor: not-allowed; }
+.btn-secondary { background: var(--card); color: var(--text); border: 1.5px solid var(--border); }
+.btn-secondary:hover { background: #F1F5F9; }
+.btn-lg { padding: 14px 32px; font-size: .95rem; }
+
+/* ── Advisor Library ────────────────────────── */
+.lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.lib-card { background: var(--card); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 14px 16px; cursor: pointer; transition: all .2s; box-shadow: var(--shadow); }
+.lib-card:hover { border-color: var(--primary); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.lib-card .lc-name { font-weight: 600; font-size: .88rem; display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.lib-card .lc-desc { font-size: .78rem; color: var(--muted); line-height: 1.4; }
+.lib-card .lc-link { font-size: .72rem; color: var(--primary); margin-top: 6px; display: inline-block; }
+
+/* ── Detail Modal ───────────────────────────── */
+#detail-modal { position: fixed; inset: 0; background: rgba(15,23,42,.7); backdrop-filter: blur(4px); z-index: 150; display: none; align-items: center; justify-content: center; padding: 20px; }
+#detail-modal.show { display: flex; }
+.modal-card { background: var(--card); border-radius: 14px; max-width: 680px; width: 100%; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+.modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; }
+.modal-header h3 { font-size: 1.15rem; }
+.modal-header .mh-role { font-size: .85rem; color: var(--muted); margin-top: 2px; }
+.modal-close { background: none; border: none; font-size: 1.3rem; cursor: pointer; color: var(--muted); padding: 4px 8px; border-radius: 6px; }
+.modal-close:hover { background: #F1F5F9; color: var(--text); }
+.modal-body { padding: 20px 24px; }
+.modal-body .detail-row { display: flex; gap: 8px; padding: 5px 0; font-size: .84rem; }
+.modal-body .detail-label { color: var(--muted); min-width: 120px; flex-shrink: 0; }
+.modal-body .detail-value { color: var(--text); font-weight: 500; }
+.modal-body .prompt-preview { background: #F8FAFC; border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-size: .8rem; line-height: 1.5; max-height: 300px; overflow-y: auto; white-space: pre-wrap; font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace; margin-top: 10px; }
+
+/* ── Review ─────────────────────────────────── */
+.tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 18px; }
+.tab-btn { padding: 9px 18px; font-size: .86rem; font-weight: 500; color: var(--muted); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; font-family: inherit; margin-bottom: -2px; }
+.tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.yaml-preview { background: #1E293B; color: #E2E8F0; padding: 18px; border-radius: var(--radius); font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace; font-size: .78rem; line-height: 1.6; white-space: pre-wrap; max-height: 500px; overflow-y: auto; position: relative; }
+.copy-btn { position: absolute; top: 8px; right: 8px; padding: 5px 10px; font-size: .72rem; background: rgba(255,255,255,.1); color: #E2E8F0; border: 1px solid rgba(255,255,255,.15); border-radius: 6px; cursor: pointer; font-family: inherit; }
+.copy-btn:hover { background: rgba(255,255,255,.2); }
+.review-section { margin-bottom: 18px; }
+.review-section h4 { font-size: .92rem; font-weight: 600; margin-bottom: 8px; color: var(--primary-dark); }
+.review-item { padding: 4px 0; font-size: .85rem; display: flex; gap: 8px; }
+.review-label { color: var(--muted); min-width: 130px; flex-shrink: 0; }
+.review-value { color: var(--text); font-weight: 500; }
+.action-area { text-align: center; padding: 28px; background: var(--primary-light); border-radius: var(--radius); margin-top: 22px; }
+.action-area p { color: var(--muted); margin-bottom: 14px; font-size: .9rem; }
+.action-buttons { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
+.action-note { font-size: .76rem; color: var(--muted); margin-top: 12px; }
+.persona-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: 20px; font-size: .85rem; font-weight: 600; }
+
+/* ── Nav Footer ─────────────────────────────── */
+#nav-footer { padding: 14px 36px; border-top: 1px solid var(--border); background: var(--card); display: flex; justify-content: space-between; align-items: center; position: sticky; bottom: 0; }
+#step-indicator { font-size: .8rem; color: var(--muted); font-weight: 500; }
+.validation-msg { background: #FEF2F2; border: 1px solid #FECACA; color: var(--error); padding: 10px 16px; border-radius: 8px; font-size: .82rem; margin: 0 36px 0; display: none; }
+.validation-msg.show { display: block; }
+
+/* ── Expand/Collapse ────────────────────────── */
+.expandable-header { cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: .85rem; font-weight: 600; color: var(--primary); margin-bottom: 8px; }
+.expandable-header:hover { text-decoration: underline; }
+.expandable-body { display: none; }
+.expandable-body.show { display: block; }
+
+/* ── Responsive ─────────────────────────────── */
+.mobile-nav { display: none; padding: 10px 14px; background: var(--card); border-bottom: 1px solid var(--border); }
+.mobile-nav select { width: 100%; padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-size: .88rem; font-family: inherit; }
+@media (max-width: 700px) {
+  #sidebar { display: none; }
+  #main { margin-left: 0; }
+  .mobile-nav { display: block; }
+  .field-row { flex-direction: column; gap: 0; }
+  #step-content { padding: 18px 14px; }
+  #nav-footer { padding: 10px 14px; }
+  .lib-grid { grid-template-columns: 1fr; }
+  .action-buttons { flex-direction: column; align-items: center; }
+}
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fadeIn .25s ease-out; }
+</style>
+</head>
+<body>
+
+<!-- Password Gate -->
+<div id="password-gate">
+  <div class="pw-card">
+    <h2>CU AI Club</h2>
+    <p>Advisor Persona Creator</p>
+    <input type="password" id="pw-input" placeholder="Enter password to continue" autofocus>
+    <div class="pw-error" id="pw-error">Incorrect password. Try again.</div>
+    <button class="btn btn-primary" style="width:100%" onclick="tryPassword()">Enter</button>
+    <span class="pw-hint-link" onclick="toggleHint()">Need the password?</span>
+    <div class="pw-hint-box" id="pw-hint"></div>
+  </div>
+</div>
+
+<!-- Advisor Detail Modal -->
+<div id="detail-modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div><h3 id="modal-name"></h3><div class="mh-role" id="modal-role"></div></div>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="app">
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <h1>Persona Creator</h1>
+      <p>CU AI Club</p>
+    </div>
+    <nav id="step-nav"></nav>
+  </aside>
+  <main id="main">
+    <div id="progress-container"><div id="progress-bar"></div></div>
+    <div class="mobile-nav"><select id="mobile-step-select" onchange="goToStep(parseInt(this.value))"></select></div>
+    <div id="validation-msg" class="validation-msg"></div>
+    <div id="step-content"></div>
+    <div id="nav-footer">
+      <button id="btn-prev" class="btn btn-secondary" onclick="prevStep()">&#8592; Previous</button>
+      <span id="step-indicator"></span>
+      <button id="btn-next" class="btn btn-primary" onclick="nextStep()">Next &#8594;</button>
+    </div>
+  </main>
+</div>
+
+<script>
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const PASSWORD_NORMAL = "I'mHuman";
+const PASSWORD_LOCKED = "1349oiwhep7rq892!3u";
+const RATE_WINDOW_MS = 180000;
+const RATE_MAX_WINDOW = 10;
+const RATE_MAX_TOTAL = 70;
+
+const STEPS = [
+  { id:'welcome',  title:'Welcome',  num:'1' },
+  { id:'design',   title:'Design',   num:'2' },
+  { id:'prompt',   title:'Prompt',   num:'3' },
+  { id:'review',   title:'Review & Submit', num:'4' },
+];
+
+const COLOR_PRESETS = ['#2563EB','#7C3AED','#059669','#DC2626','#EA580C','#0891B2','#4F46E5','#DB2777','#F59E0B','#6366F1','#E11D48','#6B7280'];
+
+const ICON_OPTIONS = [
+  'BookOpen','GraduationCap','Brain','Target','Users','Heart','Briefcase',
+  'Clock','PenTool','Feather','FlaskConical','Search','Eye','Lightbulb',
+  'HelpCircle','Zap','Shield','Star','Sparkles','MapPin','Compass',
+  'MessageSquare','Activity','Sun','Smile','Minus','UserCircle','TrendingUp',
+];
+
+const PROMPT_TEMPLATE = `You are [describe your advisor's background, education, and years of experience].
+
+**YOUR EXPERTISE:**
+- [Area of expertise 1]
+- [Area of expertise 2]
+- [Area of expertise 3]
+- [Area of expertise 4]
+
+**YOUR RESPONSE STYLE:**
+- [How they communicate — e.g. warm, direct, analytical]
+- [What they emphasize in their answers]
+- [How they structure their advice]
+- [Any specific techniques they use]
+
+**DOCUMENT HANDLING (when documents are available):**
+- [How they analyze uploaded documents]
+- [How they reference student work]
+- Reference documents by name: "Based on your [document_name]..."
+
+**INTERACTION GUIDELINES:**
+- [How they treat students]
+- [What they prioritize in conversations]
+- [Boundaries or things they encourage]
+- [How they handle difficult topics]`;
+
+const ADVISOR_EXAMPLES = [
+  {
+    name: 'Academic Planner', role: 'Course & Degree Planning Specialist',
+    summary: 'Structured & Goal-oriented', icon: 'BookOpen', avatar: 'academic_planner.png', temperature: 4,
+    color: '#2563EB', bg_color: '#EFF6FF', dark_color: '#60A5FA', dark_bg_color: '#1E3A8A',
+    desc: 'Helps students plan coursework, choose majors, and build a realistic graduation timeline.',
+    prompt: `You are an experienced undergraduate academic advisor with 12+ years of experience helping college students plan their coursework, choose majors and minors, and stay on track for graduation.
+
+**YOUR EXPERTISE:**
+- Degree audits, graduation requirements, and credit planning
+- Major/minor exploration and declaration timelines
+- Course sequencing, prerequisite mapping, and schedule optimization
+- Academic policies (add/drop, withdrawal, pass/fail, academic standing)
+
+**YOUR RESPONSE STYLE:**
+- Clear, organized, and detail-oriented
+- Provide concrete semester-by-semester recommendations when possible
+- Explain *why* certain sequences or timelines matter
+- Flag deadlines, prerequisites, and potential scheduling conflicts
+
+**DOCUMENT HANDLING (when documents are available):**
+- Analyze uploaded transcripts, degree audits, or course catalogs
+- Identify remaining requirements and suggest optimal course sequences
+- Reference documents by name: "Based on your [document_name], you still need..."
+
+**INTERACTION GUIDELINES:**
+- Be patient with students who are undecided or overwhelmed by choices
+- Help break down complex requirements into manageable steps
+- Remind students of important university deadlines
+- Focus on helping them build a realistic and balanced schedule`
+  },
+  {
+    name: 'Career Coach', role: 'Internships & Professional Development Guide',
+    summary: 'Career-focused & Practical', icon: 'Briefcase', avatar: 'career_coach.png', temperature: 5,
+    color: '#059669', bg_color: '#ECFDF5', dark_color: '#34D399', dark_bg_color: '#065F46',
+    desc: 'Guides students through internship search, resume writing, and career planning.',
+    prompt: `You are an undergraduate career coach with extensive experience in career services, employer relations, and professional development.
+
+**YOUR EXPERTISE:**
+- Resume and cover letter writing for students with limited experience
+- Internship and job search strategies (career fairs, networking)
+- Interview preparation and professional communication
+- LinkedIn profile building and personal branding
+
+**YOUR RESPONSE STYLE:**
+- Encouraging, practical, and action-oriented
+- Give specific, implementable advice with examples
+- Help students translate experiences into professional skills
+
+**DOCUMENT HANDLING (when documents are available):**
+- Review uploaded resumes or cover letters
+- Provide line-by-line improvement suggestions
+
+**INTERACTION GUIDELINES:**
+- Normalize anxiety around career planning
+- Help students build confidence in their transferable skills
+- Tailor advice to their year and experience level`
+  },
+  {
+    name: 'Study Strategist', role: 'Learning Techniques & Academic Performance Expert',
+    summary: 'Evidence-based & Skill-building', icon: 'Brain', avatar: 'study_strategist.png', temperature: 5,
+    color: '#7C3AED', bg_color: '#F3E8FF', dark_color: '#A78BFA', dark_bg_color: '#581C87',
+    desc: 'Teaches evidence-based study techniques, time management, and exam strategies.',
+    prompt: `You are a learning sciences specialist who helps undergraduates develop effective study habits, time management skills, and test-taking strategies grounded in cognitive science.
+
+**YOUR EXPERTISE:**
+- Evidence-based study techniques (spaced repetition, retrieval practice)
+- Time management frameworks (time blocking, Pomodoro)
+- Note-taking strategies and test preparation
+
+**YOUR RESPONSE STYLE:**
+- Practical, research-backed, and encouraging
+- Explain the *why* behind study techniques
+- Offer step-by-step how-to instructions
+
+**DOCUMENT HANDLING (when documents are available):**
+- Analyze uploaded syllabi to help plan study schedules
+- Review notes or study guides and suggest improvements
+
+**INTERACTION GUIDELINES:**
+- Meet students where they are
+- Encourage small, sustainable changes
+- Remind students that academic skills are learnable, not innate talent`
+  },
+  {
+    name: 'Campus Guide', role: 'University Life & Resources Navigator',
+    summary: 'Friendly & Resource-savvy', icon: 'MapPin', avatar: 'campus_guide.png', temperature: 6,
+    color: '#F59E0B', bg_color: '#FEF3C7', dark_color: '#FBBF24', dark_bg_color: '#92400E',
+    desc: 'Navigates students through campus life, clubs, housing, financial aid, and resources.',
+    prompt: `You are a campus life advisor who knows the ins and outs of the undergraduate experience — from clubs and organizations to housing, financial aid, and campus traditions.
+
+**YOUR EXPERTISE:**
+- Student organizations, clubs, and extracurriculars
+- Housing options and financial aid
+- Campus resources (library, tutoring, counseling)
+
+**YOUR RESPONSE STYLE:**
+- Friendly, approachable, and enthusiastic
+- Provide specific resource names and point to the right offices
+- Be inclusive and sensitive to diverse backgrounds
+
+**DOCUMENT HANDLING (when documents are available):**
+- Help interpret university communications or policy documents
+
+**INTERACTION GUIDELINES:**
+- Make campus feel less intimidating
+- Help students navigate the "hidden curriculum" of college
+- Remind students that it's normal to feel lost at first`
+  },
+  {
+    name: 'Wellness Advisor', role: 'Student Well-being & Balance Coach',
+    summary: 'Caring & Holistic', icon: 'Heart', avatar: 'wellness_advisor.png', temperature: 6,
+    color: '#E11D48', bg_color: '#FFF1F2', dark_color: '#FB7185', dark_bg_color: '#9F1239',
+    desc: 'Supports students with stress management, mental health, and self-care strategies.',
+    prompt: `You are a student wellness advisor with training in counseling psychology and health promotion. You take a compassionate, whole-person approach.
+
+**YOUR EXPERTISE:**
+- Stress management and coping strategies
+- Mental health awareness (anxiety, depression, burnout)
+- Work-life-school balance and boundary setting
+- Crisis resources and when to seek professional help
+
+**YOUR RESPONSE STYLE:**
+- Warm, empathetic, and non-judgmental
+- Validate emotions before offering solutions
+- Know when to recommend professional help
+
+**DOCUMENT HANDLING (when documents are available):**
+- Recognize the effort reflected in academic work
+- Reference documents supportively
+
+**INTERACTION GUIDELINES:**
+- Always prioritize safety — provide crisis resources when needed
+- Encourage sustainable habits
+- Address imposter syndrome and perfectionism with compassion`
+  },
+  {
+    name: 'Writing Tutor', role: 'Academic Writing & Communication Coach',
+    summary: 'Clear-thinking & Detail-oriented', icon: 'PenTool', avatar: 'writing_tutor.png', temperature: 5,
+    color: '#0891B2', bg_color: '#ECFEFF', dark_color: '#22D3EE', dark_bg_color: '#0E7490',
+    desc: 'Helps students improve essays, research papers, and other written assignments.',
+    prompt: `You are an academic writing specialist who helps undergraduate students improve their essays, research papers, and written assignments.
+
+**YOUR EXPERTISE:**
+- Essay structure, thesis development, and argumentation
+- Research paper writing (APA, MLA, Chicago)
+- Grammar, style, clarity, and conciseness
+- Personal statements and application essays
+
+**YOUR RESPONSE STYLE:**
+- Constructive, specific, and educational
+- Explain *why* a change improves the writing
+- Be encouraging — writing improves with practice
+
+**DOCUMENT HANDLING (when documents are available):**
+- Provide detailed feedback on uploaded essays or drafts
+- Identify strengths as well as areas for improvement
+
+**INTERACTION GUIDELINES:**
+- Help students improve as writers, not just improve individual papers
+- Be sensitive to ESL/multilingual students
+- Focus on higher-order concerns before lower-order ones`
+  },
+  {
+    name: 'Motivational Coach', role: 'Academic Resilience Specialist',
+    summary: 'Energizing & Confidence-building', icon: 'Zap', avatar: 'motivational_coach.png', temperature: 7,
+    color: '#EF4444', bg_color: '#FEF2F2', dark_color: '#F87171', dark_bg_color: '#991B1B',
+    desc: 'Builds student confidence, motivation, and resilience through encouragement and strategy.',
+    prompt: `You are an inspiring advisor with expertise in academic resilience and peak performance psychology. You help students overcome challenges and maintain motivation.
+
+**YOUR EXPERTISE:**
+- Academic motivation and goal-setting strategies
+- Resilience building and growth mindset development
+- Overcoming imposter syndrome and self-doubt
+- Habit formation and sustainable productivity
+
+**YOUR RESPONSE STYLE:**
+- Energetic, enthusiastic, and genuinely encouraging
+- Focus on strengths, progress, and potential
+- Celebrate achievements, however small
+- Reframe setbacks as learning opportunities
+
+**DOCUMENT HANDLING (when documents are available):**
+- Highlight strengths and progress evident in their work
+
+**INTERACTION GUIDELINES:**
+- Always begin by acknowledging their effort
+- Help them visualize success
+- Build momentum through small, achievable wins`
+  },
+  {
+    name: 'Research Mentor', role: 'Research Methodology Expert',
+    summary: 'Analytical & Rigorous', icon: 'FlaskConical', avatar: 'research_mentor.png', temperature: 4,
+    color: '#8B5CF6', bg_color: '#F3E8FF', dark_color: '#A78BFA', dark_bg_color: '#581C87',
+    desc: 'Guides students through research design, methodology, and academic rigor.',
+    prompt: `You are a research methodology expert with 15+ years of experience guiding students across multiple disciplines.
+
+**YOUR EXPERTISE:**
+- Quantitative and qualitative research design
+- Mixed-methods approaches
+- Statistical analysis and data validation
+- Research ethics and literature reviews
+
+**YOUR RESPONSE STYLE:**
+- Precise and analytical with clear reasoning
+- Ground advice in established research principles
+- Provide step-by-step guidance
+
+**DOCUMENT HANDLING (when documents are available):**
+- Analyze methodological approaches in uploaded work
+- Identify gaps or weaknesses in research design
+
+**INTERACTION GUIDELINES:**
+- Balance rigor with encouragement
+- Help students understand WHY certain methods are appropriate
+- Connect methodology to their specific research questions`
+  }
+];
+
+// ============================================================================
+// STATE
+// ============================================================================
+
+let state = {
+  currentStep: 0,
+  completedSteps: [],
+  author: '',
+  persona: {
+    name: '', role: '', summary: '',
+    icon: 'Star', avatar: '', temperature: 5,
+    color: '#6366F1', bg_color: '#EEF2FF',
+    dark_color: '#818CF8', dark_bg_color: '#3730A3',
+    persona_prompt: ''
+  }
+};
+
+function saveState() {
+  try { localStorage.setItem('persona-wizard-state', JSON.stringify(state)); } catch(e) {}
+}
+const debouncedSave = debounce(saveState, 400);
+
+function loadState() {
+  try {
+    const s = localStorage.getItem('persona-wizard-state');
+    if (s) { const p = JSON.parse(s); Object.assign(state, p); }
+  } catch(e) {}
+}
+
+// ============================================================================
+// AUTH & RATE LIMITING
+// ============================================================================
+
+function isLocked() {
+  return localStorage.getItem('persona_wizard_locked') === 'true';
+}
+
+function getCorrectPassword() {
+  return isLocked() ? PASSWORD_LOCKED : PASSWORD_NORMAL;
+}
+
+function getHintText() {
+  return isLocked()
+    ? 'Temporarily out of service due to spam.'
+    : 'The password is: <strong>I\'mHuman</strong>';
+}
+
+function tryPassword() {
+  const input = document.getElementById('pw-input').value;
+  if (input === getCorrectPassword()) {
+    sessionStorage.setItem('persona_auth', 'true');
+    document.getElementById('password-gate').classList.add('hidden');
+  } else {
+    document.getElementById('pw-error').classList.add('show');
+    document.getElementById('pw-input').value = '';
+    document.getElementById('pw-input').focus();
+  }
+}
+
+function toggleHint() {
+  const box = document.getElementById('pw-hint');
+  box.innerHTML = getHintText();
+  box.classList.toggle('show');
+}
+
+function showPasswordGate() {
+  sessionStorage.removeItem('persona_auth');
+  document.getElementById('pw-input').value = '';
+  document.getElementById('pw-error').classList.remove('show');
+  document.getElementById('pw-hint').classList.remove('show');
+  document.getElementById('password-gate').classList.remove('hidden');
+}
+
+function checkAuth() {
+  if (sessionStorage.getItem('persona_auth') === 'true') {
+    document.getElementById('password-gate').classList.add('hidden');
+  }
+}
+
+function getSubmissions() {
+  try { return JSON.parse(localStorage.getItem('persona_submissions') || '[]'); } catch(e) { return []; }
+}
+
+function recordSubmission() {
+  const subs = getSubmissions();
+  subs.push(Date.now());
+  localStorage.setItem('persona_submissions', JSON.stringify(subs));
+  const now = Date.now();
+  const recent = subs.filter(t => now - t < RATE_WINDOW_MS);
+  if (recent.length >= RATE_MAX_WINDOW || subs.length >= RATE_MAX_TOTAL) {
+    localStorage.setItem('persona_wizard_locked', 'true');
+    showPasswordGate();
+    return true;
+  }
+  return false;
+}
+
+document.getElementById('pw-input').addEventListener('keydown', e => { if (e.key === 'Enter') tryPassword(); });
+
+// ============================================================================
+// UTILITIES
+// ============================================================================
+
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+function esc(s) { const d = document.createElement('div'); d.textContent = String(s ?? ''); return d.innerHTML; }
+function slugify(s) { return (s||'').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''); }
+function isHex(s) { return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(s); }
+
+function lighten(hex, pct) {
+  if (!hex || hex.length < 7) return '#FFFFFF';
+  let r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  r = Math.min(255, r + Math.round((255-r)*pct)); g = Math.min(255, g + Math.round((255-g)*pct)); b = Math.min(255, b + Math.round((255-b)*pct));
+  return '#' + [r,g,b].map(c => c.toString(16).padStart(2,'0')).join('');
+}
+function darken(hex, pct) {
+  if (!hex || hex.length < 7) return '#000000';
+  let r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  r = Math.max(0, Math.round(r*(1-pct))); g = Math.max(0, Math.round(g*(1-pct))); b = Math.max(0, Math.round(b*(1-pct)));
+  return '#' + [r,g,b].map(c => c.toString(16).padStart(2,'0')).join('');
+}
+
+function setPath(obj, path, val) {
+  const p = path.split('.'); let cur = obj;
+  for (let i = 0; i < p.length - 1; i++) cur = cur[/^\d+$/.test(p[i]) ? parseInt(p[i]) : p[i]];
+  cur[/^\d+$/.test(p[p.length-1]) ? parseInt(p[p.length-1]) : p[p.length-1]] = val;
+}
+
+// ============================================================================
+// FORM HELPERS
+// ============================================================================
+
+function fieldHTML(label, bind, value, opts = {}) {
+  const type = opts.type || 'text'; const ph = opts.placeholder || ''; const helper = opts.helper || '';
+  const tag = opts.tag || 'input'; const extra = opts.extra || '';
+  let input;
+  if (tag === 'textarea') input = `<textarea data-bind="${bind}" placeholder="${esc(ph)}" rows="${opts.rows||3}" ${extra}>${esc(value||'')}</textarea>`;
+  else if (tag === 'select') input = `<select data-bind="${bind}" ${extra}>${opts.options.map(o => `<option value="${esc(o.value)}" ${o.value===(value||'')?'selected':''}>${esc(o.label)}</option>`).join('')}</select>`;
+  else input = `<input type="${type}" data-bind="${bind}" value="${esc(value||'')}" placeholder="${esc(ph)}" ${extra}>`;
+  return `<div class="field">${label?`<label>${label}</label>`:''}${input}${helper?`<div class="helper">${helper}</div>`:''}</div>`;
+}
+
+function colorFieldHTML(label, bind, value) {
+  const v = value || '#6366F1';
+  return `<div class="field"><label>${label}</label>
+    <div class="color-field"><input type="color" data-color-for="${bind}" value="${v}"><input type="text" data-bind="${bind}" value="${esc(v)}" style="width:110px"><div class="color-swatch" style="background:${v}"></div></div>
+    <div class="color-presets">${COLOR_PRESETS.map(c => `<div class="color-preset ${c===v?'active':''}" data-preset-for="${bind}" data-color="${c}" style="background:${c}"></div>`).join('')}</div>
+  </div>`;
+}
+
+function iconSelectHTML(label, bind, value) {
+  const opts = [{value:'',label:'Choose an icon...'}].concat(ICON_OPTIONS.map(i=>({value:i,label:i})));
+  return fieldHTML(label, bind, value, { tag:'select', options:opts, helper:'Browse all icons at <a href="https://lucide.dev/icons" target="_blank">lucide.dev/icons</a>' });
+}
+
+// ============================================================================
+// STEP RENDERERS
+// ============================================================================
+
+function renderWelcome() {
+  const p = state.persona;
+  return `<div class="step-header"><h2>Create Your Own AI Advisor</h2>
+    <p>Welcome, CU AI Club member! This tool lets you design a custom AI advisor persona for the Undergraduate Advisor Canvas app. Your persona will have its own personality, expertise, and communication style.</p></div>
+
+    <div class="info-box"><strong>How this works:</strong> You'll go through 4 quick steps &mdash; name and design your advisor, write the prompt that defines their personality, then review and submit. The whole process takes about 10&ndash;15 minutes. Browse the examples below first to see what a great persona looks like!</div>
+
+    ${fieldHTML('Your Name (the author)', 'author', state.author, {
+      placeholder:'e.g. Alex Johnson',
+      helper:"So we know who created this advisor. Put whatever you'd like here."
+    })}
+
+    <div class="step-section"><h3>Advisor Library &mdash; Browse Examples</h3>
+    <p style="font-size:.84rem;color:var(--muted);margin-bottom:12px">Click any card to see the full details of how that advisor is configured. Use these as inspiration for your own!</p>
+    <div class="lib-grid">
+      ${ADVISOR_EXAMPLES.map((a, i) => `<div class="lib-card" onclick="showAdvisorDetail(${i})">
+        <div class="lc-name"><span class="color-swatch" style="background:${a.color}"></span> ${esc(a.name)} Example</div>
+        <div class="lc-desc">${esc(a.desc)}</div>
+        <span class="lc-link">View full details &rarr;</span>
+      </div>`).join('')}
+    </div></div>`;
+}
+
+function renderDesign() {
+  const p = state.persona;
+  return `<div class="step-header"><h2>Design Your Advisor</h2>
+    <p>Give your advisor an identity. Think of this like creating a character &mdash; who are they, and what makes them unique?</p></div>
+
+    <div class="tip-box">Pick a name that feels approachable and trustworthy. The role is like a job title, and the summary is a 2&ndash;3 word personality tagline (e.g. "Warm &amp; Practical").</div>
+
+    <div class="field-row">
+      ${fieldHTML('Advisor Name', 'persona.name', p.name, { placeholder:'e.g. Startup Mentor' })}
+      ${fieldHTML('Role / Title', 'persona.role', p.role, { placeholder:'e.g. Entrepreneurship & Innovation Guide' })}
+    </div>
+    ${fieldHTML('Summary (personality tagline)', 'persona.summary', p.summary, {
+      placeholder:'e.g. Energetic & Action-oriented',
+      helper:'2&ndash;4 words that capture the vibe. This shows up as a label in the app.'
+    })}
+
+    <div class="field-row">
+      ${iconSelectHTML('Icon', 'persona.icon', p.icon)}
+      ${fieldHTML('Avatar Filename', 'persona.avatar', p.avatar, {
+        placeholder:'e.g. my_advisor.png',
+        helper:'Image filename for the avatar (placed in the app\'s avatars folder by the dev team).'
+      })}
+    </div>
+
+    <div class="field"><label>Temperature (Creativity Level)</label>
+      <div class="info-box" style="margin-bottom:10px">Think of this as a dial between <strong>"by the book"</strong> and <strong>"creative freestyle."</strong> A factual advisor (like an Academic Planner) should be around 3&ndash;5. A creative or motivational advisor works better at 6&ndash;9.</div>
+      <div class="temp-slider">
+        <input type="range" min="1" max="10" value="${p.temperature}" data-bind="persona.temperature" data-temp-slider="0">
+        <span class="temp-value" id="temp-val-0">${p.temperature}</span>
+      </div>
+      <div class="temp-labels"><span>1 &mdash; Very focused &amp; consistent</span><span>10 &mdash; Very creative &amp; varied</span></div>
+    </div>
+
+    <div class="step-section"><h3>Colors</h3>
+    <div class="tip-box">Pick a main color that feels right for your advisor's personality. The background should be a very light tint of that color. Dark mode variants are auto-generated but you can tweak them.</div>
+    <div class="field-row">
+      ${colorFieldHTML('Main Color', 'persona.color', p.color)}
+      ${colorFieldHTML('Background Color', 'persona.bg_color', p.bg_color)}
+    </div>
+    <div class="expandable-header" onclick="this.nextElementSibling.classList.toggle('show')">&#9654; Dark mode colors (auto-generated, optional to edit)</div>
+    <div class="expandable-body">
+      <div class="field-row">
+        ${colorFieldHTML('Dark Color', 'persona.dark_color', p.dark_color)}
+        ${colorFieldHTML('Dark Background', 'persona.dark_bg_color', p.dark_bg_color)}
+      </div>
+    </div></div>`;
+}
+
+function renderPrompt() {
+  const p = state.persona;
+  return `<div class="step-header"><h2>Write Your Advisor's Prompt</h2>
+    <p>This is the most important step. The prompt tells the AI <em>how to behave</em> &mdash; their expertise, personality, and communication style.</p></div>
+
+    <div class="info-box"><strong>Think of the prompt as a detailed job description.</strong> You're telling the AI: "When students talk to you, here's who you are, what you know, and how you should respond." The more specific you are, the better the advisor will be.</div>
+
+    <div class="tip-box">Use the template structure below: start with a background sentence, then fill in the four sections (Expertise, Response Style, Document Handling, Interaction Guidelines). Replace all the [bracketed text] with your own content.</div>
+
+    <div class="expandable-header" onclick="this.nextElementSibling.classList.toggle('show')">&#9654; See a real example (Academic Planner)</div>
+    <div class="expandable-body" style="margin-bottom:16px">
+      <pre class="prompt-preview" style="background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:14px;font-size:.78rem;max-height:250px;overflow-y:auto;white-space:pre-wrap">${esc(ADVISOR_EXAMPLES[0].prompt)}</pre>
+    </div>
+
+    ${fieldHTML('', 'persona.persona_prompt', p.persona_prompt, {
+      tag:'textarea', rows:22,
+      placeholder:'Paste or write your persona prompt here...\n\nUse the template structure: background, expertise, response style, document handling, interaction guidelines.'
+    })}
+    <div class="helper">Don't worry about being perfect &mdash; you can always refine later. The key sections are <strong>Expertise</strong> (what they know), <strong>Response Style</strong> (how they talk), and <strong>Interaction Guidelines</strong> (how they treat students).</div>
+
+    <div style="margin-top:14px">
+      <button class="btn btn-secondary" onclick="loadTemplate()" style="font-size:.82rem">Load blank template into editor</button>
+      <span style="font-size:.78rem;color:var(--muted);margin-left:8px">(replaces current text)</span>
+    </div>`;
+}
+
+function renderReview() {
+  const p = state.persona;
+  return `<div class="step-header"><h2>Review &amp; Submit</h2>
+    <p>Here's a summary of your advisor persona. Review everything, then download or submit it directly.</p></div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="summary">Summary</button>
+      <button class="tab-btn" data-tab="yaml">YAML Preview</button>
+    </div>
+
+    <div class="tab-content active" id="tab-summary">
+      <div class="review-section"><h4>Author</h4>
+        <div class="review-item"><span class="review-value">${esc(state.author)||'<em style="color:var(--muted)">Not provided</em>'}</span></div>
+      </div>
+      <div class="review-section"><h4>Advisor Identity</h4>
+        <div style="margin-bottom:10px"><span class="persona-chip" style="background:${p.bg_color};color:${p.color}">${esc(p.name||'Unnamed')}</span></div>
+        <div class="review-item"><span class="review-label">Name</span><span class="review-value">${esc(p.name)}</span></div>
+        <div class="review-item"><span class="review-label">Role</span><span class="review-value">${esc(p.role)}</span></div>
+        <div class="review-item"><span class="review-label">Summary</span><span class="review-value">${esc(p.summary)}</span></div>
+        <div class="review-item"><span class="review-label">Icon</span><span class="review-value">${esc(p.icon)}</span></div>
+        <div class="review-item"><span class="review-label">Avatar</span><span class="review-value">${esc(p.avatar)||'<em style="color:var(--muted)">None</em>'}</span></div>
+        <div class="review-item"><span class="review-label">Temperature</span><span class="review-value">${p.temperature}/10</span></div>
+        <div class="review-item"><span class="review-label">Colors</span><span class="review-value"><span class="color-swatch" style="background:${p.color};margin-right:4px"></span>${p.color} / <span class="color-swatch" style="background:${p.bg_color};margin:0 4px"></span>${p.bg_color}</span></div>
+      </div>
+      <div class="review-section"><h4>Prompt Preview</h4>
+        <pre class="prompt-preview" style="background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:14px;font-size:.78rem;max-height:200px;overflow-y:auto;white-space:pre-wrap">${esc(p.persona_prompt)}</pre>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-yaml">
+      <div style="position:relative">
+        <button class="copy-btn" onclick="copyYAML()">Copy to clipboard</button>
+        <pre class="yaml-preview" id="yaml-output">${esc(generateYAML())}</pre>
+      </div>
+    </div>
+
+    <div class="action-area">
+      <p>Your advisor persona is ready!</p>
+      <div class="action-buttons">
+        <button class="btn btn-primary btn-lg" onclick="doDownload()">Download config.yaml</button>
+        <button class="btn btn-primary btn-lg" onclick="doEmail()">Add my Advisor to the App</button>
+      </div>
+      <p class="action-note">Download saves the file to your computer. "Add my Advisor" sends it to the CU AI Club team via email.</p>
+    </div>`;
+}
+
+// ============================================================================
+// YAML GENERATOR
+// ============================================================================
+
+function generateYAML() {
+  const p = state.persona;
+  const q = v => `"${(v||'').replace(/\\/g,'\\\\').replace(/"/g,'\\"')}"`;
+  const pid = slugify(p.name) || 'my_advisor';
+  const date = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+
+  function blockStr(text, indent) {
+    if (!text) return '""';
+    const pad = ' '.repeat(indent);
+    return '|\n' + text.split('\n').map(l => pad + l).join('\n');
+  }
+
+  let y = '';
+  y += '# ============================================================================\n';
+  y += '# CU AI Club \u2014 Advisor Persona\n';
+  y += '# ============================================================================\n';
+  y += `# Author: ${state.author || 'Anonymous'}\n`;
+  y += `# Created: ${date}\n`;
+  y += '#\n';
+  y += '# To add this persona, copy the block below into the personas.items\n';
+  y += '# section of your config.yaml file.\n';
+  y += '# ============================================================================\n\n';
+  y += '# --- Paste into personas.items: ---\n\n';
+  y += `  - id: ${pid}\n`;
+  y += `    name: ${q(p.name)}\n`;
+  y += `    role: ${q(p.role)}\n`;
+  y += `    summary: ${q(p.summary)}\n`;
+  y += `    color: ${q(p.color)}\n`;
+  y += `    bg_color: ${q(p.bg_color)}\n`;
+  y += `    dark_color: ${q(p.dark_color)}\n`;
+  y += `    dark_bg_color: ${q(p.dark_bg_color)}\n`;
+  y += `    icon: ${q(p.icon)}\n`;
+  if (p.avatar) y += `    avatar: ${q(p.avatar)}\n`;
+  y += `    temperature: ${p.temperature}\n`;
+  y += `    persona_prompt: ${blockStr(p.persona_prompt, 6)}\n`;
+  return y;
+}
+
+// ============================================================================
+// ACTIONS
+// ============================================================================
+
+function doDownload() {
+  if (recordSubmission()) return;
+  const yaml = generateYAML();
+  const blob = new Blob([yaml], { type: 'text/yaml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'config.yaml';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function doEmail() {
+  if (recordSubmission()) return;
+  doDownload();
+  const name = state.persona.name || 'New Advisor';
+  const author = state.author || 'Anonymous';
+  const yaml = generateYAML();
+  const subject = encodeURIComponent(`CU AI Club Advisor ${name}`);
+  const body = encodeURIComponent(
+    `Hi,\n\nPlease find my advisor persona submission.\n\n` +
+    `Author: ${author}\nAdvisor: ${name}\n\n` +
+    `--- YAML Configuration ---\n\n${yaml}\n--- End ---\n\n` +
+    `The config.yaml file is also attached / was just downloaded.`
+  );
+  window.location.href = `mailto:clary@neon.ai?subject=${subject}&body=${body}`;
+}
+
+function copyYAML() {
+  navigator.clipboard.writeText(generateYAML()).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy to clipboard'; }, 2000);
+  });
+}
+
+function loadTemplate() {
+  if (state.persona.persona_prompt && !confirm('This will replace your current prompt text. Continue?')) return;
+  state.persona.persona_prompt = PROMPT_TEMPLATE;
+  saveState(); renderCurrentStep();
+}
+
+// ============================================================================
+// ADVISOR DETAIL MODAL
+// ============================================================================
+
+function showAdvisorDetail(idx) {
+  const a = ADVISOR_EXAMPLES[idx];
+  document.getElementById('modal-name').textContent = a.name + ' Example';
+  document.getElementById('modal-role').textContent = a.role;
+  document.getElementById('modal-body').innerHTML = `
+    <div class="detail-row"><span class="detail-label">Summary</span><span class="detail-value">${esc(a.summary)}</span></div>
+    <div class="detail-row"><span class="detail-label">Icon</span><span class="detail-value">${esc(a.icon)}</span></div>
+    <div class="detail-row"><span class="detail-label">Avatar</span><span class="detail-value">${esc(a.avatar)}</span></div>
+    <div class="detail-row"><span class="detail-label">Temperature</span><span class="detail-value">${a.temperature}/10</span></div>
+    <div class="detail-row"><span class="detail-label">Colors</span><span class="detail-value">
+      <span class="color-swatch" style="background:${a.color}"></span> ${a.color} &nbsp;
+      <span class="color-swatch" style="background:${a.bg_color}"></span> ${a.bg_color} &nbsp;
+      <span class="color-swatch" style="background:${a.dark_color}"></span> ${a.dark_color} &nbsp;
+      <span class="color-swatch" style="background:${a.dark_bg_color}"></span> ${a.dark_bg_color}
+    </span></div>
+    <h4 style="margin-top:14px;font-size:.9rem;font-weight:600;margin-bottom:6px">Full Persona Prompt</h4>
+    <pre class="prompt-preview">${esc(a.prompt)}</pre>`;
+  document.getElementById('detail-modal').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('detail-modal').classList.remove('show');
+}
+
+// ============================================================================
+// NAVIGATION & RENDERING
+// ============================================================================
+
+const RENDERERS = [renderWelcome, renderDesign, renderPrompt, renderReview];
+
+function render() { updateSidebar(); updateProgress(); renderCurrentStep(); updateNavButtons(); }
+
+function renderCurrentStep() {
+  document.getElementById('step-content').innerHTML = `<div class="fade-in">${RENDERERS[state.currentStep]()}</div>`;
+  bindEvents(); hideValidation();
+}
+
+function updateSidebar() {
+  document.getElementById('step-nav').innerHTML = STEPS.map((s, i) => {
+    const cls = ['step-item'];
+    if (i === state.currentStep) cls.push('current');
+    if (state.completedSteps.includes(i)) cls.push('completed');
+    return `<div class="${cls.join(' ')}" data-go-step="${i}"><div class="step-num">${state.completedSteps.includes(i)?'&#10003;':s.num}</div><span>${s.title}</span></div>`;
+  }).join('');
+  const sel = document.getElementById('mobile-step-select');
+  if (sel) sel.innerHTML = STEPS.map((s,i) => `<option value="${i}" ${i===state.currentStep?'selected':''}>${s.num}. ${s.title}${state.completedSteps.includes(i)?' \u2713':''}</option>`).join('');
+}
+
+function updateProgress() {
+  document.getElementById('progress-bar').style.width = Math.round((state.currentStep/(STEPS.length-1))*100) + '%';
+  document.getElementById('step-indicator').textContent = `Step ${state.currentStep+1} of ${STEPS.length}`;
+}
+
+function updateNavButtons() {
+  document.getElementById('btn-prev').style.visibility = state.currentStep === 0 ? 'hidden' : 'visible';
+  const nb = document.getElementById('btn-next');
+  nb.style.display = state.currentStep === STEPS.length - 1 ? 'none' : '';
+}
+
+function goToStep(idx) {
+  if (idx < 0 || idx >= STEPS.length) return;
+  state.currentStep = idx; saveState(); render(); window.scrollTo(0,0);
+}
+
+function nextStep() {
+  const errs = validateStep(state.currentStep);
+  if (errs.length) { showValidation(errs); return; }
+  if (!state.completedSteps.includes(state.currentStep)) state.completedSteps.push(state.currentStep);
+  if (state.currentStep === 1) autoGenerateDarkColors();
+  goToStep(state.currentStep + 1);
+}
+
+function prevStep() { goToStep(state.currentStep - 1); }
+
+function showValidation(msgs) {
+  const el = document.getElementById('validation-msg');
+  el.innerHTML = msgs.map(m => '&#9888; ' + esc(m)).join('<br>'); el.classList.add('show');
+}
+function hideValidation() { document.getElementById('validation-msg').classList.remove('show'); }
+
+function validateStep(idx) {
+  const m = [];
+  if (idx === 1) {
+    if (!state.persona.name.trim()) m.push('Your advisor needs a name.');
+    if (!state.persona.role.trim()) m.push('Give your advisor a role / title.');
+    if (!isHex(state.persona.color)) m.push('Main color must be a valid hex color.');
+  }
+  if (idx === 2) {
+    if (!state.persona.persona_prompt.trim()) m.push('The persona prompt is required — this is what makes your advisor unique!');
+    if (state.persona.persona_prompt.trim().length < 50) m.push('The prompt is very short. Add more detail for a better advisor experience.');
+  }
+  return m;
+}
+
+function autoGenerateDarkColors() {
+  const p = state.persona;
+  if (isHex(p.color)) p.dark_color = lighten(p.color, 0.3);
+  if (isHex(p.bg_color)) p.dark_bg_color = darken(p.color, 0.6);
+  saveState();
+}
+
+// ============================================================================
+// EVENT BINDING
+// ============================================================================
+
+function bindEvents() {
+  document.querySelectorAll('[data-bind]').forEach(el => {
+    el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', e => {
+      let val = e.target.value;
+      if (el.type === 'range') val = parseInt(val) || 5;
+      setPath(state, el.dataset.bind, val);
+      debouncedSave();
+      if (el.type === 'range' && el.dataset.tempSlider !== undefined) {
+        const d = document.getElementById('temp-val-' + el.dataset.tempSlider);
+        if (d) d.textContent = val;
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-color-for]').forEach(el => {
+    el.addEventListener('input', e => {
+      const bind = el.dataset.colorFor;
+      const ti = document.querySelector(`[data-bind="${bind}"]`);
+      if (ti) { ti.value = e.target.value; ti.dispatchEvent(new Event('input')); }
+      const sw = el.parentElement.querySelector('.color-swatch');
+      if (sw) sw.style.background = e.target.value;
+    });
+  });
+
+  document.querySelectorAll('[data-preset-for]').forEach(el => {
+    el.addEventListener('click', () => {
+      const bind = el.dataset.presetFor, color = el.dataset.color;
+      setPath(state, bind, color);
+      const ti = document.querySelector(`[data-bind="${bind}"]`); if (ti) ti.value = color;
+      const ci = document.querySelector(`[data-color-for="${bind}"]`); if (ci) ci.value = color;
+      const sw = el.closest('.field').querySelector('.color-swatch'); if (sw) sw.style.background = color;
+      el.closest('.color-presets').querySelectorAll('.color-preset').forEach(p => p.classList.remove('active'));
+      el.classList.add('active');
+      debouncedSave();
+    });
+  });
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      if (btn.dataset.tab === 'yaml') document.getElementById('yaml-output').textContent = generateYAML();
+    });
+  });
+}
+
+document.getElementById('step-nav').addEventListener('click', e => {
+  const item = e.target.closest('[data-go-step]');
+  if (item) goToStep(parseInt(item.dataset.goStep));
+});
+
+// ============================================================================
+// INIT
+// ============================================================================
+
+loadState();
+checkAuth();
+render();
+</script>
+</body>
+</html>
