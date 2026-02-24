@@ -145,12 +145,12 @@ a { color: var(--primary); }
 .review-label { color: var(--muted); min-width: 130px; flex-shrink: 0; }
 .review-value { color: var(--text); font-weight: 500; }
 .action-area { text-align: center; padding: 28px; background: var(--primary-light); border-radius: var(--radius); margin-top: 22px; }
-.action-area p { color: var(--muted); margin-bottom: 14px; font-size: .9rem; }
+.action-area p { color: var(--muted); margin-bottom: 14px; font-size: .88rem; }
 .action-buttons { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
 .action-note { font-size: .76rem; color: var(--muted); margin-top: 12px; }
 .btn-green { background: #059669; color: #fff; padding: 14px 32px; font-size: 1rem; }
 .btn-green:hover { background: #047857; }
-.email-instructions { background: var(--card); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 22px 24px; margin-top: 22px; text-align: left; }
+.email-instructions { background: var(--card); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 22px 24px; text-align: left; }
 .email-instructions h4 { font-size: 1rem; margin-bottom: 12px; }
 .email-instructions p { font-size: .86rem; color: var(--muted); margin-bottom: 16px; line-height: 1.5; }
 .copy-row { margin-bottom: 14px; }
@@ -160,6 +160,9 @@ a { color: var(--primary); }
 .copy-row textarea { resize: vertical; min-height: 60px; line-height: 1.5; }
 .copy-row .btn-copy { flex-shrink: 0; padding: 8px 14px; font-size: .78rem; background: var(--primary-light); color: var(--primary); border: 1px solid var(--primary); border-radius: 8px; cursor: pointer; font-family: inherit; font-weight: 600; }
 .copy-row .btn-copy:hover { background: var(--primary); color: #fff; }
+.submit-row { display: flex; gap: 18px; margin-top: 22px; align-items: stretch; }
+.submit-row > * { flex: 1; min-width: 0; }
+@media (max-width: 700px) { .submit-row { flex-direction: column; } }
 .persona-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: 20px; font-size: .85rem; font-weight: 600; }
 
 /* ── Nav Footer ─────────────────────────────── */
@@ -795,37 +798,38 @@ function renderReview() {
       </div>
     </div>
 
-    <div class="action-area">
-      <p>Your advisor persona is ready!</p>
-      <div class="action-buttons">
-        <button class="btn btn-primary btn-lg" onclick="doDownload()">Download config.yaml</button>
-      </div>
-      <p class="action-note">This saves the YAML file to your computer.</p>
-    </div>
-
-    <div class="email-instructions">
-      <h4>Want to add your advisor to the app?</h4>
-      <p>Just send an email to Clary with your config. Copy each field below and paste it into a new email.</p>
-      <div class="copy-row">
-        <label>To (email address)</label>
-        <div class="copy-wrap">
-          <input type="text" id="email-to" value="clary@neon.ai" readonly>
-          <button class="btn-copy" onclick="copyField('email-to')">Copy</button>
+    <div class="submit-row">
+      <div class="email-instructions">
+        <h4>Want to add your advisor to the app?</h4>
+        <p>Send an email to Clary with your config. Copy each field below and paste into a new email.</p>
+        <div class="copy-row">
+          <label>To (email address)</label>
+          <div class="copy-wrap">
+            <input type="text" id="email-to" value="clary@neon.ai" readonly>
+            <button class="btn-copy" onclick="copyField('email-to')">Copy</button>
+          </div>
+        </div>
+        <div class="copy-row">
+          <label>Subject</label>
+          <div class="copy-wrap">
+            <input type="text" id="email-subject" value="${esc('CU AI Club Advisor ' + (p.name || 'New Advisor'))}" readonly>
+            <button class="btn-copy" onclick="copyField('email-subject')">Copy</button>
+          </div>
+        </div>
+        <div class="copy-row">
+          <label>Email body</label>
+          <div class="copy-wrap">
+            <textarea id="email-body" rows="6" readonly>${esc('Hi Clary, this is the advisor I made. Thanks! -' + (state.author || 'Anonymous') + '\n\n' + generateYAML())}</textarea>
+            <button class="btn-copy" onclick="copyField('email-body')">Copy</button>
+          </div>
         </div>
       </div>
-      <div class="copy-row">
-        <label>Subject</label>
-        <div class="copy-wrap">
-          <input type="text" id="email-subject" value="${esc('CU AI Club Advisor ' + (p.name || 'New Advisor'))}" readonly>
-          <button class="btn-copy" onclick="copyField('email-subject')">Copy</button>
+      <div class="action-area" style="display:flex;flex-direction:column;justify-content:center">
+        <p>Your advisor persona is ready!</p>
+        <div class="action-buttons">
+          <button class="btn btn-primary btn-lg" onclick="doDownload()">Download config.yaml</button>
         </div>
-      </div>
-      <div class="copy-row">
-        <label>Email body</label>
-        <div class="copy-wrap">
-          <textarea id="email-body" rows="6" readonly>${esc('Hi Clary, this is the advisor I made. Thanks! -' + (state.author || 'Anonymous') + '\n\n' + generateYAML())}</textarea>
-          <button class="btn-copy" onclick="copyField('email-body')">Copy</button>
-        </div>
+        <p class="action-note">Saves the YAML file to your computer.</p>
       </div>
     </div>`;
 }
