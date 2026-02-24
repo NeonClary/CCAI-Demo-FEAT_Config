@@ -93,9 +93,9 @@ a { color: var(--primary); }
 .color-preset { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: all .15s; }
 .color-preset:hover { transform: scale(1.15); }
 .color-preset.active { border-color: var(--text); box-shadow: 0 0 0 2px var(--card); }
-.temp-slider { display: flex; align-items: center; gap: 12px; }
-.temp-slider input[type="range"] { flex: 1; accent-color: var(--primary); height: 6px; }
-.temp-value { font-weight: 700; font-size: 1.1rem; color: var(--primary); min-width: 24px; text-align: center; }
+.temp-slider { display: flex; flex-direction: column; align-items: stretch; }
+.temp-slider input[type="range"] { width: 100%; accent-color: var(--primary); height: 6px; }
+.temp-value { font-weight: 700; font-size: 1.2rem; color: var(--primary); text-align: center; margin-top: 6px; }
 .temp-labels { display: flex; justify-content: space-between; font-size: .7rem; color: var(--muted); margin-top: 2px; }
 
 /* ── Buttons ────────────────────────────────── */
@@ -148,12 +148,24 @@ a { color: var(--primary); }
 .action-area p { color: var(--muted); margin-bottom: 14px; font-size: .9rem; }
 .action-buttons { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
 .action-note { font-size: .76rem; color: var(--muted); margin-top: 12px; }
+.btn-green { background: #059669; color: #fff; padding: 14px 32px; font-size: 1rem; }
+.btn-green:hover { background: #047857; }
+.email-instructions { background: var(--card); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 22px 24px; margin-top: 22px; text-align: left; }
+.email-instructions h4 { font-size: 1rem; margin-bottom: 12px; }
+.email-instructions p { font-size: .86rem; color: var(--muted); margin-bottom: 16px; line-height: 1.5; }
+.copy-row { margin-bottom: 14px; }
+.copy-row label { display: block; font-size: .78rem; font-weight: 600; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .03em; }
+.copy-row .copy-wrap { display: flex; gap: 8px; }
+.copy-row textarea, .copy-row input[type="text"] { flex: 1; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 8px; font-size: .86rem; font-family: inherit; color: var(--text); background: #F8FAFC; }
+.copy-row textarea { resize: vertical; min-height: 60px; line-height: 1.5; }
+.copy-row .btn-copy { flex-shrink: 0; padding: 8px 14px; font-size: .78rem; background: var(--primary-light); color: var(--primary); border: 1px solid var(--primary); border-radius: 8px; cursor: pointer; font-family: inherit; font-weight: 600; }
+.copy-row .btn-copy:hover { background: var(--primary); color: #fff; }
 .persona-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: 20px; font-size: .85rem; font-weight: 600; }
 
 /* ── Nav Footer ─────────────────────────────── */
 #nav-footer { padding: 14px 36px; border-top: 1px solid var(--border); background: var(--card); display: flex; justify-content: space-between; align-items: center; position: sticky; bottom: 0; }
 #step-indicator { font-size: .8rem; color: var(--muted); font-weight: 500; }
-.validation-msg { background: #FEF2F2; border: 1px solid #FECACA; color: var(--error); padding: 10px 16px; border-radius: 8px; font-size: .82rem; margin: 0 36px 0; display: none; }
+.validation-msg { background: #FEF2F2; border: 1px solid #FECACA; color: var(--error); padding: 10px 16px; border-radius: 8px; font-size: .82rem; margin: 0 36px 10px; display: none; }
 .validation-msg.show { display: block; }
 
 /* ── Expand/Collapse ────────────────────────── */
@@ -218,8 +230,8 @@ a { color: var(--primary); }
   <main id="main">
     <div id="progress-container"><div id="progress-bar"></div></div>
     <div class="mobile-nav"><select id="mobile-step-select" onchange="goToStep(parseInt(this.value))"></select></div>
-    <div id="validation-msg" class="validation-msg"></div>
     <div id="step-content"></div>
+    <div id="validation-msg" class="validation-msg"></div>
     <div id="nav-footer">
       <button id="btn-prev" class="btn btn-secondary" onclick="prevStep()">&#8592; Previous</button>
       <span id="step-indicator"></span>
@@ -672,7 +684,7 @@ function renderWelcome() {
     <div class="step-section"><h3>Advisor Library &mdash; Browse Examples</h3>
     <p style="font-size:.84rem;color:var(--muted);margin-bottom:12px">Click any card to see the full details of how that advisor is configured. Use these as inspiration for your own!</p>
     <div class="lib-grid">
-      ${ADVISOR_EXAMPLES.map((a, i) => `<div class="lib-card" onclick="showAdvisorDetail(${i})">
+      ${ADVISOR_EXAMPLES.map((a, i) => ({a, i})).filter(({a}) => !a.name.includes('Clary')).reverse().map(({a, i}) => `<div class="lib-card" onclick="showAdvisorDetail(${i})">
         <div class="lc-name"><span class="color-swatch" style="background:${a.color}"></span> ${esc(a.name)} Example</div>
         <div class="lc-desc">${esc(a.desc)}</div>
         <span class="lc-link">View full details &rarr;</span>
@@ -696,13 +708,7 @@ function renderDesign() {
       helper:'2&ndash;4 words that capture the vibe. This shows up as a label in the app.'
     })}
 
-    <div class="field-row">
-      ${iconSelectHTML('Icon', 'persona.icon', p.icon)}
-      ${fieldHTML('Avatar Filename', 'persona.avatar', p.avatar, {
-        placeholder:'e.g. my_advisor.png',
-        helper:'Image filename for the avatar (placed in the app\'s avatars folder by the dev team).'
-      })}
-    </div>
+    ${iconSelectHTML('Icon', 'persona.icon', p.icon)}
 
     <div class="field"><label>Temperature (Creativity Level)</label>
       <div class="info-box" style="margin-bottom:10px">Think of this as a dial between <strong>"by the book"</strong> and <strong>"creative freestyle."</strong> A factual advisor (like an Academic Planner) should be around 3&ndash;5. A creative or motivational advisor works better at 6&ndash;9.</div>
@@ -748,9 +754,9 @@ function renderPrompt() {
     })}
     <div class="helper">Don't worry about being perfect &mdash; you can always refine later. The key sections are <strong>Expertise</strong> (what they know), <strong>Response Style</strong> (how they talk), and <strong>Interaction Guidelines</strong> (how they treat students).</div>
 
-    <div style="margin-top:14px">
-      <button class="btn btn-secondary" onclick="loadTemplate()" style="font-size:.82rem">Load blank template into editor</button>
-      <span style="font-size:.78rem;color:var(--muted);margin-left:8px">(replaces current text)</span>
+    <div style="margin-top:18px;text-align:center">
+      <button class="btn btn-green" onclick="loadTemplate()">Load blank template into editor</button>
+      <div style="font-size:.78rem;color:var(--muted);margin-top:6px">(replaces current text with a fill-in-the-blank template)</div>
     </div>`;
 }
 
@@ -774,7 +780,6 @@ function renderReview() {
         <div class="review-item"><span class="review-label">Role</span><span class="review-value">${esc(p.role)}</span></div>
         <div class="review-item"><span class="review-label">Summary</span><span class="review-value">${esc(p.summary)}</span></div>
         <div class="review-item"><span class="review-label">Icon</span><span class="review-value">${esc(p.icon)}</span></div>
-        <div class="review-item"><span class="review-label">Avatar</span><span class="review-value">${esc(p.avatar)||'<em style="color:var(--muted)">None</em>'}</span></div>
         <div class="review-item"><span class="review-label">Temperature</span><span class="review-value">${p.temperature}/10</span></div>
         <div class="review-item"><span class="review-label">Colors</span><span class="review-value"><span class="color-swatch" style="background:${p.color};margin-right:4px"></span>${p.color} / <span class="color-swatch" style="background:${p.bg_color};margin:0 4px"></span>${p.bg_color}</span></div>
       </div>
@@ -794,9 +799,34 @@ function renderReview() {
       <p>Your advisor persona is ready!</p>
       <div class="action-buttons">
         <button class="btn btn-primary btn-lg" onclick="doDownload()">Download config.yaml</button>
-        <button class="btn btn-primary btn-lg" onclick="doEmail()">Add my Advisor to the App</button>
       </div>
-      <p class="action-note">Download saves the file to your computer. "Add my Advisor" sends it to the CU AI Club team via email.</p>
+      <p class="action-note">This saves the YAML file to your computer.</p>
+    </div>
+
+    <div class="email-instructions">
+      <h4>Want to add your advisor to the app?</h4>
+      <p>Just send an email to Clary with your config. Copy each field below and paste it into a new email.</p>
+      <div class="copy-row">
+        <label>To (email address)</label>
+        <div class="copy-wrap">
+          <input type="text" id="email-to" value="clary@neon.ai" readonly>
+          <button class="btn-copy" onclick="copyField('email-to')">Copy</button>
+        </div>
+      </div>
+      <div class="copy-row">
+        <label>Subject</label>
+        <div class="copy-wrap">
+          <input type="text" id="email-subject" value="${esc('CU AI Club Advisor ' + (p.name || 'New Advisor'))}" readonly>
+          <button class="btn-copy" onclick="copyField('email-subject')">Copy</button>
+        </div>
+      </div>
+      <div class="copy-row">
+        <label>Email body</label>
+        <div class="copy-wrap">
+          <textarea id="email-body" rows="6" readonly>${esc('Hi Clary, this is the advisor I made. Thanks! -' + (state.author || 'Anonymous') + '\n\n' + generateYAML())}</textarea>
+          <button class="btn-copy" onclick="copyField('email-body')">Copy</button>
+        </div>
+      </div>
     </div>`;
 }
 
@@ -836,7 +866,8 @@ function generateYAML() {
   y += `    dark_color: ${q(p.dark_color)}\n`;
   y += `    dark_bg_color: ${q(p.dark_bg_color)}\n`;
   y += `    icon: ${q(p.icon)}\n`;
-  if (p.avatar) y += `    avatar: ${q(p.avatar)}\n`;
+  const avatarFile = p.avatar || (pid + '.png');
+  y += `    avatar: ${q(avatarFile)}\n`;
   y += `    temperature: ${p.temperature}\n`;
   y += `    persona_prompt: ${blockStr(p.persona_prompt, 6)}\n`;
   return y;
@@ -857,18 +888,15 @@ function doDownload() {
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
-function doEmail() {
-  if (recordSubmission()) return;
-  const name = state.persona.name || 'New Advisor';
-  const author = state.author || 'Anonymous';
-  const yaml = generateYAML();
-  const subject = encodeURIComponent(`CU AI Club Advisor ${name}`);
-  const body = encodeURIComponent(
-    `Hi,\n\nPlease find my advisor persona submission.\n\n` +
-    `Author: ${author}\nAdvisor: ${name}\n\n` +
-    `--- YAML Configuration ---\n\n${yaml}\n--- End ---`
-  );
-  window.location.href = `mailto:clary@neon.ai?subject=${subject}&body=${body}`;
+function copyField(id) {
+  const el = document.getElementById(id);
+  navigator.clipboard.writeText(el.value).then(() => {
+    const btn = el.closest('.copy-wrap').querySelector('.btn-copy');
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.style.background = 'var(--success)'; btn.style.color = '#fff'; btn.style.borderColor = 'var(--success)';
+    setTimeout(() => { btn.textContent = orig; btn.style.background = ''; btn.style.color = ''; btn.style.borderColor = ''; }, 2000);
+  });
 }
 
 function copyYAML() {
@@ -896,7 +924,6 @@ function showAdvisorDetail(idx) {
   document.getElementById('modal-body').innerHTML = `
     <div class="detail-row"><span class="detail-label">Summary</span><span class="detail-value">${esc(a.summary)}</span></div>
     <div class="detail-row"><span class="detail-label">Icon</span><span class="detail-value">${esc(a.icon)}</span></div>
-    <div class="detail-row"><span class="detail-label">Avatar</span><span class="detail-value">${esc(a.avatar)}</span></div>
     <div class="detail-row"><span class="detail-label">Temperature</span><span class="detail-value">${a.temperature}/10</span></div>
     <div class="detail-row"><span class="detail-label">Colors</span><span class="detail-value">
       <span class="color-swatch" style="background:${a.color}"></span> ${a.color} &nbsp;
@@ -964,8 +991,10 @@ function nextStep() {
 function prevStep() { goToStep(state.currentStep - 1); }
 
 function showValidation(msgs) {
+  alert(msgs.join('\n'));
   const el = document.getElementById('validation-msg');
   el.innerHTML = msgs.map(m => '&#9888; ' + esc(m)).join('<br>'); el.classList.add('show');
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 function hideValidation() { document.getElementById('validation-msg').classList.remove('show'); }
 
@@ -981,6 +1010,16 @@ function validateStep(idx) {
     if (state.persona.persona_prompt.trim().length < 50) m.push('The prompt is very short. Add more detail for a better advisor experience.');
   }
   return m;
+}
+
+function autoFillBgColor(mainColor) {
+  const tint = lighten(mainColor, 0.88);
+  state.persona.bg_color = tint;
+  const ti = document.querySelector('[data-bind="persona.bg_color"]'); if (ti) ti.value = tint;
+  const ci = document.querySelector('[data-color-for="persona.bg_color"]'); if (ci) ci.value = tint;
+  const sw = document.querySelector('[data-bind="persona.bg_color"]');
+  if (sw) { const s = sw.closest('.field').querySelector('.color-swatch'); if (s) s.style.background = tint; }
+  debouncedSave();
 }
 
 function autoGenerateDarkColors() {
@@ -1005,6 +1044,9 @@ function bindEvents() {
         const d = document.getElementById('temp-val-' + el.dataset.tempSlider);
         if (d) d.textContent = val;
       }
+      if (el.dataset.bind === 'persona.color' && isHex(val)) {
+        autoFillBgColor(val);
+      }
     });
   });
 
@@ -1015,6 +1057,7 @@ function bindEvents() {
       if (ti) { ti.value = e.target.value; ti.dispatchEvent(new Event('input')); }
       const sw = el.parentElement.querySelector('.color-swatch');
       if (sw) sw.style.background = e.target.value;
+      if (bind === 'persona.color' && isHex(e.target.value)) autoFillBgColor(e.target.value);
     });
   });
 
@@ -1027,6 +1070,7 @@ function bindEvents() {
       const sw = el.closest('.field').querySelector('.color-swatch'); if (sw) sw.style.background = color;
       el.closest('.color-presets').querySelectorAll('.color-preset').forEach(p => p.classList.remove('active'));
       el.classList.add('active');
+      if (bind === 'persona.color' && isHex(color)) autoFillBgColor(color);
       debouncedSave();
     });
   });
