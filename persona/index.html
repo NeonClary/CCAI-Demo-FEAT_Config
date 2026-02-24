@@ -859,7 +859,6 @@ function doDownload() {
 
 function doEmail() {
   if (recordSubmission()) return;
-  doDownload();
   const name = state.persona.name || 'New Advisor';
   const author = state.author || 'Anonymous';
   const yaml = generateYAML();
@@ -867,8 +866,7 @@ function doEmail() {
   const body = encodeURIComponent(
     `Hi,\n\nPlease find my advisor persona submission.\n\n` +
     `Author: ${author}\nAdvisor: ${name}\n\n` +
-    `--- YAML Configuration ---\n\n${yaml}\n--- End ---\n\n` +
-    `The config.yaml file is also attached / was just downloaded.`
+    `--- YAML Configuration ---\n\n${yaml}\n--- End ---`
   );
   window.location.href = `mailto:clary@neon.ai?subject=${subject}&body=${body}`;
 }
