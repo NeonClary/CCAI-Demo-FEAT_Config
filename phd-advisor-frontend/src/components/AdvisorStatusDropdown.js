@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Users, ChevronDown } from 'lucide-react';
 
-const AdvisorStatusDropdown = ({ advisors, thinkingAdvisors, getAdvisorColors, isDark, activeAdvisors, onToggleAdvisor, synthesizedMode, onToggleSynthesized }) => {
+const AdvisorStatusDropdown = ({ advisors, thinkingAdvisors, getAdvisorColors, isDark, activeAdvisors, onToggleAdvisor }) => {
   const [isOpen, setIsOpen] = useState(false);
   
   // Close dropdown when clicking outside
@@ -111,18 +111,6 @@ const AdvisorStatusDropdown = ({ advisors, thinkingAdvisors, getAdvisorColors, i
               );
             })}
           </div>
-          {onToggleSynthesized && (
-            <div className="synthesized-toggle-row" style={{
-              padding: '10px 16px', borderTop: '1px solid var(--border-primary)',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-            }}>
-              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>Synthesized Mode</span>
-              <label className="advisor-toggle" onClick={e => e.stopPropagation()}>
-                <input type="checkbox" checked={!!synthesizedMode} onChange={onToggleSynthesized} />
-                <span className="toggle-slider"></span>
-              </label>
-            </div>
-          )}
         </div>
       )}
       

@@ -27,6 +27,7 @@ def _build_personas_dict() -> dict:
             full_prompt = f"{full_prompt}\n\n{base_prompt}"
         registry[p.id] = {
             "name": p.name,
+            "type": getattr(p, "type", "advisor"),
             "system_prompt": full_prompt,
             "default_temperature": p.temperature,
         }
@@ -73,3 +74,9 @@ def is_valid_persona_id(pid: str) -> bool:
 
 def list_available_personas() -> List[str]:
     return list(_get_registry().keys())
+
+
+def get_agent_ids() -> set[str]:
+    """Return the set of persona IDs whose type is 'agent' (not 'advisor')."""
+    return {pid for pid, data in _get_registry().items()
+            if data.get("type") == "agent"}

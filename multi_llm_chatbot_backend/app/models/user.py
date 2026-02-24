@@ -56,6 +56,7 @@ class UserUpdate(BaseModel):
     avatarId: Optional[str] = None
     firstName: Optional[str] = None
     lastName: Optional[str] = None
+    email: Optional[EmailStr] = None
     academicStage: Optional[str] = None
     researchArea: Optional[str] = None
 

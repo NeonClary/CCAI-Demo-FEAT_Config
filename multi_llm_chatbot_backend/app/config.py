@@ -78,6 +78,7 @@ class ChatPageConfig(BaseModel):
 
 class PersonaItemConfig(BaseModel):
     id: str
+    type: str = "advisor"
     name: str
     role: str = ""
     summary: str = ""
@@ -135,6 +136,10 @@ class GeminiConfig(BaseModel):
     @validator("api_key", always=True)
     def _fallback_api_key(cls, v: str) -> str:  # noqa: N805
         return v or os.getenv("GEMINI_API_KEY", "")
+
+    @validator("model", always=True)
+    def _fallback_model(cls, v: str) -> str:  # noqa: N805
+        return os.getenv("GEMINI_MODEL", "") or v
 
 
 class OllamaConfig(BaseModel):
@@ -207,6 +212,7 @@ class AppSettings(BaseModel):
                 "items": [
                     {
                         "id": p.id,
+                        "type": p.type,
                         "name": p.name,
                         "role": p.role,
                         "summary": p.summary,

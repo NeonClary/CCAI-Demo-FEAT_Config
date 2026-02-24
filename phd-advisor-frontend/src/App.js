@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AppConfigProvider } from './contexts/AppConfigContext';
+import { VoiceStatusProvider } from './contexts/VoiceStatusContext';
 import HomePage from './pages/HomePage';
 import ChatPage from './pages/ChatPage';
 import AuthPage from './pages/AuthPage';
 import CanvasPage from './pages/CanvasPage';
+import UserGuidePage from './pages/UserGuidePage';
+import Tutorial, { TutorialButton } from './components/Tutorial';
+import VoiceToast from './components/VoiceToast';
 import './styles/components.css';
 
 function App() {
@@ -44,6 +48,21 @@ function App() {
   const navigateToChat = () => {
     setCurrentView('chat');
   };
+
+  const navigateToGuide = () => {
+    setCurrentView('guide');
+  };
+
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialDismissed, setTutorialDismissed] = useState(
+    () => localStorage.getItem('tutorialDismissed') === 'true'
+  );
+  const openTutorial = useCallback(() => setShowTutorial(true), []);
+  const closeTutorial = useCallback(() => {
+    setShowTutorial(false);
+    setTutorialDismissed(true);
+    localStorage.setItem('tutorialDismissed', 'true');
+  }, []);
 
   
 
@@ -88,14 +107,32 @@ function App() {
               onSignOut={handleSignOut}
             />
           )}
+          {currentView === 'guide' && isAuthenticated && (
+            <UserGuidePage onNavigateToChat={navigateToChat} />
+          )}
           {currentView === 'chat' && isAuthenticated && (
-            <ChatPage 
-              user={user}
-              authToken={authToken}
-              onNavigateToHome={navigateToHome}
-              onNavigateToCanvas={navigateToCanvas}
-              onSignOut={handleSignOut}
-            />
+            <VoiceStatusProvider authToken={authToken}>
+              <ChatPage 
+                user={user}
+                authToken={authToken}
+                onNavigateToHome={navigateToHome}
+                onNavigateToCanvas={navigateToCanvas}
+                onNavigateToGuide={navigateToGuide}
+                onSignOut={handleSignOut}
+                onOpenTutorial={openTutorial}
+              />
+              <VoiceToast />
+            </VoiceStatusProvider>
+          )}
+
+          {/* Tutorial — rendered at app level so it persists across views */}
+          {isAuthenticated && (
+            <>
+              <Tutorial active={showTutorial} onClose={closeTutorial} />
+              {!showTutorial && !tutorialDismissed && (
+                <TutorialButton onClick={openTutorial} />
+              )}
+            </>
           )}
         </div>
       </ThemeProvider>

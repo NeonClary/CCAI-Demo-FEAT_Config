@@ -1,23 +1,28 @@
 """
-Intelligent Course Query Engine — parses natural language course queries,
-searches MongoDB, and implements progressive constraint relaxation.
+Intelligent Course Query Engine — parses natural-language course queries,
+searches MongoDB, and implements progressive per-parameter constraint
+relaxation so the student always gets the best available alternatives.
 
-Designed to be called as a tool by the Course Advisor persona.
+Flow:
+  1. LLM extracts structured filters from the query
+  2. Exact search against MongoDB
+  3. If empty → loosen each parameter independently (one at a time, in steps)
+  4. Return results + alternatives + explanation of what was relaxed
 """
 
 import json
 import logging
 import re
-from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-TIME_BUFFER_MINUTES = 30  # "no 8am" also excludes 8:15
+# 8:15am is "functionally the same" as 8:00am
+TIME_BUFFER_MINUTES = 20
 
 
 def _parse_time(t: str) -> Optional[int]:
-    """Convert a time string like '8:00am' or '2:30pm' to minutes since midnight."""
+    """Convert '8:00am' or '2:30pm' to minutes since midnight."""
     m = re.match(r"(\d{1,2}):?(\d{2})?\s*(am|pm)?", t.strip(), re.I)
     if not m:
         return None
@@ -31,22 +36,39 @@ def _parse_time(t: str) -> Optional[int]:
     return hour * 60 + minute
 
 
-def _time_str_to_minutes(time_str: str) -> Optional[int]:
-    return _parse_time(time_str)
+# ── LLM filter extraction ───────────────────────────────────────────────────
+
+def _default_semester() -> str:
+    """Pick the most relevant current semester based on today's date."""
+    from datetime import datetime
+    now = datetime.utcnow()
+    month = now.month
+    if month <= 5:
+        return f"Spring {now.year}"
+    if month <= 8:
+        return f"Summer {now.year}"
+    return f"Fall {now.year}"
 
 
 async def parse_query_to_filters(query: str, llm) -> Dict[str, Any]:
-    """Use LLM to extract structured course search filters from natural language."""
+    """Use the LLM to extract structured course-search filters."""
+    from app.scrapers.course_scraper import KNOWN_TERMS
+
+    default_sem = _default_semester()
+    terms_str = ", ".join(KNOWN_TERMS)
+
     system = (
-        "Extract course search filters from the user's question. "
-        "Return ONLY valid JSON with these optional fields:\n"
-        '  course_code (string, e.g. "ENES 1010")\n'
-        '  no_start_before (string time, e.g. "9:00am")\n'
-        '  no_start_after (string time, e.g. "3:00pm")\n'
-        '  preferred_days (string, e.g. "MWF")\n'
-        "  min_professor_rating (number 1-5)\n"
-        '  semester (string, e.g. "Spring 2026")\n'
-        "Omit fields that aren't mentioned."
+        "You extract course search filters from a student's natural-language question.\n"
+        "Return ONLY valid JSON (no markdown fences, no extra text) with these optional fields:\n"
+        '  "course_code": string, e.g. "ENES 1010"\n'
+        '  "earliest_start": string, the earliest acceptable class start time, e.g. "9:00am"\n'
+        '    IMPORTANT: if the student says "no 8am classes" or "I don\'t want 8am", set earliest_start to "9:00am".\n'
+        '    If they say "no classes before 10", set earliest_start to "10:00am".\n'
+        '  "latest_start": string, the latest acceptable start, e.g. "3:00pm"\n'
+        '  "preferred_days": string, e.g. "MWF" or "TTh"\n'
+        '  "min_professor_rating": number 1-5, minimum acceptable professor quality rating\n'
+        f'  "semester": string — one of: {terms_str}. Default to "{default_sem}" if not specified.\n'
+        "Omit fields the student did not mention. Always include semester.\n"
     )
     try:
         raw = await llm.generate(
@@ -58,145 +80,244 @@ async def parse_query_to_filters(query: str, llm) -> Dict[str, Any]:
         cleaned = re.sub(r"```(?:json)?", "", raw).strip()
         m = re.search(r"\{.*\}", cleaned, re.DOTALL)
         if m:
-            return json.loads(m.group(0))
+            filters = json.loads(m.group(0))
+            if "semester" not in filters:
+                filters["semester"] = default_sem
+            logger.info("Extracted filters: %s", filters)
+            return filters
+        logger.warning("No JSON found in LLM response: %s", cleaned[:200])
     except Exception as e:
-        logger.warning(f"Filter extraction failed: {e}")
-    return {}
+        logger.warning("Filter extraction failed: %s", e)
+
+    return {"semester": default_sem}
 
 
-async def search_courses(
+# ── Core search ──────────────────────────────────────────────────────────────
+
+async def _run_search(
     filters: Dict[str, Any],
-    relax_level: int = 0,
-) -> Dict[str, Any]:
+    time_buffer: int = TIME_BUFFER_MINUTES,
+    skip_time: bool = False,
+    skip_days: bool = False,
+    skip_rating: bool = False,
+    min_rating_override: Optional[float] = None,
+) -> List[Dict[str, Any]]:
     """
-    Search MongoDB courses collection with the given filters.
-    relax_level: 0 = exact, 1+ = progressively loosened constraints.
+    Search MongoDB courses with given filters and return enriched results.
+    Use skip_* flags and overrides to relax individual constraints.
     """
     from app.core.database import get_database
+
     db = get_database()
-
     mongo_filter: Dict[str, Any] = {}
-    relaxations_applied: List[str] = []
 
-    # Course code
     code = filters.get("course_code")
     if code:
         mongo_filter["course_code"] = {"$regex": re.escape(code), "$options": "i"}
 
-    # Semester
-    semester = filters.get("semester", "Spring 2026")
-    mongo_filter["semester"] = semester
+    mongo_filter["semester"] = filters.get("semester", _default_semester())
 
-    # Time constraints (with fuzzy buffer)
-    no_before = filters.get("no_start_before")
-    no_after = filters.get("no_start_after")
-
-    results = []
-    cursor = db.courses.find(mongo_filter)
+    cursor = db.courses.find(mongo_filter, {"_id": 0})
     all_courses = await cursor.to_list(length=500)
 
+    results = []
     for course in all_courses:
         schedule = course.get("schedule", {})
         start_str = schedule.get("start_time", "")
-        start_min = _time_str_to_minutes(start_str)
+        start_min = _parse_time(start_str) if start_str else None
 
-        # Apply time filter with buffer
-        if no_before and start_min is not None and relax_level < 1:
-            threshold = _time_str_to_minutes(no_before)
-            if threshold and start_min < (threshold - TIME_BUFFER_MINUTES):
-                continue
-        if no_after and start_min is not None and relax_level < 1:
-            threshold = _time_str_to_minutes(no_after)
-            if threshold and start_min > threshold:
-                continue
+        if not skip_time:
+            earliest = filters.get("earliest_start")
+            if earliest and start_min is not None:
+                threshold = _parse_time(earliest)
+                if threshold is not None and start_min < (threshold - time_buffer):
+                    continue
 
-        # Preferred days
-        pref_days = filters.get("preferred_days")
-        if pref_days and relax_level < 2:
-            course_days = schedule.get("days", "")
-            if course_days and not any(d in course_days for d in pref_days):
-                continue
+            latest = filters.get("latest_start")
+            if latest and start_min is not None:
+                threshold = _parse_time(latest)
+                if threshold is not None and start_min > (threshold + time_buffer):
+                    continue
+
+        if not skip_days:
+            pref_days = filters.get("preferred_days")
+            if pref_days:
+                course_days = schedule.get("days", "")
+                if course_days and not any(d in course_days for d in pref_days):
+                    continue
 
         results.append(course)
 
-    if relax_level >= 1 and not relaxations_applied:
-        relaxations_applied.append("time constraints loosened")
-    if relax_level >= 2:
-        relaxations_applied.append("day preference removed")
-
-    # Join with professor ratings
     enriched = await _enrich_with_ratings(results, db)
 
-    # Filter by professor rating
-    min_rating = filters.get("min_professor_rating")
-    if min_rating and relax_level < 3:
-        enriched = [c for c in enriched if (c.get("professor_rating") or 0) >= min_rating]
-    elif relax_level >= 3:
-        relaxations_applied.append("professor rating requirement lowered")
+    effective_rating = None
+    if not skip_rating:
+        effective_rating = (
+            min_rating_override
+            if min_rating_override is not None
+            else filters.get("min_professor_rating")
+        )
+        if effective_rating:
+            enriched = [
+                c for c in enriched
+                if (c.get("professor_rating") or 0) >= effective_rating
+            ]
 
-    return {
-        "results": enriched[:20],
-        "total_found": len(enriched),
-        "relaxations": relaxations_applied,
-        "filters_used": filters,
-    }
+    enriched.sort(key=lambda c: c.get("professor_rating", 0), reverse=True)
+    return enriched
 
 
 async def _enrich_with_ratings(courses: list, db) -> list:
-    """Join course data with professor ratings."""
+    """Join course data with professor ratings from MongoDB."""
     if not courses:
         return courses
 
-    instructor_names = list({c.get("instructor", "") for c in courses if c.get("instructor")})
-    ratings_map = {}
+    instructor_names = list(
+        {c.get("instructor", "") for c in courses if c.get("instructor")}
+    )
+    ratings_map: Dict[str, dict] = {}
+
     for name in instructor_names:
-        if not name or name == "Staff":
+        if not name or name.lower() == "staff":
             continue
-        # Fuzzy match: search by last name
-        parts = name.split()
-        last_name = parts[-1] if parts else name
+
+        # Exact name match first
         prof = await db.professor_ratings.find_one(
-            {"name": {"$regex": re.escape(last_name), "$options": "i"}}
+            {"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}},
+            {"_id": 0},
         )
+
+        # Fall back to last-name match
+        if not prof:
+            parts = name.split()
+            last_name = parts[-1] if parts else name
+            prof = await db.professor_ratings.find_one(
+                {"name": {"$regex": re.escape(last_name), "$options": "i"}},
+                {"_id": 0},
+            )
+
         if prof:
             ratings_map[name] = {
                 "rating": prof.get("rating", 0),
                 "difficulty": prof.get("difficulty", 0),
                 "would_take_again_pct": prof.get("would_take_again_pct", -1),
+                "num_ratings": prof.get("num_ratings", 0),
             }
 
     for course in courses:
-        instructor = course.get("instructor", "")
-        prof_data = ratings_map.get(instructor, {})
-        course["professor_rating"] = prof_data.get("rating", 0)
-        course["professor_difficulty"] = prof_data.get("difficulty", 0)
-        course["would_take_again_pct"] = prof_data.get("would_take_again_pct", -1)
+        instr = course.get("instructor", "")
+        data = ratings_map.get(instr, {})
+        course["professor_rating"] = data.get("rating", 0)
+        course["professor_difficulty"] = data.get("difficulty", 0)
+        course["would_take_again_pct"] = data.get("would_take_again_pct", -1)
+        course["num_ratings"] = data.get("num_ratings", 0)
 
     return courses
 
 
+# ── Progressive relaxation ───────────────────────────────────────────────────
+
 async def smart_course_search(query: str, llm) -> Dict[str, Any]:
     """
-    Full pipeline: parse query -> search -> progressive relaxation if no results.
-    Returns results with explanation of any constraint relaxation.
+    Full pipeline:
+      1. LLM extracts filters
+      2. Exact search
+      3. Per-parameter progressive relaxation
+      4. Return results + alternatives + explanation
     """
     filters = await parse_query_to_filters(query, llm)
-    if not filters:
-        return {"results": [], "message": "I couldn't understand the course search criteria. Please try rephrasing."}
+    if not filters or not any(v for k, v in filters.items() if k != "semester"):
+        return {
+            "results": [],
+            "alternatives": [],
+            "message": (
+                "I couldn't understand specific course search criteria. "
+                "Try something like: 'Find ENES 1010 sections, no 8am classes, "
+                "professors rated 4+.'"
+            ),
+            "filters_used": filters,
+        }
 
-    # Try exact search
-    result = await search_courses(filters, relax_level=0)
-    if result["results"]:
-        return {**result, "message": f"Found {result['total_found']} matching courses."}
+    # ── Exact search ────────────────────────────────────────────────────
+    results = await _run_search(filters)
+    if results:
+        return {
+            "results": results[:20],
+            "total_found": len(results),
+            "alternatives": [],
+            "message": f"Found {len(results)} courses matching all your criteria.",
+            "filters_used": filters,
+        }
 
-    # Progressive relaxation
-    alternatives = []
-    for level in range(1, 4):
-        relaxed = await search_courses(filters, relax_level=level)
-        if relaxed["results"]:
+    # ── Per-parameter progressive relaxation ────────────────────────────
+    has_time = bool(
+        filters.get("earliest_start") or filters.get("latest_start")
+    )
+    has_days = bool(filters.get("preferred_days"))
+    has_rating = bool(filters.get("min_professor_rating"))
+    min_rating = filters.get("min_professor_rating", 0)
+
+    alternatives: List[Dict[str, Any]] = []
+
+    # Time relaxation path: widen buffer → remove constraint
+    if has_time:
+        res = await _run_search(filters, time_buffer=60)
+        if res:
             alternatives.append({
-                "results": relaxed["results"][:5],
-                "relaxations": relaxed["relaxations"],
+                "results": res[:5],
+                "relaxed_parameter": "time preference",
+                "relaxation_detail": "Widened acceptable window by 30 minutes",
+            })
+        else:
+            res = await _run_search(filters, skip_time=True)
+            if res:
+                alternatives.append({
+                    "results": res[:5],
+                    "relaxed_parameter": "time preference",
+                    "relaxation_detail": "Removed time constraint entirely",
+                })
+
+    # Rating relaxation path: lower by 1 → remove constraint
+    if has_rating and min_rating:
+        lowered = max(0, min_rating - 1)
+        res = await _run_search(filters, min_rating_override=lowered)
+        if res:
+            alternatives.append({
+                "results": res[:5],
+                "relaxed_parameter": "professor rating",
+                "relaxation_detail": (
+                    f"Lowered minimum rating from {min_rating} to {lowered}"
+                ),
+            })
+        else:
+            res = await _run_search(filters, skip_rating=True)
+            if res:
+                alternatives.append({
+                    "results": res[:5],
+                    "relaxed_parameter": "professor rating",
+                    "relaxation_detail": "Removed professor rating requirement",
+                })
+
+    # Day relaxation path: remove day preference
+    if has_days:
+        res = await _run_search(filters, skip_days=True)
+        if res:
+            alternatives.append({
+                "results": res[:5],
+                "relaxed_parameter": "day preference",
+                "relaxation_detail": "Removed day-of-week preference",
+            })
+
+    # Last resort: relax everything
+    if not alternatives:
+        res = await _run_search(
+            filters, skip_time=True, skip_days=True, skip_rating=True
+        )
+        if res:
+            alternatives.append({
+                "results": res[:5],
+                "relaxed_parameter": "all optional constraints",
+                "relaxation_detail": "Removed all preference constraints",
             })
 
     if alternatives:
@@ -204,9 +325,18 @@ async def smart_course_search(query: str, llm) -> Dict[str, Any]:
             "results": [],
             "alternatives": alternatives,
             "message": (
-                "No courses match all your criteria exactly, but here are close options "
-                "with some constraints relaxed:"
+                "No courses match all your criteria exactly. "
+                "Here are the closest options with some constraints relaxed:"
             ),
+            "filters_used": filters,
         }
 
-    return {"results": [], "message": "No courses found matching your criteria, even with relaxed constraints."}
+    return {
+        "results": [],
+        "alternatives": [],
+        "message": (
+            "No courses found matching your criteria, even with relaxed "
+            "constraints. Please check the course code or try different criteria."
+        ),
+        "filters_used": filters,
+    }

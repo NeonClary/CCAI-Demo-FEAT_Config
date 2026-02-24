@@ -472,7 +472,7 @@
 .floating-input-area {
   position: fixed;
   bottom: 20px;
-  left: 0;
+  left: 300px;
   right: 0;
   z-index: 50;
   background: transparent;
@@ -480,8 +480,13 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  max-width: 800px;
+  max-width: 860px;
   margin: 0 auto;
+  transition: left 0.3s ease;
+}
+
+.floating-input-area.sidebar-collapsed {
+  left: 70px;
 }
 
 /* Reply Banner in ChatPage - matches input width and fixes dark mode */
@@ -554,34 +559,6 @@
 /* FIXED: Chat area expansion when sidebar is collapsed */
 .main-chat-area.sidebar-collapsed {
   margin-left: 70px; /* Width of sidebar when collapsed */
-}
-
-/* Session title display in header */
-.session-title-display {
-  display: flex;
-  align-items: center;
-  padding: 6px 12px;
-  background: var(--bg-secondary, #f3f4f6);
-  border-radius: 6px;
-  margin-right: 8px;
-}
-
-.dark .session-title-display {
-  background: var(--bg-secondary-dark, #374151);
-}
-
-.session-title-display span {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary, #111827);
-  max-width: 150px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.dark .session-title-display span {
-  color: var(--text-primary-dark, #f9fafb);
 }
 
 /* Optional header sign out button */
@@ -1065,8 +1042,10 @@
     padding-bottom: 30px;
   }
   
-  .floating-input-area {
+  .floating-input-area,
+  .floating-input-area.sidebar-collapsed {
     bottom: 10px;
+    left: 0;
   }
   
   .floating-input-area .reply-banner {
@@ -1117,10 +1096,6 @@
   
   .brand-text p {
     font-size: 11px;
-  }
-
-  .session-title-display{
-    display: none;
   }
 
 }

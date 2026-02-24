@@ -3,7 +3,7 @@ import { Upload, FileText, File, X, CheckCircle, AlertCircle } from 'lucide-reac
 import { useTheme } from '../contexts/ThemeContext';
 import '../styles/FileUpload.css'
 
-const FileUpload = ({ onFileUploaded, isUploading, onUploadStart, currentChatSessionId = null, authToken = null  }) => {
+const FileUpload = ({ onFileUploaded, isUploading, onUploadStart, currentChatSessionId = null, authToken = null, ensureSessionId = null }) => {
   const [dragActive, setDragActive] = useState(false);
   const [uploadStatus, setUploadStatus] = useState(null); // 'success', 'error', null
   const [uploadMessage, setUploadMessage] = useState('');
@@ -44,19 +44,16 @@ const FileUpload = ({ onFileUploaded, isUploading, onUploadStart, currentChatSes
     formData.append('file', file);
 
     try {
+      // Ensure a chat session exists before uploading so the document
+      // is stored under the correct session ID in ChromaDB.
+      let sessionId = currentChatSessionId;
+      if (!sessionId && ensureSessionId) {
+        sessionId = await ensureSessionId();
+      }
+
       let uploadUrl = `${process.env.REACT_APP_API_URL}/upload-document`;
-      
-      console.log('=== DOCUMENT UPLOAD DEBUG ===');
-      console.log('currentChatSessionId:', currentChatSessionId);
-      console.log('authToken available:', !!authToken);
-      
-      if (currentChatSessionId) {
-        uploadUrl += `?chat_session_id=${currentChatSessionId}`;
-        console.log('Uploading to specific chat session:', currentChatSessionId);
-        console.log('Final upload URL:', uploadUrl);
-      } else {
-        console.log('WARNING: No currentChatSessionId - uploading to new session');
-        console.log('This will cause session mismatch!');
+      if (sessionId) {
+        uploadUrl += `?chat_session_id=${sessionId}`;
       }
 
       // Include auth token in headers if available

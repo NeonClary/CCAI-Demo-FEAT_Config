@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Paperclip, FileText, X, Trash2, Download, Mic, MicOff, MessageCircle, ClipboardList, Loader2 } from 'lucide-react';
+import { Send, Paperclip, FileText, X, Trash2, Download, Mic, MicOff, MessageCircle, ClipboardList, Loader2, Columns3, FileOutput } from 'lucide-react';
+import { useVoiceStatus } from '../contexts/VoiceStatusContext';
 import FileUpload from './FileUpload';
 
 const EnhancedChatInput = ({ 
@@ -13,6 +14,9 @@ const EnhancedChatInput = ({
   showProfileButtons = false,
   onOpenOnboarding,
   onOpenProfileForm,
+  synthesizedMode = false,
+  onToggleSynthesized,
+  ensureSessionId,
 }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [showUpload, setShowUpload] = useState(false);
@@ -20,11 +24,43 @@ const EnhancedChatInput = ({
   const [isUploading, setIsUploading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const voiceStatus = useVoiceStatus();
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const textareaRef = useRef(null);
   const uploadRef = useRef(null);
   const uploadBtnRef = useRef(null);
+
+  const sendForTranscription = useCallback(async (blob) => {
+    if (!blob || blob.size < 100) {
+      console.warn('STT: blob too small, skipping', blob?.size);
+      return;
+    }
+    setIsTranscribing(true);
+    try {
+      const form = new FormData();
+      form.append('audio', blob, 'recording.webm');
+      const token = authToken || localStorage.getItem('authToken');
+      const resp = await fetch(`${process.env.REACT_APP_API_URL}/api/transcribe`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: form,
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const text = data?.text?.trim();
+        if (text) {
+          setInputMessage(prev => prev ? `${prev} ${text}` : text);
+        }
+      } else {
+        console.error('STT response not ok:', resp.status, await resp.text().catch(() => ''));
+      }
+    } catch (err) {
+      console.error('Transcription failed:', err);
+    } finally {
+      setIsTranscribing(false);
+    }
+  }, [authToken]);
 
   const toggleRecording = useCallback(async () => {
     if (isRecording) {
@@ -32,45 +68,34 @@ const EnhancedChatInput = ({
       setIsRecording(false);
       return;
     }
+    if (voiceStatus && !voiceStatus.ensureReady('stt')) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+      // Pick a supported mimeType
+      const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', '']
+        .find(mt => mt === '' || MediaRecorder.isTypeSupported(mt));
+      const options = mimeType ? { mimeType } : undefined;
+      const mediaRecorder = new MediaRecorder(stream, options);
+
       audioChunksRef.current = [];
       mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+        if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
       };
-      mediaRecorder.onstop = async () => {
+      mediaRecorder.onstop = () => {
         stream.getTracks().forEach(t => t.stop());
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        if (blob.size < 100) return;
-        setIsTranscribing(true);
-        try {
-          const form = new FormData();
-          form.append('audio', blob, 'recording.webm');
-          const resp = await fetch(`${process.env.REACT_APP_API_URL}/api/transcribe`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${authToken}` },
-            body: form,
-          });
-          if (resp.ok) {
-            const { text } = await resp.json();
-            if (text?.trim()) {
-              setInputMessage(prev => prev ? `${prev} ${text.trim()}` : text.trim());
-            }
-          }
-        } catch (err) {
-          console.error('Transcription failed:', err);
-        } finally {
-          setIsTranscribing(false);
-        }
+        const blobType = mediaRecorder.mimeType || 'audio/webm';
+        const blob = new Blob(audioChunksRef.current, { type: blobType });
+        sendForTranscription(blob);
       };
       mediaRecorderRef.current = mediaRecorder;
-      mediaRecorder.start();
+      // Request data every 500ms so chunks are available when stop() fires
+      mediaRecorder.start(500);
       setIsRecording(true);
     } catch (err) {
-      console.error('Microphone access denied:', err);
+      console.error('Microphone access error:', err);
     }
-  }, [isRecording, authToken]);
+  }, [isRecording, voiceStatus, sendForTranscription]);
 
   const handleSend = () => {
     if (!inputMessage.trim() || isLoading || isUploading) return;
@@ -175,6 +200,7 @@ const EnhancedChatInput = ({
             currentChatSessionId={currentChatSessionId}  
             authToken={authToken}
             onUploadStart={handleUploadStart}
+            ensureSessionId={ensureSessionId}
           />
         </div>
       )}
@@ -297,8 +323,48 @@ const EnhancedChatInput = ({
             )}
           </div>
 
-          {/* Right - Mic + Send */}
+          {/* Right - Mode Toggle + Mic + Send */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {onToggleSynthesized && (
+              <div style={{
+                display: 'flex', borderRadius: '18px', overflow: 'hidden',
+                border: '1px solid #3b82f6', flexShrink: 0,
+              }}>
+                <button
+                  onClick={synthesizedMode ? onToggleSynthesized : undefined}
+                  type="button"
+                  title="Panel Response (3 advisors)"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '4px',
+                    padding: '5px 10px', fontSize: '12px', fontWeight: 600,
+                    cursor: synthesizedMode ? 'pointer' : 'default',
+                    border: 'none', transition: 'all 0.2s', whiteSpace: 'nowrap',
+                    background: !synthesizedMode ? '#3b82f6' : 'transparent',
+                    color: !synthesizedMode ? '#fff' : '#3b82f6',
+                  }}
+                >
+                  <Columns3 size={13} />
+                  Panel
+                </button>
+                <div style={{ width: 1, background: '#3b82f6', alignSelf: 'stretch' }} />
+                <button
+                  onClick={!synthesizedMode ? onToggleSynthesized : undefined}
+                  type="button"
+                  title="Single synthesized answer"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '4px',
+                    padding: '5px 10px', fontSize: '12px', fontWeight: 600,
+                    cursor: !synthesizedMode ? 'pointer' : 'default',
+                    border: 'none', transition: 'all 0.2s', whiteSpace: 'nowrap',
+                    background: synthesizedMode ? '#3b82f6' : 'transparent',
+                    color: synthesizedMode ? '#fff' : '#3b82f6',
+                  }}
+                >
+                  <FileOutput size={13} />
+                  Single
+                </button>
+              </div>
+            )}
             <button
               onClick={toggleRecording}
               disabled={isTranscribing}

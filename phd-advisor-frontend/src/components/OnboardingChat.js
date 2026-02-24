@@ -24,9 +24,9 @@ const OnboardingChat = ({ authToken, onClose, userName }) => {
       });
       if (resp.ok) {
         const data = await resp.json();
-        setMessages([{ role: 'agent', text: data.reply }]);
+        setMessages(data.messages || [{ role: 'agent', text: data.reply }]);
         setProgress(data.progress);
-        setComplete(data.complete);
+        setComplete(data.complete || false);
       }
     } catch (e) {
       setMessages([{ role: 'agent', text: "Hi! Let's get to know each other. What are you studying?" }]);

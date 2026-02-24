@@ -14,11 +14,14 @@ import { useTheme } from '../contexts/ThemeContext';
 import '../styles/ChatPage.css';
 import '../styles/EnhancedChatInput.css';
 import AdvisorStatusDropdown from '../components/AdvisorStatusDropdown';
+import AgentStatusDropdown from '../components/AgentStatusDropdown';
 import OnboardingChat from '../components/OnboardingChat';
 import ProfileWalkthrough from '../components/ProfileWalkthrough';
+import ClearDataModal from '../components/ClearDataModal';
+import AccountModal from '../components/AccountModal';
 
-const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onSignOut }) => {
-  const { config, advisors, getAdvisorColors, orchestratorAvatar } = useAppConfig();
+const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNavigateToGuide, onSignOut, onOpenTutorial }) => {
+  const { config, advisors, agents, allPersonas, getAdvisorColors, getAgentColors, getAllPersonaColors, orchestratorAvatar } = useAppConfig();
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [thinkingAdvisors, setThinkingAdvisors] = useState([]);
@@ -56,8 +59,25 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onSig
   const allAdvisorIds = Object.keys(advisors);
   const [activeAdvisors, setActiveAdvisors] = useState(() => {
     const stored = localStorage.getItem('activeAdvisors');
-    return stored ? JSON.parse(stored) : null;
+    if (!stored) return null;
+    try {
+      const parsed = JSON.parse(stored);
+      return Array.isArray(parsed) ? parsed : null;
+    } catch { return null; }
   });
+
+  // Prune stale IDs whenever the advisor list changes
+  useEffect(() => {
+    if (!activeAdvisors) return;
+    const valid = activeAdvisors.filter(id => allAdvisorIds.includes(id));
+    if (valid.length === 0 || valid.length === allAdvisorIds.length) {
+      localStorage.removeItem('activeAdvisors');
+      setActiveAdvisors(null);
+    } else if (valid.length !== activeAdvisors.length) {
+      localStorage.setItem('activeAdvisors', JSON.stringify(valid));
+      setActiveAdvisors(valid);
+    }
+  }, [allAdvisorIds.join(',')]);
 
   const handleToggleAdvisor = (id) => {
     setActiveAdvisors(prev => {
@@ -86,6 +106,8 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onSig
   // Phase 3.2/3.3: Onboarding and profile walkthrough
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showProfileForm, setShowProfileForm] = useState(false);
+  const [showClearData, setShowClearData] = useState(false);
+  const [showAccount, setShowAccount] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
 
   const loadProfile = async () => {
@@ -451,7 +473,6 @@ const handleNewChat = async (sessionId = null) => {
   const handleSendMessage = async (inputMessage) => {
     if (!inputMessage.trim()) return;
 
-    // Create user message
     const userMessage = {
       id: generateMessageId(),
       type: 'user',
@@ -459,10 +480,8 @@ const handleNewChat = async (sessionId = null) => {
       timestamp: new Date()
     };
 
-    // Add to local state immediately
     setMessages(prev => [...prev, userMessage]);
 
-    // Create new session if we don't have one
     let sessionId = currentSessionId;
     if (!sessionId) {
       sessionId = await createNewSession(inputMessage);
@@ -472,39 +491,34 @@ const handleNewChat = async (sessionId = null) => {
       }
     }
 
-    // Save user message to database
-    await saveMessageToSession(userMessage);
+    // Fire-and-forget: save user message to DB without blocking
+    saveMessageToSession(userMessage).catch(err =>
+      console.error('Failed to persist user message:', err)
+    );
 
-    // Update session title if this is the first message and title is generic
     if (messages.length === 0 && currentSessionTitle.includes('Chat ')) {
-      const newTitle = inputMessage.length > 30 
-        ? `${inputMessage.substring(0, 30)}...` 
+      const newTitle = inputMessage.length > 30
+        ? `${inputMessage.substring(0, 30)}...`
         : inputMessage;
-      await updateSessionTitle(sessionId, newTitle);
+      updateSessionTitle(sessionId, newTitle).catch(() => {});
     }
 
-    // Set loading state
     setIsLoading(true);
     setThinkingAdvisors(['system']);
 
     try {
-      const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`,
-      };
-      
-
-      console.log('Sending message with session ID:', currentSessionId); // Debug log
-
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/chat-sequential`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/chat-stream`, {
         method: 'POST',
-        headers: headers,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
         body: JSON.stringify({
           user_input: inputMessage,
           response_length: 'medium',
           chat_session_id: currentSessionId,
           active_advisors: activeAdvisors || undefined,
-          synthesized: synthesizedMode
+          synthesized: synthesizedMode,
         }),
       });
 
@@ -512,46 +526,93 @@ const handleNewChat = async (sessionId = null) => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      // Rest of the function remains the same...
-      const data = await response.json();
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      const dbSavePromises = [];
 
-      // Handle clarification request from orchestrator
-      if (data.status === 'clarification_needed') {
-        const clarificationMessage = {
-          id: generateMessageId(),
-          type: 'clarification',
-          content: data.message,
-          suggestions: data.suggestions || [],
-          timestamp: new Date()
-        };
-        setMessages(prev => [...prev, clarificationMessage]);
-        await saveMessageToSession(clarificationMessage);
-      }
-      // Process advisor responses...
-      else if (data.responses && Array.isArray(data.responses)) {
-        const newResponses = data.responses.map(response => ({
-          id: generateMessageId(),
-          type: 'advisor',
-          persona_id: response.persona_id,
-          content: response.content,
-          timestamp: new Date(),
-          advisorName: response.persona_name || response.persona_id,
-          used_documents: response.used_documents || false,
-          document_chunks_used: response.document_chunks_used || 0
-        }));
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
 
-        setMessages(prev => [...prev, ...newResponses]);
-        
-        // Save advisor responses to database
-        for (const response of newResponses) {
-          await saveMessageToSession(response);
-        }
-        
-        // Log session debug info if available
-        if (data.session_debug) {
-          console.log('Session debug info:', data.session_debug);
+        // Process complete SSE events (delimited by double newline)
+        let boundary;
+        while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+          const raw = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+
+          let eventType = 'message';
+          let eventData = '';
+          for (const line of raw.split('\n')) {
+            if (line.startsWith('event: ')) eventType = line.slice(7).trim();
+            else if (line.startsWith('data: ')) eventData = line.slice(6);
+          }
+          if (!eventData) continue;
+
+          let parsed;
+          try { parsed = JSON.parse(eventData); } catch { continue; }
+
+          if (eventType === 'advisor') {
+            const msg = {
+              id: generateMessageId(),
+              type: 'advisor',
+              persona_id: parsed.persona_id,
+              content: parsed.content,
+              timestamp: new Date(),
+              advisorName: parsed.persona_name || parsed.persona_id,
+              used_documents: parsed.used_documents || false,
+              document_chunks_used: parsed.document_chunks_used || 0,
+            };
+            setMessages(prev => [...prev, msg]);
+            setThinkingAdvisors(prev => prev.filter(id => id !== parsed.persona_id && id !== 'system'));
+            dbSavePromises.push(saveMessageToSession(msg));
+          } else if (eventType === 'progress') {
+            // Synthesized mode: an advisor finished but we only show
+            // the final merged answer. Update thinking indicator.
+            setThinkingAdvisors(prev => {
+              const next = prev.filter(id => id !== parsed.persona_id && id !== 'system');
+              if (!next.includes('synthesizing')) next.push('synthesizing');
+              return next;
+            });
+          } else if (eventType === 'synthesized') {
+            setThinkingAdvisors([]);
+            const msg = {
+              id: generateMessageId(),
+              type: 'advisor',
+              persona_id: parsed.persona_id || 'orchestrator',
+              content: parsed.content,
+              timestamp: new Date(),
+              advisorName: parsed.persona_name || 'Synthesized Answer',
+              used_documents: parsed.used_documents || false,
+              document_chunks_used: parsed.document_chunks_used || 0,
+            };
+            setMessages(prev => [...prev, msg]);
+            dbSavePromises.push(saveMessageToSession(msg));
+          } else if (eventType === 'clarification') {
+            const cMsg = {
+              id: generateMessageId(),
+              type: 'clarification',
+              content: parsed.message,
+              suggestions: parsed.suggestions || [],
+              timestamp: new Date(),
+            };
+            setMessages(prev => [...prev, cMsg]);
+            dbSavePromises.push(saveMessageToSession(cMsg));
+          } else if (eventType === 'error') {
+            setMessages(prev => [...prev, {
+              id: generateMessageId(),
+              type: 'error',
+              content: parsed.detail || 'An error occurred.',
+              timestamp: new Date(),
+            }]);
+          }
+          // eventType === 'done' → stream finished, loop will exit naturally
         }
       }
+
+      // Wait for all DB saves to finish (parallel, non-blocking during stream)
+      await Promise.allSettled(dbSavePromises);
 
     } catch (error) {
       console.error('Error sending message:', error);
@@ -658,7 +719,7 @@ const handleNewChat = async (sessionId = null) => {
   };
 
   const handleExpandMessage = async (messageId, advisorId) => {
-    const advisor = advisors[advisorId];
+    const advisor = allPersonas[advisorId];
     if (!advisor) return;
 
     const originalMessage = messages.find(msg => msg.id === messageId);
@@ -747,7 +808,7 @@ const handleNewChat = async (sessionId = null) => {
   };
 
   const handleReplyToMessage = (message) => {
-    const advisor = advisors[message.persona_id];
+    const advisor = allPersonas[message.persona_id];
     setReplyingTo({
       advisorId: message.persona_id,
       messageId: message.id,
@@ -758,7 +819,7 @@ const handleNewChat = async (sessionId = null) => {
 
   const handleMessageClick = (message) => {
     if (message.type === 'advisor') {
-      const advisor = advisors[message.persona_id];
+      const advisor = allPersonas[message.persona_id];
       setReplyingTo({
         advisorId: message.persona_id,
         messageId: message.id,
@@ -836,6 +897,10 @@ const handleNewChat = async (sessionId = null) => {
         userAvatarId={userAvatarId}
         onAvatarChange={handleAvatarChange}
         onOpenProfile={() => setShowProfileForm(true)}
+        onOpenAccount={() => setShowAccount(true)}
+        onOpenClearData={() => setShowClearData(true)}
+        onOpenUserGuide={onNavigateToGuide}
+        onOpenTutorial={onOpenTutorial}
       />
       
       <div className={`main-chat-area ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
@@ -871,18 +936,15 @@ const handleNewChat = async (sessionId = null) => {
                 isDark={isDark}
                 activeAdvisors={activeAdvisors || allAdvisorIds}
                 onToggleAdvisor={handleToggleAdvisor}
-                synthesizedMode={synthesizedMode}
-                onToggleSynthesized={handleToggleSynthesized}
+              />
+              <AgentStatusDropdown
+                agents={agents}
+                thinkingAdvisors={thinkingAdvisors}
+                getAgentColors={getAgentColors}
+                isDark={isDark}
               />
               
               <div className="header-controls">
-                {/* Add session title display */}
-                {currentSessionTitle && (
-                  <div className="session-title-display">
-                    <span>{currentSessionTitle}</span>
-                  </div>
-                )}
-                
                 {/* Optional: Add header sign out button */}
                 <button 
                   className="header-signout-btn"
@@ -1081,9 +1143,29 @@ const handleNewChat = async (sessionId = null) => {
                       </div>
                     )}
                     
-                    {thinkingAdvisors.filter(id => id !== 'system').map(advisorId => (
+                    {thinkingAdvisors.filter(id => id !== 'system' && id !== 'synthesizing').map(advisorId => (
                       <ThinkingIndicator key={advisorId} advisorId={advisorId} />
                     ))}
+
+                    {thinkingAdvisors.includes('synthesizing') && (
+                      <div className="orchestrator-thinking">
+                        <div className="thinking-bubble" style={orchestratorAvatar ? { overflow: 'hidden', padding: 0 } : {}}>
+                          {orchestratorAvatar ? (
+                            <img src={orchestratorAvatar} alt="Synthesizing" style={{ width: '100%', height: '100%', borderRadius: 'inherit', objectFit: 'cover' }} />
+                          ) : (
+                            <MessageCircle size={20} />
+                          )}
+                        </div>
+                        <div className="thinking-content">
+                          <span className="thinking-label">Synthesizing answers...</span>
+                          <div className="thinking-animation">
+                            <div className="dot"></div>
+                            <div className="dot"></div>
+                            <div className="dot"></div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <div ref={messagesEndRef} />
                   </div>
@@ -1092,7 +1174,7 @@ const handleNewChat = async (sessionId = null) => {
             )}
           </div>
 
-          <div className="floating-input-area">
+          <div className={`floating-input-area ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
             {replyingTo && (
               <div className="reply-banner">
                 <div className="reply-info">
@@ -1120,6 +1202,12 @@ const handleNewChat = async (sessionId = null) => {
               showProfileButtons={!userProfile || userProfile.completion_pct < 100}
               onOpenOnboarding={() => setShowOnboarding(true)}
               onOpenProfileForm={() => setShowProfileForm(true)}
+              synthesizedMode={synthesizedMode}
+              onToggleSynthesized={handleToggleSynthesized}
+              ensureSessionId={async () => {
+                if (currentSessionId) return currentSessionId;
+                return await createNewSession('Document upload');
+              }}
             />
           </div>
         </div>
@@ -1140,6 +1228,45 @@ const handleNewChat = async (sessionId = null) => {
           onClose={() => { setShowProfileForm(false); loadProfile(); }}
         />
       )}
+
+      {showClearData && (
+        <ClearDataModal
+          authToken={authToken}
+          onClose={() => setShowClearData(false)}
+          onDataCleared={({ profile: clearedProfile, chats: clearedChats }) => {
+            if (clearedProfile) {
+              setUserProfile(null);
+              loadProfile();
+            }
+            if (clearedChats) {
+              setMessages([]);
+              setCurrentSessionId(null);
+              setCurrentSessionTitle('');
+              handleNewChat();
+            }
+          }}
+        />
+      )}
+
+      {showAccount && (
+        <AccountModal
+          user={user}
+          authToken={authToken}
+          onClose={() => setShowAccount(false)}
+          onAccountUpdated={(updated) => {
+            if (user) {
+              user.firstName = updated.firstName;
+              user.lastName = updated.lastName;
+              user.email = updated.email;
+            }
+          }}
+          onAccountDeleted={() => {
+            setShowAccount(false);
+            onSignOut();
+          }}
+        />
+      )}
+
     </div>
   );
 };

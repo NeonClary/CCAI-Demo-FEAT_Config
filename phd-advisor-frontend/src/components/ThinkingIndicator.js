@@ -3,8 +3,9 @@ import { useAppConfig } from '../contexts/AppConfigContext';
 import { useTheme } from '../contexts/ThemeContext';
 
 const ThinkingIndicator = ({ advisorId }) => {
-  const { advisors, getAdvisorColors } = useAppConfig();
-  const advisor = advisors[advisorId];
+  const { allPersonas, getAllPersonaColors } = useAppConfig();
+  const advisor = allPersonas[advisorId];
+  const getAdvisorColors = getAllPersonaColors;
   const { isDark } = useTheme();
   const colors = getAdvisorColors(advisorId, isDark);
 

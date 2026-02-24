@@ -2,120 +2,419 @@
 Course Catalog Scraper — fetches CU Boulder course listings from
 classes.colorado.edu and stores results in MongoDB.
 
-classes.colorado.edu is a JS-heavy site. This scraper attempts to use the
-underlying API endpoints it calls. If those fail, it falls back to a
-simplified static parse. For full fidelity, Playwright can be added later.
+Multi-strategy approach:
+  1. FOSE JSON API with 202-polling support
+  2. Playwright headless browser (executes API calls from a real session)
+
+Scrapes ALL terms available in the classes.colorado.edu dropdown
+(typically the current and adjacent semesters).
 """
 
+import asyncio
 import logging
-import httpx
 import re
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
-CLASSES_SEARCH_URL = "https://classes.colorado.edu/api/?page=fose&route=search"
+FOSE_SEARCH_URL = "https://classes.colorado.edu/api/?page=fose&route=search"
+FOSE_TERMS_URL = "https://classes.colorado.edu/api/?page=fose&route=search"
+CLASSES_BASE_URL = "https://classes.colorado.edu"
 
+BROWSER_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/131.0.0.0 Safari/537.36"
+)
 
-async def scrape_courses(
-    term: str = "Spring 2026",
-    subject: Optional[str] = None,
-) -> List[Dict[str, Any]]:
-    """
-    Scrape courses from CU Boulder class search.
-    *term* is a human-readable semester label.
-    """
-    courses: List[Dict[str, Any]] = []
+DEFAULT_SUBJECTS = [
+    "CSCI", "ENES", "MATH", "PHYS", "WRTG", "CHEM", "BIOL", "ECON",
+    "PSYC", "ENGL", "HIST", "ENVD", "APPM", "ASEN", "MCEN", "ECEN",
+    "CVEN", "CHEN", "IPHY", "COMM", "SOCY", "POLS", "PHIL", "ARTS",
+    "MUSC", "ATLS", "INFO", "GEOG", "ANTH", "LING",
+]
 
-    payload = {
-        "other": {"srcdb": _term_to_srcdb(term)},
-        "criteria": [],
-    }
-    if subject:
-        payload["criteria"].append({"field": "subject", "value": subject})
-
-    async with httpx.AsyncClient(timeout=60) as client:
-        try:
-            resp = await client.post(CLASSES_SEARCH_URL, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-            results = data.get("results", [])
-
-            for item in results:
-                schedule = _parse_schedule(item.get("meets", ""))
-                courses.append({
-                    "course_code": f"{item.get('subject', '')} {item.get('catalog_nbr', '')}".strip(),
-                    "title": item.get("title", ""),
-                    "section": item.get("section", ""),
-                    "instructor": item.get("instr", "Staff"),
-                    "schedule": schedule,
-                    "location": item.get("bldg", ""),
-                    "seats_available": item.get("seats", 0),
-                    "semester": term,
-                    "scraped_at": datetime.utcnow(),
-                })
-
-            logger.info(f"Scraped {len(courses)} courses for {term}")
-
-        except Exception as e:
-            logger.error(f"Course scrape error: {e}")
-
-    return courses
+KNOWN_TERMS = [
+    "Fall 2025",
+    "Spring 2026",
+    "Summer 2026",
+]
 
 
 def _term_to_srcdb(term: str) -> str:
-    """Convert a human-readable term to the srcdb code used by CU's API."""
+    """Convert 'Spring 2026' -> '2261', 'Fall 2025' -> '2257', etc.
+
+    CU Boulder's FOSE API uses a 4-digit code: the literal prefix '2',
+    the last two digits of the year, and a season digit
+    (1=Spring, 4=Summer, 7=Fall).
+    """
     term_lower = term.lower()
-    year_match = re.search(r"20\d{2}", term)
-    year = year_match.group(0) if year_match else "2026"
+    ym = re.search(r"20(\d{2})", term)
+    yy = ym.group(1) if ym else "26"
     if "spring" in term_lower:
-        return f"{year}1"
+        return f"2{yy}1"
     if "summer" in term_lower:
-        return f"{year}4"
+        return f"2{yy}4"
     if "fall" in term_lower:
-        return f"{year}7"
-    return f"{year}1"
+        return f"2{yy}7"
+    return f"2{yy}1"
 
 
 def _parse_schedule(meets: str) -> Dict[str, Any]:
-    """Parse a schedule string like 'MWF 10:00am-10:50am' into structured data."""
+    """Parse 'MWF 10:00am-10:50am' into structured data."""
     if not meets:
         return {"days": "", "start_time": "", "end_time": "", "raw": ""}
 
     day_match = re.match(r"([A-Za-z]+)", meets)
     days = day_match.group(1) if day_match else ""
 
-    time_match = re.search(r"(\d{1,2}:\d{2}\s*[ap]m)\s*-\s*(\d{1,2}:\d{2}\s*[ap]m)", meets, re.I)
-    start_time = time_match.group(1).strip() if time_match else ""
-    end_time = time_match.group(2).strip() if time_match else ""
+    time_match = re.search(
+        r"(\d{1,2}:\d{2}\s*[ap]m)\s*-\s*(\d{1,2}:\d{2}\s*[ap]m)", meets, re.I
+    )
+    start = time_match.group(1).strip() if time_match else ""
+    end = time_match.group(2).strip() if time_match else ""
 
-    return {"days": days, "start_time": start_time, "end_time": end_time, "raw": meets}
+    return {"days": days, "start_time": start, "end_time": end, "raw": meets}
+
+
+def _row_to_course(item: dict, term: str) -> Optional[Dict[str, Any]]:
+    """Convert a FOSE API result row to our DB schema.
+
+    Returns ``None`` for rows that should be skipped (recitations,
+    cancelled sections, etc.).
+    """
+    # Skip non-lecture components (recitations, labs) and cancelled sections
+    schd = item.get("schd", "")
+    if schd and schd not in ("LEC", "SEM", ""):
+        return None
+    if item.get("isCancelled"):
+        return None
+
+    meets = item.get("meets", "") or ""
+    # The API uses "code" for the full course code (e.g. "CSCI 1300")
+    code = item.get("code", "").strip()
+    if not code:
+        code = (
+            f"{item.get('subject', '')} "
+            f"{item.get('catalog_nbr', item.get('catalogNbr', ''))}"
+        ).strip()
+
+    section = item.get("no", "") or item.get("section", "")
+    instructor = item.get("instr", "") or item.get("instructor", "Staff")
+
+    # "total" is the current enrollment count; the API doesn't expose
+    # seats_available directly but we can store enrollment count.
+    enrollment_total = 0
+    try:
+        enrollment_total = int(item.get("total", 0))
+    except (ValueError, TypeError):
+        pass
+
+    return {
+        "course_code": code,
+        "title": item.get("title", ""),
+        "section": section,
+        "instructor": instructor,
+        "schedule": _parse_schedule(meets),
+        "location": item.get("bldg", item.get("location", "")),
+        "seats_available": 0,
+        "enrollment_total": enrollment_total,
+        "enrollment_cap": 0,
+        "semester": term,
+        "scraped_at": datetime.utcnow(),
+    }
+
+
+# ── Strategy 1: FOSE JSON API ───────────────────────────────────────────────
+
+async def _scrape_via_api(
+    term: str,
+    subjects: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
+    courses: List[Dict[str, Any]] = []
+    srcdb = _term_to_srcdb(term)
+    subjects = subjects or DEFAULT_SUBJECTS
+
+    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+        # Establish a session by visiting the landing page first
+        try:
+            await client.get(
+                CLASSES_BASE_URL, headers={"User-Agent": BROWSER_UA}
+            )
+        except Exception as e:
+            logger.warning("CU classes landing page fetch failed: %s", e)
+
+        for subj in subjects:
+            payload = {
+                "other": {"srcdb": srcdb},
+                "criteria": [{"field": "subject", "value": subj}],
+            }
+            headers = {
+                "User-Agent": BROWSER_UA,
+                "Content-Type": "application/json",
+                "Referer": CLASSES_BASE_URL,
+                "Origin": CLASSES_BASE_URL,
+            }
+
+            try:
+                resp = await client.post(
+                    FOSE_SEARCH_URL, json=payload, headers=headers
+                )
+
+                if resp.status_code == 202:
+                    data = resp.json() if resp.content else {}
+                    task_id = (
+                        data.get("id")
+                        or data.get("resultId")
+                        or data.get("task_id")
+                    )
+                    if task_id:
+                        result = await _poll_fose(client, task_id, headers)
+                        if result:
+                            for item in result:
+                                row = _row_to_course(item, term)
+                                if row:
+                                    courses.append(row)
+                            continue
+
+                    await asyncio.sleep(3)
+                    resp = await client.post(
+                        FOSE_SEARCH_URL, json=payload, headers=headers
+                    )
+
+                if resp.status_code != 200:
+                    logger.warning(
+                        "CU API returned %d for %s", resp.status_code, subj
+                    )
+                    continue
+
+                body = resp.json()
+                if "fatal" in body:
+                    logger.warning("CU API fatal for %s: %s", subj, body["fatal"])
+                    continue
+
+                results = body.get("results", body.get("data", []))
+                added = 0
+                for item in results:
+                    row = _row_to_course(item, term)
+                    if row:
+                        courses.append(row)
+                        added += 1
+
+                logger.debug("API: %d lecture sections for %s (of %d total)", added, subj, len(results))
+
+            except Exception as e:
+                logger.warning("CU API error for %s: %s", subj, e)
+                continue
+
+    return courses
+
+
+async def _poll_fose(
+    client: httpx.AsyncClient,
+    task_id: str,
+    headers: dict,
+    max_attempts: int = 10,
+) -> Optional[list]:
+    """Poll the FOSE API for async results."""
+    for attempt in range(max_attempts):
+        await asyncio.sleep(2 * (attempt + 1))
+        try:
+            poll_url = f"{FOSE_SEARCH_URL}&resultId={task_id}"
+            resp = await client.get(poll_url, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                return data.get("results", data.get("data", []))
+        except Exception:
+            pass
+    return None
+
+
+# ── Strategy 2: Playwright browser ──────────────────────────────────────────
+
+_BROWSER_FETCH_JS = """
+async ([srcdb, subject]) => {
+    const resp = await fetch('/api/?page=fose&route=search', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            other: {srcdb: srcdb},
+            criteria: [{field: 'subject', value: subject}]
+        })
+    });
+
+    if (resp.status === 202) {
+        let data;
+        try { data = await resp.json(); } catch(e) { return null; }
+        const taskId = data.id || data.resultId || data.task_id;
+        if (!taskId) return null;
+
+        for (let i = 0; i < 10; i++) {
+            await new Promise(r => setTimeout(r, 2000));
+            try {
+                const poll = await fetch(
+                    '/api/?page=fose&route=search&resultId=' + taskId
+                );
+                if (poll.ok) return await poll.json();
+            } catch(e) {}
+        }
+        return null;
+    }
+
+    if (!resp.ok) return null;
+    return await resp.json();
+}
+"""
+
+
+async def _scrape_via_playwright(
+    term: str,
+    subjects: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Launch a real browser, visit classes.colorado.edu (establishes cookies),
+    then execute API calls from the browser context to bypass bot protection.
+    """
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        logger.warning("playwright not installed — browser scrape unavailable")
+        return []
+
+    courses: List[Dict[str, Any]] = []
+    srcdb = _term_to_srcdb(term)
+    subjects = subjects or DEFAULT_SUBJECTS
+
+    async with async_playwright() as pw:
+        browser = await pw.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-setuid-sandbox"],
+        )
+        ctx = await browser.new_context(user_agent=BROWSER_UA)
+        page = await ctx.new_page()
+
+        try:
+            logger.info("Playwright: navigating to CU classes site")
+            await page.goto(
+                CLASSES_BASE_URL, timeout=60_000, wait_until="domcontentloaded"
+            )
+            await page.wait_for_timeout(5000)
+
+            for subj in subjects:
+                try:
+                    result = await page.evaluate(
+                        _BROWSER_FETCH_JS, [srcdb, subj]
+                    )
+                    if result:
+                        items = result.get("results", result.get("data", []))
+                        for item in items:
+                            row = _row_to_course(item, term)
+                            if row:
+                                courses.append(row)
+                        logger.debug(
+                            "Playwright: %d courses for %s", len(items), subj
+                        )
+                    await page.wait_for_timeout(500)
+                except Exception as e:
+                    logger.warning("Playwright fetch for %s failed: %s", subj, e)
+                    continue
+
+        except Exception as e:
+            logger.error("Playwright CU courses error: %s", e)
+        finally:
+            await browser.close()
+
+    return courses
+
+
+# ── Public API ───────────────────────────────────────────────────────────────
+
+async def scrape_courses(
+    term: str = "Spring 2026",
+    subjects: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
+    """Run scraping strategies in order; return the first that succeeds."""
+    logger.info("Starting CU course scrape for %s", term)
+
+    courses = await _scrape_via_api(term, subjects)
+    if courses:
+        logger.info("API strategy succeeded: %d courses for %s", len(courses), term)
+        return courses
+
+    logger.info("API failed for %s — trying Playwright", term)
+    courses = await _scrape_via_playwright(term, subjects)
+    if courses:
+        logger.info("Playwright strategy succeeded: %d courses for %s", len(courses), term)
+        return courses
+
+    logger.error("All CU course scraping strategies failed for %s", term)
+    return []
+
+
+async def scrape_all_terms(
+    terms: Optional[List[str]] = None,
+    subjects: Optional[List[str]] = None,
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Scrape courses for every term in *terms* (defaults to KNOWN_TERMS).
+
+    Returns a dict mapping term name -> list of course dicts.
+    """
+    terms = terms or KNOWN_TERMS
+    results: Dict[str, List[Dict[str, Any]]] = {}
+    for term in terms:
+        courses = await scrape_courses(term=term, subjects=subjects)
+        results[term] = courses
+        logger.info("Scraped %d courses for %s", len(courses), term)
+    return results
 
 
 async def store_courses(courses: List[Dict[str, Any]]):
     """Upsert course data into MongoDB."""
     from app.core.database import get_database
-    db = get_database()
-    collection = db.courses
 
-    for course in courses:
-        await collection.update_one(
+    db = get_database()
+    coll = db.courses
+
+    for c in courses:
+        await coll.update_one(
             {
-                "course_code": course["course_code"],
-                "section": course["section"],
-                "semester": course["semester"],
+                "course_code": c["course_code"],
+                "section": c["section"],
+                "semester": c["semester"],
             },
-            {"$set": course},
+            {"$set": c},
             upsert=True,
         )
 
-    logger.info(f"Stored/updated {len(courses)} course records")
+    logger.info("Stored/updated %d course records", len(courses))
+
+
+async def get_available_terms() -> List[str]:
+    """Return the list of terms we scrape (for use by the query engine)."""
+    return list(KNOWN_TERMS)
 
 
 async def run_course_scrape(term: str = "Spring 2026"):
-    """Full scrape pipeline: fetch + store."""
+    """Scrape + store for a single term."""
     courses = await scrape_courses(term=term)
     if courses:
         await store_courses(courses)
     return len(courses)
+
+
+async def run_all_terms_scrape(
+    terms: Optional[List[str]] = None,
+) -> int:
+    """Scrape + store for all available terms. Returns total course count."""
+    all_courses = await scrape_all_terms(terms=terms)
+    total = 0
+    for term, courses in all_courses.items():
+        if courses:
+            await store_courses(courses)
+            total += len(courses)
+    logger.info("All-terms scrape complete: %d total courses across %d terms",
+                total, len(all_courses))
+    return total

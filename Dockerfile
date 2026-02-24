@@ -11,7 +11,8 @@ ENV XDG_CONFIG_HOME=/config
 RUN apt-get update && \
     apt-get install -y \
     python3 \
-    python3-pip
+    python3-pip \
+    ffmpeg
 
 # ---- Python dependencies (cached unless requirements.txt changes) ----------
 WORKDIR /ccai/multi_llm_chatbot_backend
@@ -32,6 +33,7 @@ COPY . .
 # ---- Backend target --------------------------------------------------------
 FROM base AS backend
 WORKDIR /ccai/multi_llm_chatbot_backend
+RUN python3 -m playwright install --with-deps chromium
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # ---- Frontend target -------------------------------------------------------

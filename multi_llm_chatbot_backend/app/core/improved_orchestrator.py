@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional, Any
+import asyncio
 from app.models.persona import Persona
 from app.core.session_manager import ConversationContext, get_session_manager
 from app.core.context_manager import get_context_manager
@@ -282,12 +283,19 @@ class ImprovedChatOrchestrator:
         
         return responses
     
-    async def _generate_single_persona_response(self, session, persona, response_length: str = "medium"):
+    async def _generate_single_persona_response(
+        self,
+        session,
+        persona,
+        response_length: str = "medium",
+        prefetched_document_context: Optional[str] = None,
+    ):
         """
-        Enhanced version - Generate response from a single persona with enhanced RAG integration
+        Generate response from a single persona with enhanced RAG integration.
+        If *prefetched_document_context* is provided it is used directly,
+        skipping the per-persona RAG retrieval (used by the parallel path).
         """
         try:
-            # Get the user's latest message for document retrieval
             user_message = ""
             try:
                 user_message = session.get_latest_user_message() or ""
@@ -297,35 +305,32 @@ class ImprovedChatOrchestrator:
                         user_message = msg.get('content', '')
                         break
             
-            # Retrieve relevant document context using enhanced RAG
-            document_context = ""
-            if user_message:
-                document_context = await self._retrieve_relevant_documents(
-                    user_input=user_message,
-                    session_id=session.session_id,
-                    persona_id=persona.id
-                )
+            if prefetched_document_context is not None:
+                document_context = prefetched_document_context
+            else:
+                document_context = ""
+                if user_message:
+                    document_context = await self._retrieve_relevant_documents(
+                        user_input=user_message,
+                        session_id=session.session_id,
+                        persona_id=persona.id,
+                    )
 
-            # For course_advisor: query the course/professor database
             if persona.id == "course_advisor" and user_message:
                 course_data_context = await self._query_course_database(user_message)
                 if course_data_context:
                     document_context = (document_context or "") + "\n\n" + course_data_context
             
-            # Build enhanced context for the LLM
             enhanced_context = await self._build_enhanced_context_for_persona(
                 session, persona, user_message, document_context
             )
             
-            # Generate response with enhanced context
             response = await persona.respond(enhanced_context, response_length)
             
-            # Validate and improve response quality
             if not self._is_valid_response(response, persona.id):
                 logger.warning(f"Invalid response from {persona.id}, using fallback")
                 response = self._get_persona_fallback(persona.id)
             
-            # Track document usage for debugging
             used_documents = bool(document_context and len(document_context.strip()) > 100)
             document_chunks_used = document_context.count("[Source:") if document_context else 0
             
@@ -350,6 +355,77 @@ class ImprovedChatOrchestrator:
                 "response_length": response_length,
                 "context_quality": "error"
             }
+
+    # ── Parallel multi-persona generation ────────────────────────────
+
+    async def generate_parallel_responses(
+        self,
+        persona_ids: List[str],
+        session_id: str,
+        user_input: str,
+        response_length: str = "medium",
+    ) -> List[Dict[str, Any]]:
+        """
+        Generate responses from multiple personas **concurrently**.
+        RAG document retrieval is done once and shared across all personas.
+        """
+        session = self.session_manager.get_session(session_id)
+
+        # Fetch RAG documents once for all personas
+        document_context = await self._retrieve_relevant_documents(
+            user_input=user_input,
+            session_id=session_id,
+            persona_id="",
+        )
+        logger.info(
+            "Shared RAG retrieval complete (%d chars) for %d personas",
+            len(document_context or ""),
+            len(persona_ids),
+        )
+
+        async def _run_one(pid: str) -> Dict[str, Any]:
+            persona = self.get_persona(pid)
+            if not persona:
+                return {
+                    "persona_id": pid,
+                    "persona_name": "Unknown",
+                    "response": "Persona not found.",
+                    "used_documents": False,
+                    "document_chunks_used": 0,
+                    "response_length": response_length,
+                    "context_quality": "error",
+                }
+            return await self._generate_single_persona_response(
+                session,
+                persona,
+                response_length,
+                prefetched_document_context=document_context,
+            )
+
+        results = await asyncio.gather(
+            *[_run_one(pid) for pid in persona_ids],
+            return_exceptions=True,
+        )
+
+        responses: List[Dict[str, Any]] = []
+        for pid, result in zip(persona_ids, results):
+            if isinstance(result, Exception):
+                logger.error("Parallel persona %s raised: %s", pid, result)
+                persona = self.get_persona(pid)
+                responses.append({
+                    "persona_id": pid,
+                    "persona_name": persona.name if persona else pid,
+                    "response": "I encountered an error while processing your question. Please try again.",
+                    "used_documents": False,
+                    "document_chunks_used": 0,
+                    "response_length": response_length,
+                    "context_quality": "error",
+                })
+            else:
+                responses.append(result)
+                session.append_message(pid, result["response"])
+
+        return responses
 
     async def _query_course_database(self, user_message: str) -> str:
         """
@@ -383,9 +459,14 @@ class ImprovedChatOrchestrator:
                 )
                 lines.append(line)
 
+            if result.get("filters_used"):
+                lines.append(f"Parsed filters: {json.dumps(result['filters_used'])}")
+
             for alt in result.get("alternatives", []):
-                if alt.get("relaxations"):
-                    lines.append(f"\n(Constraints relaxed: {', '.join(alt['relaxations'])})")
+                param = alt.get("relaxed_parameter", "some constraints")
+                lines.append(f"\n--- ALTERNATIVE (with {param} relaxed): ---")
+                if alt.get("relaxation_detail"):
+                    lines.append(f"  Change: {alt['relaxation_detail']}")
                 for course in alt.get("results", []):
                     sched = course.get("schedule", {})
                     line = (
@@ -393,6 +474,7 @@ class ImprovedChatOrchestrator:
                         f"{course.get('title')} | Instructor: {course.get('instructor')} "
                         f"| Schedule: {sched.get('raw', 'TBA')} "
                         f"| Prof Rating: {course.get('professor_rating', 'N/A')}/5 "
+                        f"| Difficulty: {course.get('professor_difficulty', 'N/A')}/5 "
                         f"| Would Take Again: {course.get('would_take_again_pct', 'N/A')}%"
                     )
                     lines.append(line)
@@ -400,14 +482,330 @@ class ImprovedChatOrchestrator:
             lines.append("=== END DATABASE RESULTS ===")
             lines.append(
                 "Use the above real data in your response. Cite specific section numbers, "
-                "professor ratings, and schedules. If no results were found, say so honestly "
-                "and suggest the student check the registrar or try different criteria."
+                "professor ratings, and schedules. If no exact matches were found but alternatives "
+                "exist, present the best options from each relaxation path. For example: "
+                "'No classes match exactly, but Section 006 at 8am has a 4.3-star professor, "
+                "and Section 004 at 1pm has a 3.9-star professor.' "
+                "If no results at all, suggest trying different criteria."
             )
             return "\n".join(lines)
 
         except Exception as e:
             logger.warning("Course database query failed: %s", e)
             return ""
+
+    # ── Orchestrator routing ─────────────────────────────────────────────
+
+    def classify_query(self, user_input: str, session_id: Optional[str] = None) -> str:
+        """
+        Classify whether a query should be routed to the course-database
+        sub-agent instead of the normal multi-persona panel.
+
+        Uses conversation history to detect follow-up questions that should
+        stay with the same specialist agent even when the wording alone
+        would not trigger specialist routing.
+
+        Returns ``"course_db"`` or ``"general"``.
+        """
+        input_lower = user_input.lower()
+
+        # ── Explicit course-db signals in the current message ────────
+        has_course_code = bool(
+            re.search(r'\b[A-Z]{2,4}\s*\d{3,4}\b', user_input)
+        )
+
+        db_patterns = [
+            r"professor\s+rat(ed|ing)", r"\d+\s*star",
+            r"star\s*(professor|rating)", r"best\s+professor",
+            r"(which|what)\s+(section|class|option)",
+            r"start(s|ing)?\s+(at|after|before)",
+            r"no\s+\d+\s*am", r"no\s+(morning|8am|8\s*am|early)",
+            r"(schedule|time)\s+(for|preference)",
+            r"take\s+again", r"difficulty\s+rat",
+            r"seats?\s+available", r"(open|available)\s+section",
+        ]
+        has_db_indicator = any(
+            re.search(p, input_lower) for p in db_patterns
+        )
+
+        course_words = ["class", "course", "section", "lecture", "lab"]
+        sched_rate_words = [
+            "schedule", "time", "morning", "afternoon", "evening",
+            "rating", "rated", "star", "difficulty",
+            "professor", "instructor", "start", "available",
+        ]
+        has_course_word = any(w in input_lower for w in course_words)
+        has_sched_rate = any(w in input_lower for w in sched_rate_words)
+
+        if has_course_code or has_db_indicator or (has_course_word and has_sched_rate):
+            logger.info("Query classified as course_db (explicit signals): %r", user_input[:80])
+            return "course_db"
+
+        # ── Context-aware follow-up detection ────────────────────────
+        if session_id:
+            last_route = self._get_last_agent_route(session_id)
+            if last_route and self._is_follow_up(user_input, last_route):
+                logger.info(
+                    "Query classified as %s (follow-up detected): %r",
+                    last_route, user_input[:80],
+                )
+                return last_route
+
+        return "general"
+
+    def _get_last_agent_route(self, session_id: str) -> Optional[str]:
+        """Check session metadata for the most recent specialist route."""
+        session = self.session_manager.get_session(session_id)
+        if not session:
+            return None
+        return getattr(session, "_last_agent_route", None)
+
+    def _set_last_agent_route(self, session_id: str, route: str):
+        """Record which specialist route was used so follow-ups can reuse it."""
+        session = self.session_manager.get_session(session_id)
+        if session:
+            session._last_agent_route = route
+
+    def _clear_agent_route(self, session_id: str):
+        """Clear the specialist route when the conversation clearly changes topic."""
+        session = self.session_manager.get_session(session_id)
+        if session and hasattr(session, "_last_agent_route"):
+            del session._last_agent_route
+
+    @staticmethod
+    def _is_follow_up(user_input: str, last_route: str) -> bool:
+        """Detect whether *user_input* is a conversational follow-up to the
+        previous specialist turn rather than a brand-new topic.
+
+        Heuristics:
+        - Short messages (<15 words) that contain referential language
+          ("what about", "how about", "and for", "instead", "also", etc.)
+        - Semester / time references when the last route was course_db
+        - Pronoun-heavy starts ("that", "those", "it", "them")
+        - Comparative / alternative phrasing
+        """
+        lower = user_input.lower().strip()
+        words = lower.split()
+
+        # Very short messages with referential language are almost always
+        # follow-ups to whatever was just discussed.
+        follow_up_phrases = [
+            r"^what about\b", r"^how about\b", r"^and\b",
+            r"^what if\b", r"^can you\b", r"^could you\b",
+            r"^show me\b", r"^any\b",
+            r"\binstead\b", r"\balso\b", r"\btoo\b",
+            r"^same\b", r"^that\b", r"^those\b", r"^these\b",
+            r"^them\b", r"^it\b",
+            r"^yes\b", r"^no\b", r"^yeah\b",
+            r"^okay\b", r"^ok\b", r"^sure\b",
+            r"\bother\b", r"\balternative", r"\bdifferent\b",
+            r"\bmore\b", r"\bless\b", r"\bcheaper\b",
+        ]
+
+        if len(words) <= 15:
+            if any(re.search(p, lower) for p in follow_up_phrases):
+                return True
+
+        # Route-specific follow-up signals
+        if last_route == "course_db":
+            course_followup_patterns = [
+                r"\b(spring|summer|fall|winter)\b",
+                r"\bsemester\b", r"\bterm\b",
+                r"\b(next|this|last)\s+(year|semester|term)\b",
+                r"\b(earlier|later)\b",
+                r"\bmorning\b", r"\bafternoon\b", r"\bevening\b",
+                r"\b(mon|tue|wed|thu|fri|mwf|tth)\b",
+                r"\b(online|in\s*person|hybrid)\b",
+                r"\b(easier|harder)\b",
+                r"\b(another|different)\s+(section|professor|time)\b",
+            ]
+            if any(re.search(p, lower) for p in course_followup_patterns):
+                return True
+
+        return False
+
+    async def handle_course_query(
+        self,
+        user_message: str,
+        session_id: str,
+        response_length: str = "medium",
+    ) -> dict:
+        """
+        Specialized sub-agent: queries the course / professor database and
+        returns a single, data-driven response.  Bypasses the multi-persona
+        panel and compact-markdown formatting so the answer can include
+        detailed section-by-section recommendations.
+
+        For follow-up messages the LLM is given the conversation history so
+        it can resolve references like "What about Fall semester?" against
+        the previous query's parameters.
+        """
+        try:
+            session = self.session_manager.get_session(session_id)
+
+            # Build an expanded query for the database by asking the LLM
+            # to resolve the follow-up against conversation context.
+            effective_query = await self._resolve_course_followup(
+                user_message, session
+            )
+
+            course_data = await self._query_course_database(effective_query)
+
+            persona = self.get_persona("course_advisor")
+            base_prompt = (
+                persona.system_prompt if persona
+                else "You are a CU Boulder course advisor with access to the course database."
+            )
+
+            profile_block = ""
+            if hasattr(session, "user_profile_context") and session.user_profile_context:
+                profile_block = f"\n\nSTUDENT PROFILE:\n{session.user_profile_context}\n"
+
+            system_prompt = (
+                f"{base_prompt}{profile_block}\n\n"
+                f"{course_data or 'No course data available for this query.'}\n\n"
+                "RESPONSE FORMAT — follow this EXACTLY (no other sections):\n"
+                "\n"
+                "### Top Pick\n"
+                "Identify the single best option from the results and present it with\n"
+                "section number, professor name, rating, schedule, and a brief reason\n"
+                "why it is the best match.\n"
+                "\n"
+                "### Search Results\n"
+                "List ALL matching options (including the top pick) with section number,\n"
+                "professor name, rating, schedule, and seat availability. Use a numbered\n"
+                "list. When criteria were relaxed, note what changed.\n"
+                "\n"
+                "RULES:\n"
+                "- You have REAL data above. NEVER say you cannot access schedules or ratings.\n"
+                "- Do NOT include 'Thought', 'What to do', or 'Next step' sections.\n"
+                "- If no data was found, say so and suggest different criteria.\n"
+            )
+
+            context = []
+            recent = session.messages[-8:] if len(session.messages) > 8 else session.messages
+            for msg in recent:
+                if msg.get("role") != "system":
+                    context.append({"role": msg["role"], "content": msg["content"]})
+
+            from app.core.bootstrap import create_llm_client
+            llm = create_llm_client()
+            token_map = {"short": 800, "medium": 1500, "long": 2000}
+
+            response_text = await llm.generate(
+                system_prompt=system_prompt,
+                context=context,
+                temperature=0.4,
+                max_tokens=token_map.get(response_length, 1024),
+            )
+
+            session.append_message("course_advisor", response_text)
+
+            # Record the route so follow-ups are detected
+            self._set_last_agent_route(session_id, "course_db")
+
+            return {
+                "persona_id": "course_advisor",
+                "persona_name": "Course Advisor",
+                "content": response_text,
+                "used_documents": True,
+                "document_chunks_used": 0,
+                "route": "course_db",
+            }
+
+        except Exception as e:
+            logger.error("Course query sub-agent failed: %s", e)
+            import traceback
+            logger.error(traceback.format_exc())
+            return {
+                "persona_id": "course_advisor",
+                "persona_name": "Course Advisor",
+                "content": "I'm having trouble accessing the course database right now. Please try again.",
+                "used_documents": False,
+                "document_chunks_used": 0,
+                "route": "course_db",
+            }
+
+    async def _resolve_course_followup(
+        self, user_message: str, session
+    ) -> str:
+        """Turn a short follow-up like 'What about Fall semester?' into a
+        fully-qualified course query by merging it with the previous turn's
+        parameters.
+
+        If the message already looks self-contained (has a course code or is
+        long), return it unchanged.
+        """
+        if re.search(r'\b[A-Z]{2,4}\s*\d{3,4}\b', user_message):
+            return user_message
+        if len(user_message.split()) >= 20:
+            return user_message
+
+        # Gather recent course_advisor exchanges so the LLM has context
+        recent_turns = []
+        for msg in session.messages[-10:]:
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+            if role in ("user", "course_advisor"):
+                recent_turns.append(f"{role}: {content[:500]}")
+
+        if not recent_turns:
+            return user_message
+
+        conversation_block = "\n".join(recent_turns)
+
+        from app.core.bootstrap import create_llm_client
+        from app.scrapers.course_scraper import KNOWN_TERMS
+        llm = create_llm_client()
+
+        terms_str = ", ".join(KNOWN_TERMS)
+        system = (
+            "You help resolve follow-up questions about CU Boulder courses.\n"
+            "Given the conversation history and the user's latest message, "
+            "produce a SINGLE self-contained course search query that keeps "
+            "all parameters from the previous query but applies the "
+            "modification the user is asking about.\n\n"
+            f"AVAILABLE SEMESTERS IN THE DATABASE: {terms_str}\n"
+            "When the user says a season like 'Fall' without a year, pick the "
+            "matching semester from the available list above.\n\n"
+            "Examples:\n"
+            "  Previous: 'Find CSCI 1300 sections with professors rated 4+'\n"
+            "  Follow-up: 'What about Fall semester?'\n"
+            "  Output: 'Find CSCI 1300 sections for Fall 2025 with professors rated 4+'\n\n"
+            "  Previous: 'ENES 1010 no 8am classes'\n"
+            "  Follow-up: 'What about summer?'\n"
+            "  Output: 'ENES 1010 no 8am classes for Summer 2026'\n\n"
+            "  Previous: 'CSCI 2270 for Spring 2026'\n"
+            "  Follow-up: 'Any sections with higher rated professors?'\n"
+            "  Output: 'CSCI 2270 for Spring 2026 with professors rated 4+'\n\n"
+            "Return ONLY the expanded query, nothing else. No explanation, "
+            "no markdown, just the query string."
+        )
+
+        try:
+            expanded = await llm.generate(
+                system_prompt=system,
+                context=[{
+                    "role": "user",
+                    "content": (
+                        f"Conversation so far:\n{conversation_block}\n\n"
+                        f"Latest message: {user_message}\n\n"
+                        "Produce the expanded, self-contained query:"
+                    ),
+                }],
+                temperature=0.1,
+                max_tokens=200,
+            )
+            expanded = expanded.strip().strip('"').strip("'")
+            if expanded and len(expanded) > 5:
+                logger.info(
+                    "Resolved follow-up: %r → %r", user_message, expanded
+                )
+                return expanded
+        except Exception as e:
+            logger.warning("Follow-up resolution failed: %s", e)
+
+        return user_message
 
     async def _retrieve_relevant_documents(self, user_input: str, session_id: str, persona_id: str = "") -> str:
         """
@@ -849,9 +1247,26 @@ When analyzing the document context:
                 f"**{r['persona_name']}:** {r['content']}" for r in responses
             )
             system_prompt = (
-                "You are a synthesis assistant. Combine the following advisor perspectives "
-                "into a single coherent response. Note areas of agreement and highlight any "
-                "differences. Keep the same markdown formatting conventions."
+                "You are a synthesis assistant. You receive multiple advisor responses to "
+                "the same student question. Your job is to merge them into ONE comprehensive "
+                "answer using exactly this structure:\n\n"
+                "### Thought\n"
+                "A single paragraph (2-4 sentences) that weaves together the key insights "
+                "from every advisor. Include all distinct reasons and perspectives; do not "
+                "drop any advisor's unique angle.\n\n"
+                "### What to do\n"
+                "A merged bullet list. If two advisors gave similar advice, combine them "
+                "into one bullet. If an advisor offered a unique idea, keep it as its own "
+                "bullet. Aim for 4-6 bullets total.\n\n"
+                "### Next steps\n"
+                "A bullet list of concrete, immediate actions. Merge similar next-step ideas "
+                "into single bullets; keep unique ones separate. Each bullet should be one "
+                "imperative sentence.\n\n"
+                "Rules:\n"
+                "- Use GitHub-Flavored Markdown, `###` headings, `-` bullets.\n"
+                "- Do NOT mention advisor names or say 'the Career Coach suggested…'.\n"
+                "- Write as one unified voice.\n"
+                "- Never repeat the same idea in different sections."
             )
             result = await llm.generate(
                 system_prompt=system_prompt,
@@ -861,7 +1276,7 @@ When analyzing the document context:
             )
             return {
                 "persona_id": "orchestrator",
-                "persona_name": "Synthesized Response",
+                "persona_name": "Synthesized Answer",
                 "content": result,
                 "used_documents": any(r.get("used_documents") for r in responses),
                 "document_chunks_used": sum(r.get("document_chunks_used", 0) for r in responses),
@@ -870,16 +1285,41 @@ When analyzing the document context:
             logger.error(f"Synthesis failed: {e}")
             return responses[0] if responses else {
                 "persona_id": "orchestrator",
-                "persona_name": "Synthesized Response",
+                "persona_name": "Synthesized Answer",
                 "content": "Unable to synthesize responses.",
                 "used_documents": False,
                 "document_chunks_used": 0,
             }
 
+    @staticmethod
+    def _extract_identity(persona) -> str:
+        """Extract just the role description and expertise bullets from a
+        persona's system prompt — enough for routing, not the full prompt."""
+        prompt = persona.system_prompt or ""
+        lines = prompt.split("\n")
+        identity_lines: list[str] = []
+        in_expertise = False
+        for line in lines:
+            stripped = line.strip()
+            if not identity_lines and stripped and not stripped.startswith("**"):
+                identity_lines.append(stripped)
+                continue
+            if stripped.upper().startswith("**YOUR EXPERTISE"):
+                in_expertise = True
+                continue
+            if in_expertise:
+                if stripped.startswith("- "):
+                    identity_lines.append(stripped)
+                elif stripped.startswith("**") or (stripped and not stripped.startswith("-")):
+                    break
+        return "\n".join(identity_lines) if identity_lines else persona.name
+
     async def get_top_personas(self, session_id: str, k: int = 3, allowed_ids: Optional[List[str]] = None) -> List[str]:
         """
-        Use the LLM to rank personas based on current session context.
-        Falls back to default persona order if LLM fails or returns invalid data.
+        Select advisors using a diversity-aware strategy:
+          - 1 most directly relevant to the user's query
+          - 2 with deliberately different but potentially useful perspectives
+        Falls back to default persona order if the LLM call fails.
         """
         try:
             session = self.session_manager.get_session(session_id)
@@ -890,53 +1330,58 @@ When analyzing the document context:
                 logger.warning("No personas in allowed pool.")
                 return list(self.personas.keys())[:k]
 
+            if len(pool) <= k:
+                return list(pool.keys())
+
             llm = next(iter(pool.values())).llm
 
-            # Use recent conversation context (last 5 messages)
             recent_context = "\n".join(
                 msg['content'] for msg in session.get_recent_messages(5)
             )
 
             persona_descriptions = "\n".join([
-                f"- ID: {p.id}\n  Name: {p.name}\n  Prompt: {p.system_prompt.strip()}"
+                f"- ID: {p.id} | {p.name}\n  {self._extract_identity(p)}"
                 for p in pool.values()
             ])
 
             app_title = get_settings().app.title
 
-            prompt = f"""
-                        The user is seeking advice from {app_title}. Based on the conversation below, choose the top {k} most relevant advisors.
-
-                        Respond ONLY with a JSON list of exactly {k} advisor IDs in order of relevance.
-                        Example response: ["methodist", "pragmatist", "theorist"]
-
-                        --- Conversation ---
-                        {recent_context}
-
-                        --- Available Advisors ---
-                        {persona_descriptions}
-                      """.strip()
-
-            llm_response = await llm.generate(
-                system_prompt=f"You are an assistant that selects the best advisors for a user of {app_title}.",
-                context=[{"role": "user", "content": prompt}],
-                temperature=0.4,
-                max_tokens=150
+            prompt = (
+                f"A student is using {app_title}. Based on the conversation, "
+                "select 3 advisors to respond.\n\n"
+                "SELECTION RULES:\n"
+                "1. Pick the 1 advisor whose expertise is MOST directly relevant "
+                "to what the student is asking about. Place them first.\n"
+                "2. Then pick 2 MORE advisors whose expertise is DIFFERENT from "
+                "the first and from each other, but who could offer a useful "
+                "alternative angle the student might not have considered.\n"
+                "   - Prefer advisors whose perspective CONTRASTS with the top pick "
+                "(e.g. if #1 is academic, pick a wellness or career voice).\n\n"
+                "Respond ONLY with a JSON list of exactly 3 advisor IDs.\n"
+                'Example: ["academic_planner", "wellness_advisor", "career_coach"]\n\n'
+                f"--- Conversation ---\n{recent_context}\n\n"
+                f"--- Available Advisors ---\n{persona_descriptions}"
             )
 
-            # Step 1: Try direct JSON load
+            llm_response = await llm.generate(
+                system_prompt="You select advisors for a student advising app. Return only JSON.",
+                context=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=150,
+            )
+
             try:
                 top_ids = json.loads(llm_response.strip())
             except json.JSONDecodeError:
-                # Step 2: Fallback: try extracting list of quoted strings
                 top_ids = re.findall(r'"(.*?)"', llm_response)
                 logger.warning(f"Fallback JSON extraction used: {top_ids}")
 
             valid_ids = [pid for pid in top_ids if pid in pool]
 
             if len(valid_ids) < k:
-                logger.warning(f"LLM returned insufficient or invalid IDs. Got: {valid_ids}")
-                return list(pool.keys())[:k]
+                logger.warning(f"LLM returned insufficient or invalid IDs ({valid_ids}), padding with remaining")
+                remaining = [pid for pid in pool if pid not in valid_ids]
+                valid_ids.extend(remaining[: k - len(valid_ids)])
 
             return valid_ids[:k]
 

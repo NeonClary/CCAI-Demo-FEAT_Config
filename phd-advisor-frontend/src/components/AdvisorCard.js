@@ -5,8 +5,8 @@ import { useTheme } from '../contexts/ThemeContext';
 const AdvisorCard = ({ advisor, advisorId }) => {
   const Icon = advisor.icon;
   const { isDark } = useTheme();
-  const { getAdvisorColors } = useAppConfig();
-  const colors = getAdvisorColors(advisorId, isDark);
+  const { getAllPersonaColors } = useAppConfig();
+  const colors = getAllPersonaColors(advisorId, isDark);
 
   return (
     <div className="advisor-card">

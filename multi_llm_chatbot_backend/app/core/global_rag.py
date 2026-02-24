@@ -34,7 +34,11 @@ def query_global_documents(query: str, n_results: int = 4) -> List[Dict[str, Any
 
 
 def seed_global_documents(data_dir: str = "./data"):
-    """Ingest all files in *data_dir* into the global RAG collection at startup."""
+    """Ingest all files in *data_dir* into the global RAG collection at startup.
+
+    Already-loaded files (by filename) are skipped so restarts don't
+    duplicate embeddings.
+    """
     data_path = Path(data_dir)
     if not data_path.exists():
         logger.info("No data/ directory found — skipping global RAG seed.")
@@ -43,22 +47,43 @@ def seed_global_documents(data_dir: str = "./data"):
     rag = get_global_rag()
     supported = {".pdf", ".txt", ".docx", ".doc"}
 
-    for filepath in data_path.iterdir():
+    # Determine which files are already in ChromaDB for the global session
+    stats = rag.get_document_stats(GLOBAL_SESSION_ID)
+    already_loaded = {
+        d.get("filename") for d in stats.get("documents", [])
+    }
+    if already_loaded:
+        logger.info(
+            "Global RAG already has %d documents — will skip those",
+            len(already_loaded),
+        )
+
+    added = 0
+    for filepath in sorted(data_path.iterdir()):
         if filepath.suffix.lower() not in supported:
+            continue
+        if filepath.name in already_loaded:
+            logger.debug("Skipping already-loaded global doc: %s", filepath.name)
             continue
         try:
             text = _extract_text(filepath)
             if not text or len(text.strip()) < 50:
                 continue
-            rag.store_document(
-                text=text,
-                session_id=GLOBAL_SESSION_ID,
+            rag.add_document(
+                content=text,
                 filename=filepath.name,
-                metadata={"source": "global", "filename": filepath.name},
+                session_id=GLOBAL_SESSION_ID,
+                file_type=filepath.suffix.lower().lstrip("."),
             )
-            logger.info(f"Seeded global doc: {filepath.name} ({len(text)} chars)")
+            added += 1
+            logger.info("Seeded global doc: %s (%d chars)", filepath.name, len(text))
         except Exception as e:
-            logger.error(f"Failed to seed {filepath.name}: {e}")
+            logger.error("Failed to seed %s: %s", filepath.name, e)
+
+    if added:
+        logger.info("Global RAG: loaded %d new documents", added)
+    else:
+        logger.info("Global RAG: no new documents to load")
 
 
 def _extract_text(filepath: Path) -> str:

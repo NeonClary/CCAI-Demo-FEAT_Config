@@ -23,6 +23,9 @@ sentence-transformers
 nltk
 tiktoken
 
+# Markdown → plain-text for TTS
+markdown
+
 # PDF generation and export
 reportlab
 
@@ -44,5 +47,6 @@ python-multipart
 # CRON scheduling (OpenClaw-inspired)
 apscheduler
 
-# Speech-to-text (Whisper)
-faster-whisper
+# Headless browser for web scraping
+playwright
+

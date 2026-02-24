@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Reply, Copy, Check, Maximize2, FileText, Hash, Target, Volume2, VolumeX, Search, X } from 'lucide-react';
+import { Reply, Copy, Check, Maximize2, FileText, Hash, Target, Volume2, VolumeX, Search, X, Loader2 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useAppConfig } from '../contexts/AppConfigContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useVoiceStatus } from '../contexts/VoiceStatusContext';
 import LemonSliceAvatar from './LemonSliceAvatar';
 
 const stripMarkdown = (md) => {
@@ -34,36 +35,58 @@ const MessageBubble = ({
   userAvatarOptions
 }) => {
   const { isDark } = useTheme();
-  const { advisors, getAdvisorColors } = useAppConfig();
+  const { allPersonas: advisors, getAllPersonaColors: getAdvisorColors } = useAppConfig();
+  const voiceStatus = useVoiceStatus();
   const [showTooltip, setShowTooltip] = useState(null);
   const [copiedStates, setCopiedStates] = useState({});
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isLoadingTTS, setIsLoadingTTS] = useState(false);
   const [searchPopover, setSearchPopover] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [promptCopied, setPromptCopied] = useState(false);
   const overlayRef = useRef(null);
   const tooltipTimer = useRef(null);
+  const audioRef = useRef(null);
 
-  const handleSpeak = useCallback((content) => {
-    if (!window.speechSynthesis) return;
-    if (isSpeaking) {
-      window.speechSynthesis.cancel();
+  const handleSpeak = useCallback(async (content) => {
+    if (isSpeaking || isLoadingTTS) {
+      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
       setIsSpeaking(false);
+      setIsLoadingTTS(false);
       return;
     }
-    window.speechSynthesis.cancel();
-    const text = stripMarkdown(content);
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1;
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-    setIsSpeaking(true);
-    window.speechSynthesis.speak(utterance);
-  }, [isSpeaking]);
+    if (voiceStatus && !voiceStatus.ensureReady('tts')) return;
+
+    const text = (content || '').trim();
+    if (!text) return;
+    setIsLoadingTTS(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      const resp = await fetch(`${process.env.REACT_APP_API_URL}/api/tts`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!resp.ok) throw new Error('TTS failed');
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      setIsLoadingTTS(false);
+      setIsSpeaking(true);
+      audio.onended = () => { setIsSpeaking(false); URL.revokeObjectURL(url); audioRef.current = null; };
+      audio.onerror = () => { setIsSpeaking(false); URL.revokeObjectURL(url); audioRef.current = null; };
+      audio.play();
+    } catch (e) {
+      console.error('TTS error:', e);
+      setIsLoadingTTS(false);
+      setIsSpeaking(false);
+    }
+  }, [isSpeaking, isLoadingTTS, voiceStatus]);
 
   useEffect(() => {
-    return () => { window.speechSynthesis?.cancel(); };
+    return () => { if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; } };
   }, []);
 
   const handleCopy = async (messageId, content) => {
@@ -88,7 +111,7 @@ const MessageBubble = ({
     setSearchLoading(true);
     const content = message?.compact_markdown || message?.content || '';
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
       const resp = await fetch(`${process.env.REACT_APP_API_URL}/api/search-references`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -321,7 +344,7 @@ const MessageBubble = ({
             className="advisor-avatar" 
             style={{ backgroundColor: colors.bgColor || 'var(--bg-muted)', overflow: 'hidden' }}
           >
-            <LemonSliceAvatar agentId={advisor.lemonsliceAgentId} active={isSpeaking} size={40}>
+            <LemonSliceAvatar agentId={advisor.lemonsliceAgentId} active={isSpeaking || isLoadingTTS} size={40}>
               {avatarElement(40)}
             </LemonSliceAvatar>
           </div>
@@ -438,14 +461,15 @@ const MessageBubble = ({
                     onMouseEnter={() => showTooltipWithDelay('speak')}
                     onMouseLeave={hideTooltip}
                     style={{ 
-                      color: isSpeaking ? '#EF4444' : (colors.color || 'var(--text-secondary)'),
-                      borderColor: isSpeaking ? '#EF444440' : (colors.color ? colors.color + '40' : 'var(--border-muted)')
+                      color: isLoadingTTS ? (colors.color || 'var(--text-secondary)') : isSpeaking ? '#EF4444' : (colors.color || 'var(--text-secondary)'),
+                      borderColor: isSpeaking ? '#EF444440' : (colors.color ? colors.color + '40' : 'var(--border-muted)'),
+                      opacity: isLoadingTTS ? 0.7 : 1,
                     }}
                   >
-                    {isSpeaking ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                    {isLoadingTTS ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : isSpeaking ? <VolumeX size={14} /> : <Volume2 size={14} />}
                   </button>
                   {showTooltip === 'speak' && (
-                    <div className="tooltip">{isSpeaking ? 'Stop speaking' : 'Speak it'}</div>
+                    <div className="tooltip">{isLoadingTTS ? 'Loading audio...' : isSpeaking ? 'Stop speaking' : 'Speak it'}</div>
                   )}
                 </div>
 

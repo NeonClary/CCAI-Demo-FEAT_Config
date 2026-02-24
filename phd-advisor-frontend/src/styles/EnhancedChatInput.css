@@ -2,7 +2,7 @@
 .enhanced-chat-input-container {
   position: relative;
   width: 100%;
-  max-width: 800px;
+  max-width: 860px;
   margin: 0 auto;
   padding: 0 16px;
 }
@@ -261,6 +261,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 20px 16px 20px;
+  gap: 12px;
 }
 
 /* File Controls - ensure buttons stay side by side */

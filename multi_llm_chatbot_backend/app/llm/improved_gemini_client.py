@@ -8,6 +8,26 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+_shared_client: httpx.AsyncClient | None = None
+
+
+def _get_shared_client() -> httpx.AsyncClient:
+    global _shared_client
+    if _shared_client is None or _shared_client.is_closed:
+        _shared_client = httpx.AsyncClient(
+            timeout=60.0,
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+        )
+    return _shared_client
+
+
+async def close_shared_client() -> None:
+    global _shared_client
+    if _shared_client and not _shared_client.is_closed:
+        await _shared_client.aclose()
+        _shared_client = None
+
+
 class ImprovedGeminiClient(LLMClient):
     def __init__(self, model_name: str = None):
         settings = get_settings()
@@ -15,7 +35,6 @@ class ImprovedGeminiClient(LLMClient):
             model_name = settings.llm.gemini.model
         
         self.model_name = model_name
-        # Config validator already falls back to GEMINI_API_KEY env var
         self.api_key = settings.llm.gemini.api_key or os.getenv("GEMINI_API_KEY")
         if not self.api_key:
             raise ValueError("Gemini API key not set. Provide it in config.yaml (llm.gemini.api_key) or as GEMINI_API_KEY env var.")
@@ -71,44 +90,40 @@ class ImprovedGeminiClient(LLMClient):
                 ]
             }
             
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    f"{self.base_url}/{self.model_name}:generateContent",
-                    json=payload,
-                    headers={"x-goog-api-key": self.api_key}
-                )
-                response.raise_for_status()
-                
-                result = response.json()
-                
-                # Better error handling
-                if "candidates" not in result or not result["candidates"]:
-                    logger.error(f"No candidates in Gemini response: {result}")
-                    return "I apologize, but I'm unable to generate a response right now. Please try again."
-                
-                candidate = result["candidates"][0]
-                
-                if "content" not in candidate or "parts" not in candidate["content"]:
-                    logger.error(f"Invalid candidate structure: {candidate}")
-                    return "I apologize, but I received an unexpected response format. Please try again."
-                
-                # Gemini 2.5 models may include "thinking" parts
-                # (marked with "thought": true) before the actual answer.
-                # We want the last non-thought text part.
-                parts = candidate["content"]["parts"]
-                text = ""
-                for part in parts:
-                    if part.get("thought"):
-                        continue
-                    text = part.get("text", "")
-                
-                text = text.strip()
-                
-                if not text:
-                    logger.warning("Empty response from Gemini")
-                    return "I apologize, but I couldn't generate a meaningful response. Please try rephrasing your question."
-                
-                return self._clean_response(text)
+            client = _get_shared_client()
+            response = await client.post(
+                f"{self.base_url}/{self.model_name}:generateContent",
+                json=payload,
+                headers={"x-goog-api-key": self.api_key},
+            )
+            response.raise_for_status()
+            
+            result = response.json()
+            
+            if "candidates" not in result or not result["candidates"]:
+                logger.error(f"No candidates in Gemini response: {result}")
+                return "I apologize, but I'm unable to generate a response right now. Please try again."
+            
+            candidate = result["candidates"][0]
+            
+            if "content" not in candidate or "parts" not in candidate["content"]:
+                logger.error(f"Invalid candidate structure: {candidate}")
+                return "I apologize, but I received an unexpected response format. Please try again."
+            
+            parts = candidate["content"]["parts"]
+            text = ""
+            for part in parts:
+                if part.get("thought"):
+                    continue
+                text = part.get("text", "")
+            
+            text = text.strip()
+            
+            if not text:
+                logger.warning("Empty response from Gemini")
+                return "I apologize, but I couldn't generate a meaningful response. Please try rephrasing your question."
+            
+            return self._clean_response(text)
                 
         except httpx.HTTPStatusError as e:
             logger.error(f"Gemini API HTTP error: {e.response.status_code} - {e.response.text}")

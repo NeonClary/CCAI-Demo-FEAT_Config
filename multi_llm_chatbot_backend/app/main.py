@@ -25,6 +25,8 @@ from app.api.routes.search_references import router as search_ref_router
 from app.api.routes.admin import router as admin_router
 from app.api.routes.courses import router as courses_router
 from app.api.routes.transcribe import router as transcribe_router
+from app.api.routes.tts import router as tts_router
+from app.api.routes.voice import router as voice_router
 
 import logging
 
@@ -37,19 +39,21 @@ logging.basicConfig(
 async def lifespan(app: FastAPI):
     # Startup
     await connect_to_mongo()
-    # Seed global RAG documents from data/ directory
+    # Scrape CU Boulder general info pages into data/ for Global RAG.
+    # This is fast (~20 HTTP fetches) and only writes files that changed.
+    try:
+        from app.scrapers.cu_info_scraper import run_cu_info_scrape
+        await run_cu_info_scrape()
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"CU info scrape skipped: {e}")
+    # Load data/ files into ChromaDB for background knowledge
     try:
         from app.core.global_rag import seed_global_documents
         seed_global_documents()
     except Exception as e:
         logging.getLogger(__name__).warning(f"Global RAG seed skipped: {e}")
-    # Seed course/professor data if collections are empty
-    try:
-        from app.scrapers.seed_data import seed_if_empty
-        await seed_if_empty()
-    except Exception as e:
-        logging.getLogger(__name__).warning(f"Seed data skipped: {e}")
-    # Start CRON scheduler for scraper jobs
+    # Start monthly scheduler for scraper refreshes.
+    # Scraped data persists in MongoDB between runs.
     try:
         from app.core.scheduler import init_scheduler
         init_scheduler()
@@ -57,6 +61,10 @@ async def lifespan(app: FastAPI):
         logging.getLogger(__name__).warning(f"Scheduler init skipped: {e}")
     yield
     # Shutdown
+    from app.llm.improved_gemini_client import close_shared_client as close_gemini
+    from app.llm.improved_ollama_client import close_shared_client as close_ollama
+    await close_gemini()
+    await close_ollama()
     await close_mongo_connection()
 
 app = FastAPI(
@@ -87,6 +95,8 @@ app.include_router(search_ref_router, prefix="/api", tags=["search-references"])
 app.include_router(admin_router, prefix="/api", tags=["admin"])
 app.include_router(courses_router, prefix="/api", tags=["courses"])
 app.include_router(transcribe_router, prefix="/api", tags=["transcribe"])
+app.include_router(tts_router, prefix="/api", tags=["tts"])
+app.include_router(voice_router, prefix="/api", tags=["voice"])
 
 # ---------------------------------------------------------------------------
 # Public configuration endpoint — serves the frontend-safe subset

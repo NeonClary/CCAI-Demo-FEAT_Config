@@ -1,12 +1,16 @@
 from fastapi import APIRouter, Request, HTTPException, Body, Depends
+from fastapi.responses import StreamingResponse
 from app.models.persona import Persona
 from app.core.session_manager import get_session_manager
 from app.api.utils import get_or_create_session_for_request_async
 from app.core.bootstrap import chat_orchestrator
 from app.core.auth import get_current_active_user
 from app.models.user import User
+from app.models.default_personas import get_agent_ids
 from pydantic import BaseModel
 from typing import Optional
+import asyncio
+import json as json_mod
 import logging
 from app.core.database import get_database
 from bson import ObjectId
@@ -242,9 +246,35 @@ async def chat_sequential_enhanced(
                     "trigger": "vague_input"
                 }
             }
-        
-        # Get intelligently ordered personas based on context
-        all_persona_ids = list(chat_orchestrator.personas.keys())
+
+        # ── Orchestrator routing: detect specialist queries ──────────
+        query_type = chat_orchestrator.classify_query(message.user_input, session_id=session_id)
+        if query_type == "course_db":
+            logger.info("Routing to Course Advisor sub-agent for database query")
+            course_response = await chat_orchestrator.handle_course_query(
+                user_message=message.user_input,
+                session_id=session_id,
+                response_length=message.response_length or "medium",
+            )
+            return {
+                "responses": [course_response],
+                "session_debug": {
+                    "session_id": session_id,
+                    "route": "course_db",
+                    "documents_available": rag_stats.get('total_documents', 0),
+                    "selected_personas": ["course_advisor"],
+                    "total_personas_available": len(chat_orchestrator.personas),
+                }
+            }
+
+        # Routed to general panel — clear any specialist follow-up state
+        chat_orchestrator._clear_agent_route(session_id)
+
+        # Get intelligently ordered personas based on context.
+        # Exclude agent-type personas — they are invoked via specialist routing only.
+        _agent_ids = get_agent_ids()
+        all_persona_ids = [pid for pid in chat_orchestrator.personas
+                           if pid not in _agent_ids]
         if message.active_advisors:
             all_persona_ids = [pid for pid in all_persona_ids if pid in message.active_advisors]
         
@@ -257,80 +287,23 @@ async def chat_sequential_enhanced(
         
         logger.info(f"Intelligent persona order for session {session_id}: {top_personas}")
         
-        # Generate responses from ONLY the top personas
+        # Generate responses from all selected personas in PARALLEL
+        raw_responses = await chat_orchestrator.generate_parallel_responses(
+            persona_ids=top_personas,
+            session_id=session_id,
+            user_input=message.user_input,
+            response_length=message.response_length or "medium",
+        )
+
         responses = []
-        
-        for persona_id in top_personas:
-            try:
-                logger.info(f"Generating response for {persona_id} with session {session_id}")
-                
-                # Generate response from this specific persona
-                persona_result = await chat_orchestrator.chat_with_persona(
-                    user_input=message.user_input,
-                    persona_id=persona_id,
-                    session_id=session_id,  # This ensures document access
-                    response_length=message.response_length or "medium"
-                )
-                
-                # FIXED: Safe response processing with proper error handling
-                if isinstance(persona_result, dict):
-                    # Handle different response formats
-                    if "persona_name" in persona_result and "response" in persona_result:
-                        responses.append({
-                            "persona_id": persona_result["persona_id"],
-                            "persona_name": persona_result["persona_name"], 
-                            "content": persona_result["response"],
-                            "used_documents": persona_result.get("used_documents", False),
-                            "document_chunks_used": persona_result.get("document_chunks_used", 0)
-                        })
-                    elif persona_result.get("type") == "single_persona_response" and "persona" in persona_result:
-                        persona_data = persona_result["persona"]
-                        responses.append({
-                            "persona_id": persona_data["persona_id"],
-                            "persona_name": persona_data["persona_name"],
-                            "content": persona_data["response"],
-                            "used_documents": persona_data.get("used_documents", False),
-                            "document_chunks_used": persona_data.get("document_chunks_used", 0)
-                        })
-                    elif "error" in persona_result:
-                        # Handle error responses
-                        responses.append({
-                            "persona_id": persona_id,
-                            "persona_name": chat_orchestrator.personas[persona_id].name,
-                            "content": persona_result["response"],
-                            "used_documents": False,
-                            "document_chunks_used": 0
-                        })
-                    else:
-                        # Generic dict response
-                        content = persona_result.get("response") or persona_result.get("content", "")
-                        if content.strip():
-                            responses.append({
-                                "persona_id": persona_id,
-                                "persona_name": chat_orchestrator.personas[persona_id].name,
-                                "content": content,
-                                "used_documents": persona_result.get("used_documents", False),
-                                "document_chunks_used": persona_result.get("document_chunks_used", 0)
-                            })
-                else:
-                    # Fallback for non-dict responses
-                    responses.append({
-                        "persona_id": persona_id,
-                        "persona_name": chat_orchestrator.personas[persona_id].name,
-                        "content": "I'm having trouble processing your question right now. Please try again.",
-                        "used_documents": False,
-                        "document_chunks_used": 0
-                    })
-                    
-            except Exception as e:
-                logger.error(f"Error generating response for persona {persona_id}: {str(e)}")
-                responses.append({
-                    "persona_id": persona_id,
-                    "persona_name": chat_orchestrator.personas[persona_id].name,
-                    "content": "I encountered an error while processing your question. Please try again.",
-                    "used_documents": False,
-                    "document_chunks_used": 0
-                })
+        for r in raw_responses:
+            responses.append({
+                "persona_id": r["persona_id"],
+                "persona_name": r["persona_name"],
+                "content": r["response"],
+                "used_documents": r.get("used_documents", False),
+                "document_chunks_used": r.get("document_chunks_used", 0),
+            })
         
         # Synthesized mode: combine all advisor responses into one
         if message.synthesized and len(responses) > 1:
@@ -365,6 +338,163 @@ async def chat_sequential_enhanced(
         import traceback
         logger.error(f"Full traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}")
+
+
+@router.post("/chat-stream")
+async def chat_stream(
+    message: ChatMessage,
+    request: Request,
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    SSE streaming variant of chat-sequential.
+    Sends each advisor response as a server-sent event the moment it's ready,
+    so the frontend can display advisors incrementally.
+
+    Event types:
+      - event: advisor   → one advisor's complete response
+      - event: synthesized → synthesized single answer (when synthesized=true)
+      - event: done      → signals end of stream
+      - event: error     → top-level error
+      - event: clarification → orchestrator needs clarification
+    """
+
+    async def _event_generator():
+        try:
+            # ── session setup (same as chat-sequential) ──────────
+            if message.chat_session_id:
+                sid = f"chat_{message.chat_session_id}"
+                if sid not in session_manager.sessions:
+                    sid = await get_or_create_session_for_request_async(
+                        request,
+                        chat_session_id=message.chat_session_id,
+                        user_id=str(current_user.id),
+                    )
+            else:
+                sid = await get_or_create_session_for_request_async(request)
+
+            session = session_manager.get_session(sid)
+            rag_stats = session.get_rag_stats()
+
+            already = (
+                session.messages
+                and session.messages[-1].get("role") == "user"
+                and session.messages[-1].get("content") == message.user_input
+            )
+            if not already:
+                session.append_message("user", message.user_input)
+
+            # Load user profile
+            try:
+                db_ref = get_database()
+                user_profile = await db_ref.user_profiles.find_one({"user_id": current_user.id})
+                if user_profile:
+                    pf = ["major","minor","year","gpa_range","career_goals",
+                          "courses_completed","courses_planned","schedule_preferences",
+                          "learning_style","extracurriculars"]
+                    ps = ", ".join(f"{k}: {user_profile[k]}" for k in pf if user_profile.get(k))
+                    if ps:
+                        session.user_profile_context = f"USER PROFILE: {ps}"
+            except Exception:
+                pass
+
+            # ── clarification check ──────────────────────────────
+            if chat_orchestrator._needs_clarification(session, message.user_input):
+                clar = await chat_orchestrator.generate_contextual_clarification(message.user_input)
+                yield f"event: clarification\ndata: {json_mod.dumps({'message': clar['question'], 'suggestions': clar['suggestions']})}\n\n"
+                yield "event: done\ndata: {}\n\n"
+                return
+
+            # ── specialist routing ───────────────────────────────
+            query_type = chat_orchestrator.classify_query(message.user_input, session_id=sid)
+            if query_type == "course_db":
+                cr = await chat_orchestrator.handle_course_query(
+                    user_message=message.user_input,
+                    session_id=sid,
+                    response_length=message.response_length or "medium",
+                )
+                yield f"event: advisor\ndata: {json_mod.dumps(cr)}\n\n"
+                yield "event: done\ndata: {}\n\n"
+                return
+
+            # Routed to general panel — clear specialist follow-up state
+            chat_orchestrator._clear_agent_route(sid)
+
+            # ── persona selection ────────────────────────────────
+            _agent_ids = get_agent_ids()
+            all_ids = [pid for pid in chat_orchestrator.personas if pid not in _agent_ids]
+            if message.active_advisors:
+                all_ids = [pid for pid in all_ids if pid in message.active_advisors]
+            k = min(3, len(all_ids))
+            top_personas = await chat_orchestrator.get_top_personas(
+                session_id=sid, k=k, allowed_ids=all_ids,
+            )
+
+            # ── shared RAG retrieval ─────────────────────────────
+            doc_ctx = await chat_orchestrator._retrieve_relevant_documents(
+                user_input=message.user_input, session_id=sid, persona_id="",
+            )
+
+            # ── launch all personas concurrently, stream as each finishes ──
+            is_synthesized = bool(message.synthesized)
+            done_queue: asyncio.Queue = asyncio.Queue()
+
+            async def _run(pid: str):
+                persona = chat_orchestrator.get_persona(pid)
+                if not persona:
+                    return
+                result = await chat_orchestrator._generate_single_persona_response(
+                    session, persona,
+                    message.response_length or "medium",
+                    prefetched_document_context=doc_ctx,
+                )
+                session.append_message(pid, result["response"])
+                await done_queue.put(result)
+
+            tasks = [asyncio.create_task(_run(pid)) for pid in top_personas]
+
+            collected = []
+            for _ in range(len(tasks)):
+                result = await done_queue.get()
+                evt = {
+                    "persona_id": result["persona_id"],
+                    "persona_name": result["persona_name"],
+                    "content": result["response"],
+                    "used_documents": result.get("used_documents", False),
+                    "document_chunks_used": result.get("document_chunks_used", 0),
+                }
+                collected.append(evt)
+
+                if is_synthesized:
+                    # In synthesized mode, send lightweight progress so the
+                    # frontend can update the thinking indicator without
+                    # displaying individual advisor messages.
+                    yield f"event: progress\ndata: {json_mod.dumps({'persona_id': evt['persona_id'], 'persona_name': evt['persona_name']})}\n\n"
+                else:
+                    yield f"event: advisor\ndata: {json_mod.dumps(evt)}\n\n"
+
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+            if is_synthesized and len(collected) > 1:
+                synth = await chat_orchestrator.synthesize_responses(collected)
+                yield f"event: synthesized\ndata: {json_mod.dumps(synth)}\n\n"
+
+            yield "event: done\ndata: {}\n\n"
+
+        except Exception as exc:
+            logger.error("chat-stream error: %s", exc)
+            import traceback
+            logger.error(traceback.format_exc())
+            yield f"event: error\ndata: {json_mod.dumps({'detail': str(exc)})}\n\n"
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/chat/{persona_id}")

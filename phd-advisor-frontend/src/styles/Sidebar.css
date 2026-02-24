@@ -239,6 +239,13 @@
   font-size: 14px;
   color: var(--text-primary, #111827);
   transition: background-color 0.2s ease;
+  text-align: left;
+}
+
+.user-menu-item svg {
+  flex-shrink: 0;
+  width: 16px;
+  min-width: 16px;
 }
 
 .dark .user-menu-item {

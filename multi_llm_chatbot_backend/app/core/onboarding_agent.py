@@ -42,10 +42,22 @@ class OnboardingAgent:
 
     SKIP_SENTINEL = "__skipped__"
 
+    @staticmethod
+    def _field_has_value(val) -> bool:
+        if val is None:
+            return False
+        if isinstance(val, str):
+            return bool(val.strip())
+        if isinstance(val, list):
+            return len(val) > 0
+        return bool(val)
+
     async def chat(self, user_input: str, user_id, existing_profile: dict) -> Dict[str, Any]:
         """Process one round of onboarding conversation."""
-        filled = {k for k, _, _d in PROFILE_FIELDS if k in existing_profile}
-        missing = [(k, q, desc) for k, q, desc in PROFILE_FIELDS if k not in filled]
+        filled = {k for k, _, _d in PROFILE_FIELDS
+                  if self._field_has_value(existing_profile.get(k))}
+        missing = [(k, q, desc) for k, q, desc in PROFILE_FIELDS
+                   if k not in filled]
         completion = int(len(filled) / len(PROFILE_FIELDS) * 100)
 
         current_field = missing[0][0] if missing else None
@@ -57,13 +69,14 @@ class OnboardingAgent:
 
         db = get_database()
         if extracted:
+            from app.api.routes.user_profile import _normalize_field
             real_values = {}
             skipped_keys = set()
             for k, v in extracted.items():
                 if v == self.SKIP_SENTINEL:
                     skipped_keys.add(k)
                 elif v:
-                    real_values[k] = v
+                    real_values[k] = _normalize_field(k, v)
 
             update = {}
             if real_values:
@@ -146,29 +159,37 @@ class OnboardingAgent:
             else:
                 filled_parts.append(f"{k}=DECLINED")
         filled_summary = ", ".join(filled_parts) or "nothing yet"
-        next_fields = ", ".join(k for k, _q, _d in missing[:3])
+        next_field_key, next_field_q, _ = missing[0]
         system = (
             "You are a friendly onboarding assistant helping a university student "
-            "fill out their profile. You chat like a friendly advisor who is trying to get to know the student — warm, curious, natural. "
-            "NEVER list all remaining questions. Ask about ONE topic at a time and "
-            "connect it naturally to what the student just said. Keep it brief (2-3 sentences max).\n"
-            "If the student just declined or skipped a question, respect that gracefully — "
-            "say something brief like 'No problem!' or 'Totally fine!' and move on to the NEXT topic. "
-            "NEVER repeat or rephrase a question the student already declined."
+            "fill out their profile. You chat like a friendly advisor — warm, curious, natural.\n"
+            "RULES:\n"
+            "- Respond in exactly ONE short paragraph (2-3 sentences).\n"
+            "- First, briefly acknowledge what the student just said.\n"
+            "- Then IMMEDIATELY ask one clear question about the NEXT topic.\n"
+            "- Your response MUST end with a question mark.\n"
+            "- NEVER use labels or headings like 'Question:', 'Student:', 'Answer:', or 'Next:'.\n"
+            "- NEVER list multiple questions. Ask about ONE topic only.\n"
+            "- If the student declined or skipped, say 'No problem!' and move to the next topic.\n"
+            "- NEVER repeat a topic already gathered or declined."
         )
         user_prompt = (
             f"Student just said: \"{user_input}\"\n"
             f"Already gathered: {filled_summary}\n"
-            f"Still need: {next_fields}\n"
-            "Generate the next friendly question. Do NOT re-ask about any topic already gathered or declined."
+            f"Next topic to ask about: {next_field_key} — {next_field_q}\n"
+            "Write your short, friendly response that acknowledges the student "
+            "and then asks about the next topic. End with a question mark."
         )
         try:
-            return await self.llm.generate(
+            reply = await self.llm.generate(
                 system_prompt=system,
                 context=[{"role": "user", "content": user_prompt}],
                 temperature=0.7,
-                max_tokens=256,
+                max_tokens=300,
             )
+            if reply and '?' not in reply:
+                reply = f"{reply} {next_field_q}"
+            return reply
         except Exception as e:
             logger.error(f"Question generation failed: {e}")
             return missing[0][1] if missing else "Tell me more about yourself!"

@@ -7,6 +7,27 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+_shared_client: httpx.AsyncClient | None = None
+
+
+def _get_shared_client(base_url: str) -> httpx.AsyncClient:
+    global _shared_client
+    if _shared_client is None or _shared_client.is_closed:
+        _shared_client = httpx.AsyncClient(
+            timeout=60.0,
+            base_url=base_url,
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+        )
+    return _shared_client
+
+
+async def close_shared_client() -> None:
+    global _shared_client
+    if _shared_client and not _shared_client.is_closed:
+        await _shared_client.aclose()
+        _shared_client = None
+
+
 class ImprovedOllamaClient(LLMClient):
     def __init__(self, model_name: str = "llama3.2:1b", base_url: str = "http://localhost:11434"):
         self.model_name = model_name
@@ -45,14 +66,14 @@ class ImprovedOllamaClient(LLMClient):
                 }
             }
             
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(f"{self.base_url}/api/generate", json=payload)
-                response.raise_for_status()
-                
-                result = response.json()
-                text = result.get("response", "").strip()
-                
-                return self._clean_response(text)
+            client = _get_shared_client(self.base_url)
+            response = await client.post("/api/generate", json=payload)
+            response.raise_for_status()
+            
+            result = response.json()
+            text = result.get("response", "").strip()
+            
+            return self._clean_response(text)
                 
         except httpx.ConnectError:
             logger.error(f"Cannot connect to Ollama at {self.base_url}")

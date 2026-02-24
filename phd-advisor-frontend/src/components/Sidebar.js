@@ -9,10 +9,13 @@ import {
   LogOut,
   User,
   UserCircle,
-  Settings,
+  DatabaseZap,
+  KeyRound,
   ChevronLeft,
   ChevronRight,
-  FileText
+  FileText,
+  BookOpen,
+  GraduationCap
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useAppConfig } from '../contexts/AppConfigContext';
@@ -32,7 +35,11 @@ const Sidebar = ({
   onNavigateToCanvas,
   userAvatarId,
   onAvatarChange,
-  onOpenProfile
+  onOpenProfile,
+  onOpenAccount,
+  onOpenClearData,
+  onOpenUserGuide,
+  onOpenTutorial
 }) => {
   const { config } = useAppConfig();
   const canvasLabel = config?.app?.title ? `${config.app.title} Canvas` : 'Canvas';
@@ -231,9 +238,21 @@ const Sidebar = ({
                           <UserCircle size={16} />
                           <span>Profile</span>
                         </button>
-                        <button className="user-menu-item">
-                          <Settings size={16} />
-                          <span>Settings</span>
+                        <button className="user-menu-item" onClick={() => { setShowUserMenu(false); if (onOpenAccount) onOpenAccount(); }}>
+                          <KeyRound size={16} />
+                          <span>Account</span>
+                        </button>
+                        <button className="user-menu-item" onClick={() => { setShowUserMenu(false); if (onOpenClearData) onOpenClearData(); }}>
+                          <DatabaseZap size={16} />
+                          <span>Clear User Data</span>
+                        </button>
+                        <button className="user-menu-item" onClick={() => { setShowUserMenu(false); if (onOpenUserGuide) onOpenUserGuide(); }}>
+                          <BookOpen size={16} />
+                          <span>User Guide</span>
+                        </button>
+                        <button className="user-menu-item" onClick={() => { setShowUserMenu(false); if (onOpenTutorial) onOpenTutorial(); }}>
+                          <GraduationCap size={16} />
+                          <span>Tutorial</span>
                         </button>
                         <button className="user-menu-item sign-out" onClick={onSignOut}>
                           <LogOut size={16} />

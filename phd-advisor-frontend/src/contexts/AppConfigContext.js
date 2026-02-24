@@ -13,27 +13,38 @@ const resolveIcon = (iconName) => {
 };
 
 /**
- * Build the advisors lookup object (keyed by persona id) from the config
- * personas array, mirroring the shape that components already expect.
+ * Convert a single persona config item into the shape components expect.
  */
-const buildAdvisors = (personaItems) => {
-  if (!personaItems || !Array.isArray(personaItems)) return {};
+const buildPersonaEntry = (p) => ({
+  name: p.name,
+  role: p.role || '',
+  description: p.summary || '',
+  color: p.color || '#6B7280',
+  bgColor: p.bg_color || '#F3F4F6',
+  darkColor: p.dark_color || '#9CA3AF',
+  darkBgColor: p.dark_bg_color || '#374151',
+  icon: resolveIcon(p.icon),
+  avatar: p.avatar ? `/avatars/${p.avatar}` : null,
+  lemonsliceAgentId: p.lemonslice_agent_id || '',
+});
+
+/**
+ * Build the advisors lookup (type !== "agent") and agents lookup
+ * (type === "agent") from the config personas array.
+ */
+const buildPersonaLookups = (personaItems) => {
   const advisors = {};
+  const agents = {};
+  if (!personaItems || !Array.isArray(personaItems)) return { advisors, agents };
   for (const p of personaItems) {
-    advisors[p.id] = {
-      name: p.name,
-      role: p.role || '',
-      description: p.summary || '',
-      color: p.color || '#6B7280',
-      bgColor: p.bg_color || '#F3F4F6',
-      darkColor: p.dark_color || '#9CA3AF',
-      darkBgColor: p.dark_bg_color || '#374151',
-      icon: resolveIcon(p.icon),
-      avatar: p.avatar ? `/avatars/${p.avatar}` : null,
-      lemonsliceAgentId: p.lemonslice_agent_id || '',
-    };
+    const entry = buildPersonaEntry(p);
+    if (p.type === 'agent') {
+      agents[p.id] = entry;
+    } else {
+      advisors[p.id] = entry;
+    }
   }
-  return advisors;
+  return { advisors, agents };
 };
 
 /**
@@ -61,6 +72,7 @@ export const useAppConfig = () => {
 export const AppConfigProvider = ({ children }) => {
   const [config, setConfig] = useState(null);
   const [advisors, setAdvisors] = useState({});
+  const [agents, setAgents] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -73,8 +85,9 @@ export const AppConfigProvider = ({ children }) => {
         if (!response.ok) throw new Error(`Config fetch failed: ${response.status}`);
         const data = await response.json();
         setConfig(data);
-        const builtAdvisors = buildAdvisors(data.personas?.items);
-        setAdvisors(builtAdvisors);
+        const lookups = buildPersonaLookups(data.personas?.items);
+        setAdvisors(lookups.advisors);
+        setAgents(lookups.agents);
       } catch (err) {
         console.error('Failed to load app config:', err);
         setError(err.message);
@@ -101,15 +114,22 @@ export const AppConfigProvider = ({ children }) => {
   }, [config]);
 
   const getAdvisorColors = buildGetAdvisorColors(advisors);
+  const getAgentColors = buildGetAdvisorColors(agents);
+  const allPersonas = { ...advisors, ...agents };
+  const getAllPersonaColors = buildGetAdvisorColors(allPersonas);
 
   const orchestratorAvatar = config?.orchestrator?.avatar
     ? `/avatars/${config.orchestrator.avatar}`
     : null;
 
   const value = {
-    config,          // raw config object from /api/config
-    advisors,        // { methodologist: { name, role, icon, color, ... }, ... }
+    config,
+    advisors,        // type === "advisor"
+    agents,          // type === "agent"
+    allPersonas,     // both combined (for rendering responses)
     getAdvisorColors,
+    getAgentColors,
+    getAllPersonaColors,
     resolveIcon,
     orchestratorAvatar,
     loading,
