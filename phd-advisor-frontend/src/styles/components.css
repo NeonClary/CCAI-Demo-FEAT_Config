@@ -526,6 +526,10 @@
   box-shadow: var(--shadow-md);
 }
 
+.single-response-wide .advisor-message-bubble {
+  max-width: 66%;
+}
+
 .advisor-message-header {
   display: flex;
   align-items: center;

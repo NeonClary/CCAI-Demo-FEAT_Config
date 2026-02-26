@@ -35,16 +35,18 @@ const AdvisorCarousel = ({ messages, onReply, onExpand, onClick, onSearchReferen
 
   if (messages.length === 1) {
     return (
-      <MessageBubble
-        message={messages[0]}
-        onReply={onReply}
-        onExpand={onExpand}
-        onClick={onClick}
-        onSearchReferences={onSearchReferences}
-        showReplyButton={true}
-        userAvatarId={userAvatarId}
-        userAvatarOptions={userAvatarOptions}
-      />
+      <div className="single-response-wide">
+        <MessageBubble
+          message={messages[0]}
+          onReply={onReply}
+          onExpand={onExpand}
+          onClick={onClick}
+          onSearchReferences={onSearchReferences}
+          showReplyButton={true}
+          userAvatarId={userAvatarId}
+          userAvatarOptions={userAvatarOptions}
+        />
+      </div>
     );
   }
 
