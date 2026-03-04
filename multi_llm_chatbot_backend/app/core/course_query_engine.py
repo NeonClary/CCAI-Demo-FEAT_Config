@@ -1,3 +1,33 @@
+# NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
+# All Rights Reserved 2008-2025
+# Licensed under the BSD 3-Clause License
+# https://opensource.org/licenses/BSD-3-Clause
+#
+# Copyright (c) 2008-2025, Neongecko.com Inc.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
 """
 Intelligent Course Query Engine — parses natural-language course queries,
 searches MongoDB, and implements progressive per-parameter constraint
@@ -13,9 +43,10 @@ Flow:
 import json
 import logging
 import re
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-logger = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 # 8:15am is "functionally the same" as 8:00am
 TIME_BUFFER_MINUTES = 20
@@ -40,7 +71,6 @@ def _parse_time(t: str) -> Optional[int]:
 
 def _default_semester() -> str:
     """Pick the most relevant current semester based on today's date."""
-    from datetime import datetime
     now = datetime.utcnow()
     month = now.month
     if month <= 5:
@@ -50,7 +80,7 @@ def _default_semester() -> str:
     return f"Fall {now.year}"
 
 
-async def parse_query_to_filters(query: str, llm) -> Dict[str, Any]:
+async def parse_query_to_filters(query: str, llm: Any) -> Dict[str, Any]:
     """Use the LLM to extract structured course-search filters."""
     from app.scrapers.course_scraper import KNOWN_TERMS
 
@@ -83,11 +113,11 @@ async def parse_query_to_filters(query: str, llm) -> Dict[str, Any]:
             filters = json.loads(m.group(0))
             if "semester" not in filters:
                 filters["semester"] = default_sem
-            logger.info("Extracted filters: %s", filters)
+            LOG.info(f"Extracted filters: {filters}")
             return filters
-        logger.warning("No JSON found in LLM response: %s", cleaned[:200])
+        LOG.warning(f"No JSON found in LLM response: {cleaned[:200]}")
     except Exception as e:
-        logger.warning("Filter extraction failed: %s", e)
+        LOG.warning(f"Filter extraction failed: {e}")
 
     return {"semester": default_sem}
 
@@ -118,9 +148,9 @@ async def _run_search(
     mongo_filter["semester"] = filters.get("semester", _default_semester())
 
     cursor = db.courses.find(mongo_filter, {"_id": 0})
-    all_courses = await cursor.to_list(length=500)
+    all_courses: List[Dict[str, Any]] = await cursor.to_list(length=500)
 
-    results = []
+    results: List[Dict[str, Any]] = []
     for course in all_courses:
         schedule = course.get("schedule", {})
         start_str = schedule.get("start_time", "")
@@ -150,7 +180,7 @@ async def _run_search(
 
     enriched = await _enrich_with_ratings(results, db)
 
-    effective_rating = None
+    effective_rating: Optional[float] = None
     if not skip_rating:
         effective_rating = (
             min_rating_override
@@ -167,7 +197,7 @@ async def _run_search(
     return enriched
 
 
-async def _enrich_with_ratings(courses: list, db) -> list:
+async def _enrich_with_ratings(courses: List[Dict[str, Any]], db: Any) -> List[Dict[str, Any]]:
     """Join course data with professor ratings from MongoDB."""
     if not courses:
         return courses
@@ -181,13 +211,11 @@ async def _enrich_with_ratings(courses: list, db) -> list:
         if not name or name.lower() == "staff":
             continue
 
-        # Exact name match first
         prof = await db.professor_ratings.find_one(
             {"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}},
             {"_id": 0},
         )
 
-        # Fall back to last-name match
         if not prof:
             parts = name.split()
             last_name = parts[-1] if parts else name
@@ -217,7 +245,7 @@ async def _enrich_with_ratings(courses: list, db) -> list:
 
 # ── Progressive relaxation ───────────────────────────────────────────────────
 
-async def smart_course_search(query: str, llm) -> Dict[str, Any]:
+async def smart_course_search(query: str, llm: Any) -> Dict[str, Any]:
     """
     Full pipeline:
       1. LLM extracts filters
@@ -259,7 +287,6 @@ async def smart_course_search(query: str, llm) -> Dict[str, Any]:
 
     alternatives: List[Dict[str, Any]] = []
 
-    # Time relaxation path: widen buffer → remove constraint
     if has_time:
         res = await _run_search(filters, time_buffer=60)
         if res:
@@ -277,7 +304,6 @@ async def smart_course_search(query: str, llm) -> Dict[str, Any]:
                     "relaxation_detail": "Removed time constraint entirely",
                 })
 
-    # Rating relaxation path: lower by 1 → remove constraint
     if has_rating and min_rating:
         lowered = max(0, min_rating - 1)
         res = await _run_search(filters, min_rating_override=lowered)
@@ -298,7 +324,6 @@ async def smart_course_search(query: str, llm) -> Dict[str, Any]:
                     "relaxation_detail": "Removed professor rating requirement",
                 })
 
-    # Day relaxation path: remove day preference
     if has_days:
         res = await _run_search(filters, skip_days=True)
         if res:
@@ -308,7 +333,6 @@ async def smart_course_search(query: str, llm) -> Dict[str, Any]:
                 "relaxation_detail": "Removed day-of-week preference",
             })
 
-    # Last resort: relax everything
     if not alternatives:
         res = await _run_search(
             filters, skip_time=True, skip_days=True, skip_rating=True

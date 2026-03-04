@@ -1,0 +1,49 @@
+# Core FastAPI framework
+fastapi~=0.115
+uvicorn[standard]~=0.34
+python-multipart~=0.0.18
+
+# HTTP client for LLM APIs
+httpx~=0.28
+
+# Document processing
+PyPDF2~=3.0
+docx2txt~=0.8
+python-docx~=1.1
+
+# Environment configuration
+python-dotenv~=1.0
+pyyaml~=6.0
+
+# Data validation
+pydantic~=1.10
+email-validator~=2.2
+
+# Vector database and embeddings
+chromadb~=0.6
+sentence-transformers~=3.4
+
+# Natural language processing
+nltk~=3.9
+tiktoken~=0.8
+
+# Markdown to plain-text for TTS
+markdown~=3.7
+
+# PDF generation and export
+reportlab~=4.2
+
+# Database (MongoDB)
+pymongo~=4.10
+motor~=3.7
+
+# Authentication and security
+passlib[bcrypt]~=1.7
+bcrypt~=4.0
+python-jose[cryptography]~=3.3
+
+# CRON scheduling
+apscheduler~=3.10
+
+# Headless browser for web scraping
+playwright~=1.49

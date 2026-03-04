@@ -1,15 +1,49 @@
+# NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
+# All Rights Reserved 2008-2025
+# Licensed under the BSD 3-Clause License
+# https://opensource.org/licenses/BSD-3-Clause
+#
+# Copyright (c) 2008-2025, Neongecko.com Inc.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
+import logging
+from datetime import datetime
+from typing import Any, Dict, Optional
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from datetime import datetime
-from app.models.user import User
+
+from app.api.routes.user_profile import _is_field_filled
 from app.core.auth import get_current_active_user
+from app.core.bootstrap import create_llm_client
 from app.core.database import get_database
 from app.core.onboarding_agent import OnboardingAgent, PROFILE_FIELDS
-from app.api.routes.user_profile import _is_field_filled
-from app.core.bootstrap import create_llm_client
-import logging
+from app.models.user import User
 
-logger = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
+
 router = APIRouter()
 
 ONBOARDING_COLLECTION = "onboarding_conversations"
@@ -19,12 +53,12 @@ class OnboardingMessage(BaseModel):
     user_input: str
 
 
-def _progress(profile: dict) -> int:
+def _progress(profile: Dict[str, Any]) -> int:
     filled = sum(1 for k, *_ in PROFILE_FIELDS if _is_field_filled(profile.get(k)))
     return int(filled / len(PROFILE_FIELDS) * 100)
 
 
-def _next_missing_question(profile: dict) -> str | None:
+def _next_missing_question(profile: Dict[str, Any]) -> Optional[str]:
     """Return the human-friendly question for the first unfilled field."""
     for key, question, _desc in PROFILE_FIELDS:
         if not _is_field_filled(profile.get(key)):
@@ -33,7 +67,9 @@ def _next_missing_question(profile: dict) -> str | None:
 
 
 @router.get("/onboarding/start")
-async def onboarding_start(current_user: User = Depends(get_current_active_user)):
+async def onboarding_start(
+    current_user: User = Depends(get_current_active_user),
+) -> Dict[str, Any]:
     """Return conversation history (if any) and current progress.
 
     If the user has an in-progress conversation it is returned so the
@@ -90,7 +126,7 @@ async def onboarding_start(current_user: User = Depends(get_current_active_user)
 async def onboarding_chat(
     msg: OnboardingMessage,
     current_user: User = Depends(get_current_active_user),
-):
+) -> Dict[str, Any]:
     db = get_database()
     profile = await db.user_profiles.find_one({"user_id": current_user.id}) or {}
 

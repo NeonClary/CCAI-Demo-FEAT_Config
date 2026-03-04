@@ -7,6 +7,7 @@ import ThinkingIndicator from '../components/ThinkingIndicator';
 import SuggestionsPanel from '../components/SuggestionsPanel';
 import ThemeToggle from '../components/ThemeToggle';
 import ProviderDropdown from '../components/ProviderDropdown';
+import OllamaModelConfig from '../components/OllamaModelConfig';
 import ExportButton from '../components/ExportButton';
 import Sidebar from '../components/Sidebar';
 import { useAppConfig } from '../contexts/AppConfigContext';
@@ -30,6 +31,9 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNav
   const [currentProvider, setCurrentProvider] = useState('gemini');
   const [isProviderSwitching, setIsProviderSwitching] = useState(false);
   const [uploadedDocuments, setUploadedDocuments] = useState([]);
+  const [showModelConfig, setShowModelConfig] = useState(false);
+  const [ollamaAssignments, setOllamaAssignments] = useState({});
+  const [isReloadingModels, setIsReloadingModels] = useState(false);
   const messagesEndRef = useRef(null);
   const { isDark } = useTheme();
 
@@ -207,6 +211,10 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNav
           timestamp: new Date()
         };
         setMessages(prev => [...prev, switchMessage]);
+
+        if (newProvider === 'ollama' || newProvider === 'hybrid') {
+          setShowModelConfig(true);
+        }
       } else {
         const error = await response.json();
         console.error('Failed to switch provider:', error);
@@ -229,6 +237,46 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNav
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsProviderSwitching(false);
+    }
+  };
+
+  const handleSaveOllamaAssignments = async (body) => {
+    const resp = await fetch(`${process.env.REACT_APP_API_URL}/ollama/assignments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) throw new Error('Failed to save assignments');
+    const data = await resp.json();
+    setOllamaAssignments(data.assignments || {});
+    const msg = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      type: 'system',
+      content: '⚙️ LLM model assignments updated. Advisors have been reconfigured.',
+      timestamp: new Date(),
+    };
+    setMessages(prev => [...prev, msg]);
+  };
+
+  const handleReloadModels = async () => {
+    setIsReloadingModels(true);
+    try {
+      const resp = await fetch(`${process.env.REACT_APP_API_URL}/ollama/models`);
+      if (resp.ok) {
+        const data = await resp.json();
+        const count = data.models?.length ?? 0;
+        const msg = {
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          type: 'system',
+          content: `🔄 Reloaded available models — ${count} model${count !== 1 ? 's' : ''} found across inference servers.`,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, msg]);
+      }
+    } catch (err) {
+      console.error('Failed to reload models:', err);
+    } finally {
+      setIsReloadingModels(false);
     }
   };
 
@@ -937,6 +985,9 @@ const handleNewChat = async (sessionId = null) => {
                 isDark={isDark}
                 activeAdvisors={activeAdvisors || allAdvisorIds}
                 onToggleAdvisor={handleToggleAdvisor}
+                currentProvider={currentProvider}
+                onReloadModels={handleReloadModels}
+                isReloadingModels={isReloadingModels}
               />
               <AgentStatusDropdown
                 agents={agents}
@@ -967,6 +1018,7 @@ const handleNewChat = async (sessionId = null) => {
                   currentProvider={currentProvider}
                   onProviderChange={handleProviderSwitch}
                   isLoading={isProviderSwitching}
+                  onConfigureModels={() => setShowModelConfig(true)}
                 />
                 
                 {/* Theme Toggle */}
@@ -1267,6 +1319,15 @@ const handleNewChat = async (sessionId = null) => {
           }}
         />
       )}
+
+      <OllamaModelConfig
+        isOpen={showModelConfig}
+        onClose={() => setShowModelConfig(false)}
+        advisors={advisors}
+        currentAssignments={ollamaAssignments}
+        onSaveAssignments={handleSaveOllamaAssignments}
+        currentProvider={currentProvider}
+      />
 
     </div>
   );

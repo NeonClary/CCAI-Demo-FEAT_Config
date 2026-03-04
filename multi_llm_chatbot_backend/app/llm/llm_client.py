@@ -1,19 +1,56 @@
+# NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
+# All Rights Reserved 2008-2025
+# Licensed under the BSD 3-Clause License
+# https://opensource.org/licenses/BSD-3-Clause
+#
+# Copyright (c) 2008-2025, Neongecko.com Inc.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
 from abc import ABC, abstractmethod
-from typing import List
+from typing import Dict, List
+
 
 class LLMClient(ABC):
-    """Abstract base class for all LLM clients"""
-    
+    """Abstract base class for all LLM clients."""
+
     @abstractmethod
-    async def generate(self, system_prompt: str, context: List[dict], temperature: float, max_tokens: int) -> str:
+    async def generate(
+        self,
+        system_prompt: str,
+        context: List[Dict[str, str]],
+        temperature: float,
+        max_tokens: int,
+    ) -> str:
         """
         Generate a response using the LLM.
-        
-        Args:
-            system_prompt (str): The system prompt defining the persona/role
-            context (List[dict]): List of conversation messages with 'role' and 'content' keys
-            
-        Returns:
-            str: The generated response text
+
+        :param system_prompt: The system prompt defining the persona/role.
+        :param context: List of conversation messages with 'role' and 'content'
+            keys.
+        :param temperature: Sampling temperature for generation.
+        :param max_tokens: Maximum number of tokens to generate.
+        :returns: The generated response text.
         """
         pass

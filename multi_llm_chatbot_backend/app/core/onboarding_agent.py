@@ -1,3 +1,33 @@
+# NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
+# All Rights Reserved 2008-2025
+# Licensed under the BSD 3-Clause License
+# https://opensource.org/licenses/BSD-3-Clause
+#
+# Copyright (c) 2008-2025, Neongecko.com Inc.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
 """
 OnboardingAgent — a conversational sub-agent that gathers user profile data
 in a natural, friendly way, then extracts structured fields from the replies.
@@ -6,13 +36,14 @@ in a natural, friendly way, then extracts structured fields from the replies.
 import json
 import logging
 import re
-from typing import Dict, Any, List, Optional
-from app.core.database import get_database
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-logger = logging.getLogger(__name__)
+from app.core.database import get_database
 
-PROFILE_FIELDS = [
+LOG = logging.getLogger(__name__)
+
+PROFILE_FIELDS: List[tuple] = [
     ("major", "What is your major / area of study?",
      "The student's declared or intended major (e.g. 'Computer Science', 'Biology')"),
     ("minor", "Do you have a minor or secondary focus?",
@@ -37,13 +68,13 @@ PROFILE_FIELDS = [
 
 
 class OnboardingAgent:
-    def __init__(self, llm):
+    def __init__(self, llm: Any) -> None:
         self.llm = llm
 
     SKIP_SENTINEL = "__skipped__"
 
     @staticmethod
-    def _field_has_value(val) -> bool:
+    def _field_has_value(val: Any) -> bool:
         if val is None:
             return False
         if isinstance(val, str):
@@ -52,7 +83,7 @@ class OnboardingAgent:
             return len(val) > 0
         return bool(val)
 
-    async def chat(self, user_input: str, user_id, existing_profile: dict) -> Dict[str, Any]:
+    async def chat(self, user_input: str, user_id: Any, existing_profile: Dict[str, Any]) -> Dict[str, Any]:
         """Process one round of onboarding conversation."""
         filled = {k for k, _, _d in PROFILE_FIELDS
                   if self._field_has_value(existing_profile.get(k))}
@@ -62,7 +93,6 @@ class OnboardingAgent:
 
         current_field = missing[0][0] if missing else None
 
-        # 1. Extract structured data from the latest user reply
         extracted = await self._extract_fields(
             user_input, missing, current_field
         )
@@ -70,15 +100,15 @@ class OnboardingAgent:
         db = get_database()
         if extracted:
             from app.api.routes.user_profile import _normalize_field
-            real_values = {}
-            skipped_keys = set()
+            real_values: Dict[str, Any] = {}
+            skipped_keys: set = set()
             for k, v in extracted.items():
                 if v == self.SKIP_SENTINEL:
                     skipped_keys.add(k)
                 elif v:
                     real_values[k] = _normalize_field(k, v)
 
-            update = {}
+            update: Dict[str, Any] = {}
             if real_values:
                 update.update(real_values)
             for sk in skipped_keys:
@@ -104,13 +134,12 @@ class OnboardingAgent:
                 "complete": True,
             }
 
-        # 2. Generate the next conversational prompt
         reply = await self._generate_next_question(user_input, existing_profile, filled, missing)
         return {"reply": reply, "progress": completion, "complete": False}
 
     async def _extract_fields(
-        self, text: str, missing_fields: list, current_field: Optional[str] = None
-    ) -> dict:
+        self, text: str, missing_fields: List[tuple], current_field: Optional[str] = None
+    ) -> Dict[str, Any]:
         if not text.strip():
             return {}
         skip_instruction = ""
@@ -145,13 +174,13 @@ class OnboardingAgent:
             if m:
                 return json.loads(m.group(0))
         except Exception as e:
-            logger.warning(f"Extraction failed: {e}")
+            LOG.warning(f"Extraction failed: {e}")
         return {}
 
     async def _generate_next_question(
-        self, user_input: str, profile: dict, filled: set, missing: list
+        self, user_input: str, profile: Dict[str, Any], filled: set, missing: List[tuple]
     ) -> str:
-        filled_parts = []
+        filled_parts: List[str] = []
         for k in filled:
             val = profile.get(k)
             if val:
@@ -191,5 +220,5 @@ class OnboardingAgent:
                 reply = f"{reply} {next_field_q}"
             return reply
         except Exception as e:
-            logger.error(f"Question generation failed: {e}")
+            LOG.error(f"Question generation failed: {e}")
             return missing[0][1] if missing else "Tell me more about yourself!"

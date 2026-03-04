@@ -1,31 +1,63 @@
-import os
-from fastapi import APIRouter, Body, HTTPException, Header, UploadFile, File, Request
-from fastapi import Query
-from typing import Optional, List
-import httpx
-from app.llm.llm_client import LLMClient
-from app.llm.improved_gemini_client import ImprovedGeminiClient
-from app.llm.improved_ollama_client import ImprovedOllamaClient
-from app.models.persona import Persona
-from app.core.improved_orchestrator import ImprovedChatOrchestrator
-from app.core.session_manager import get_session_manager
-from app.core.rag_manager import get_rag_manager
-from app.models.default_personas import get_default_personas
-from app.utils.document_extractor import extract_text_from_file
-from app.utils.file_limits import is_within_upload_limit
-from pydantic import BaseModel
-
-from fastapi.responses import StreamingResponse
-from fastapi import Query
-from app.utils.file_export import export_chat_as_file
-
-from app.utils.chat_summary import generate_summary_from_messages, parse_summary_to_blocks
-from app.utils.file_export import prepare_export_response, generate_pdf_file_from_blocks
+# NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
+# All Rights Reserved 2008-2025
+# Licensed under the BSD 3-Clause License
+# https://opensource.org/licenses/BSD-3-Clause
+#
+# Copyright (c) 2008-2025, Neongecko.com Inc.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
 
 import hashlib
 import logging
+import os
+from typing import List, Optional
 
-logger = logging.getLogger(__name__)
+import httpx
+from fastapi import (
+    APIRouter, Body, File, HTTPException, Header, Query, Request, UploadFile
+)
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+
+from app.core.improved_orchestrator import ImprovedChatOrchestrator
+from app.core.rag_manager import get_rag_manager
+from app.core.session_manager import get_session_manager
+from app.llm.improved_gemini_client import ImprovedGeminiClient
+from app.llm.improved_ollama_client import ImprovedOllamaClient
+from app.llm.llm_client import LLMClient
+from app.models.default_personas import get_default_personas
+from app.models.persona import Persona
+from app.utils.chat_summary import (
+    generate_summary_from_messages, parse_summary_to_blocks
+)
+from app.utils.document_extractor import extract_text_from_file
+from app.utils.file_export import (
+    export_chat_as_file, generate_pdf_file_from_blocks, prepare_export_response
+)
+from app.utils.file_limits import is_within_upload_limit
+
+LOG = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -42,7 +74,7 @@ def create_llm_client(provider: str = None) -> LLMClient:
         try:
             return ImprovedGeminiClient(model_name=os.getenv("GEMINI_MODEL"))
         except ValueError as e:
-            logger.warning(f"Gemini API key not found, falling back to Ollama: {e}")
+            LOG.warning(f"Gemini API key not found, falling back to Ollama: {e}")
             return ImprovedOllamaClient(model_name="llama3.2:1b")
     elif provider == "ollama":
         return ImprovedOllamaClient(model_name="llama3.2:1b")
@@ -210,7 +242,7 @@ async def chat_sequential_enhanced(message: ChatMessage, request: Request):
             k=3  # Get top 3 most relevant personas
         )
         
-        logger.info(f"Intelligent persona order for session {session_id}: {top_personas}")
+        LOG.info(f"Intelligent persona order for session {session_id}: {top_personas}")
         
         # Generate responses from personas in the intelligent order
         responses = []
@@ -248,7 +280,7 @@ async def chat_sequential_enhanced(message: ChatMessage, request: Request):
                     })
                     
             except Exception as e:
-                logger.error(f"Error generating response for persona {persona_id}: {str(e)}")
+                LOG.error(f"Error generating response for persona {persona_id}: {str(e)}")
                 # Error fallback
                 responses.append({
                     "persona": chat_orchestrator.personas[persona_id].name,
@@ -263,7 +295,7 @@ async def chat_sequential_enhanced(message: ChatMessage, request: Request):
         }
 
     except Exception as e:
-        logger.error(f"Error in enhanced sequential chat: {str(e)}")
+        LOG.error(f"Error in enhanced sequential chat: {str(e)}")
         return {
             "type": "error", 
             "responses": [{
@@ -321,7 +353,7 @@ async def chat_with_specific_advisor(persona_id: str, input: UserInput, request:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in chat_with_specific_advisor: {e}")
+        LOG.error(f"Error in chat_with_specific_advisor: {e}")
         return {
             "persona": "System",
             "response": "I'm having trouble generating a response right now. Please try again."
@@ -364,7 +396,7 @@ async def reply_to_advisor(reply: ReplyToAdvisor, request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in reply_to_advisor: {e}")
+        LOG.error(f"Error in reply_to_advisor: {e}")
         return {
             "type": "error",
             "persona": "System",
@@ -452,7 +484,7 @@ async def upload_document(file: UploadFile = File(...), request: Request = None)
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error processing document upload: {str(e)}")
+        LOG.error(f"Error processing document upload: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing document: {str(e)}")
 
     
@@ -471,7 +503,7 @@ async def export_chat(request: Request, format: str = Query(..., regex="^(txt|pd
         return prepare_export_response(session.messages, format)
 
     except Exception as e:
-        logger.error(f"Error exporting chat: {str(e)}")
+        LOG.error(f"Error exporting chat: {str(e)}")
         return {"error": "Failed to export chat.", "detail": str(e)}
     
     
@@ -512,7 +544,7 @@ async def chat_summary(
             )
 
     except Exception as e:
-        logger.error(f"Error in chat-summary endpoint: {str(e)}")
+        LOG.error(f"Error in chat-summary endpoint: {str(e)}")
         return {"error": "Summary generation failed", "detail": str(e)}
 
 
@@ -530,7 +562,7 @@ async def get_document_stats(request: Request):
         return stats
         
     except Exception as e:
-        logger.error(f"Error getting document stats: {str(e)}")
+        LOG.error(f"Error getting document stats: {str(e)}")
         return {"total_chunks": 0, "total_documents": 0, "documents": []}
 
 # Get uploaded files (SAME INTERFACE)
@@ -542,7 +574,7 @@ async def get_uploaded_filenames(request: Request):
         session = session_manager.get_session(session_id)
         return {"files": session.uploaded_files}
     except Exception as e:
-        logger.error(f"Error getting uploaded files: {str(e)}")
+        LOG.error(f"Error getting uploaded files: {str(e)}")
         return {"files": []}
 
 # Context endpoint (SAME INTERFACE)
@@ -565,7 +597,7 @@ async def get_context(request: Request):
             }
         }
     except Exception as e:
-        logger.error(f"Error getting context: {str(e)}")
+        LOG.error(f"Error getting context: {str(e)}")
         return {"messages": [], "rag_info": {"total_documents": 0, "total_chunks": 0}}
 
 @router.post("/reset-session")
@@ -582,7 +614,7 @@ async def reset_session(request: Request):
         else:
             return {"status": "error", "message": "Failed to reset session"}
     except Exception as e:
-        logger.error(f"Error resetting session: {e}")
+        LOG.error(f"Error resetting session: {e}")
         return {"status": "error", "message": "Failed to reset session"}
 
 
@@ -639,7 +671,7 @@ async def search_documents(request: Request, query: str = Body(..., embed=True),
         }
         
     except Exception as e:
-        logger.error(f"Error searching documents: {str(e)}")
+        LOG.error(f"Error searching documents: {str(e)}")
         return {"query": query, "results_count": 0, "results": [], "error": str(e)}
 
 @router.get("/session-stats")
@@ -650,7 +682,7 @@ async def get_session_stats(request: Request):
         stats = session_manager.get_session_stats(session_id)
         return stats
     except Exception as e:
-        logger.error(f"Error getting session stats: {str(e)}")
+        LOG.error(f"Error getting session stats: {str(e)}")
         return {"error": str(e)}
 
 
@@ -682,7 +714,7 @@ async def debug_personas(request: Request):
             "rag_enabled": True
         }
     except Exception as e:
-        logger.error(f"Error in debug endpoint: {str(e)}")
+        LOG.error(f"Error in debug endpoint: {str(e)}")
         return {
             "personas": {},
             "session_info": {"context_length": 0},
@@ -710,7 +742,7 @@ async def get_ranked_personas(request: Request, k: int = Query(3, ge=1, le=10)):
             "session_id": session_id
         }
     except Exception as e:
-        logger.error(f"Error in /debug/ranked-personas: {e}")
+        LOG.error(f"Error in /debug/ranked-personas: {e}")
         return {
             "ranked_personas": [],
             "error": str(e)
@@ -762,7 +794,7 @@ async def chat_with_specific_persona(persona_id: str, message: ChatMessage, requ
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in individual persona chat: {str(e)}")
+        LOG.error(f"Error in individual persona chat: {str(e)}")
         return {
             "type": "error",
             "message": f"Error chatting with {persona_id}: {str(e)}",
@@ -826,7 +858,7 @@ async def debug_enhanced_personas(request: Request):
             "enhancement_level": "advanced"
         }
     except Exception as e:
-        logger.error(f"Error in enhanced debug endpoint: {str(e)}")
+        LOG.error(f"Error in enhanced debug endpoint: {str(e)}")
         return {
             "error": str(e),
             "enhancement_level": "error",
@@ -897,7 +929,7 @@ async def get_document_insights(filename: str, request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting document insights: {str(e)}")
+        LOG.error(f"Error getting document insights: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error analyzing document: {str(e)}")
 
 # Also add a debug endpoint to check RAG status:
@@ -945,7 +977,7 @@ async def debug_rag_status(request: Request):
         }
         
     except Exception as e:
-        logger.error(f"Error in RAG debug: {str(e)}")
+        LOG.error(f"Error in RAG debug: {str(e)}")
         return {
             "rag_manager_healthy": False,
             "error": str(e),
@@ -978,7 +1010,7 @@ async def ask_question(query: PersonaQuery, request: Request):
         return {"response": response_text}
         
     except Exception as e:
-        logger.error(f"Error in ask endpoint: {str(e)}")
+        LOG.error(f"Error in ask endpoint: {str(e)}")
         return {"response": "I encountered an error. Please try again."}
     
 

@@ -1,11 +1,43 @@
-from pydantic import BaseModel, Field
-from typing import Dict, List, Optional, Any
-from datetime import datetime
-from bson import ObjectId
-from app.models.user import PyObjectId
-import logging
+# NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
+# All Rights Reserved 2008-2025
+# Licensed under the BSD 3-Clause License
+# https://opensource.org/licenses/BSD-3-Clause
+#
+# Copyright (c) 2008-2025, Neongecko.com Inc.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
 
-logger = logging.getLogger(__name__)
+import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from bson import ObjectId
+from pydantic import BaseModel, Field
+
+from app.models.user import PyObjectId
+
+LOG = logging.getLogger(__name__)
 
 class CanvasInsight(BaseModel):
     """Individual insight extracted from chat messages"""
@@ -22,88 +54,79 @@ class CanvasSection(BaseModel):
     title: str
     description: str
     insights: List[CanvasInsight] = Field(default_factory=list)
-    priority: int = Field(default=1, ge=1, le=5)  # 1=highest priority
+    priority: int = Field(default=1, ge=1, le=5)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 class PhdCanvas(BaseModel):
     """Main PhD Canvas model storing all user insights organized by sections"""
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     user_id: PyObjectId
-    
-    # Canvas sections organized by theme
+
     sections: Dict[str, CanvasSection] = Field(default_factory=dict)
-    
-    # Metadata
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
     last_updated: datetime = Field(default_factory=datetime.utcnow)
     last_chat_processed: Optional[datetime] = None
     total_insights: int = Field(default=0)
-    
-    # Settings
+
     auto_update: bool = Field(default=True)
     print_optimized: bool = Field(default=True)
-    
+
     class Config:
         allow_population_by_field_name = True
         arbitrary_types_allowed = True
         json_encoders = {ObjectId: str}
 
-    def update_section(self, section_key: str, insights: List[CanvasInsight]):
+    def update_section(self, section_key: str, insights: List[CanvasInsight]) -> None:
         """Update a specific canvas section with new insights"""
         if section_key not in self.sections:
             self.sections[section_key] = CanvasSection(
                 title=self._get_section_title(section_key),
                 description=self._get_section_description(section_key)
             )
-        
+
         existing_insights_map = {
-            insight.content.strip().lower(): insight 
+            insight.content.strip().lower(): insight
             for insight in self.sections[section_key].insights
         }
-        
-        # Also track existing chat session + message combinations
+
         existing_sources = {
             (insight.source_chat_session, insight.source_message_id)
             for insight in self.sections[section_key].insights
             if insight.source_chat_session and insight.source_message_id
         }
-        
+
         new_insights = []
         for insight in insights:
-            # Normalize content for comparison
             normalized_content = insight.content.strip().lower()
-            
-            # Check if this exact content already exists
+
             if normalized_content in existing_insights_map:
-                logger.debug(f"Skipping duplicate insight: {insight.content[:50]}...")
+                LOG.debug(f"Skipping duplicate insight: {insight.content[:50]}...")
                 continue
-            
-            # Check if this source was already processed
+
             if insight.source_chat_session and insight.source_message_id:
                 source_key = (insight.source_chat_session, insight.source_message_id)
                 if source_key in existing_sources:
-                    logger.debug(f"Skipping already processed source: {source_key}")
+                    LOG.debug(f"Skipping already processed source: {source_key}")
                     continue
-            
-            # This is genuinely new
+
             new_insights.append(insight)
-        
+
         if new_insights:
-            logger.info(f"Adding {len(new_insights)} new insights to section '{section_key}'")
+            LOG.info(f"Adding {len(new_insights)} new insights to section '{section_key}'")
             self.sections[section_key].insights.extend(new_insights)
             self.sections[section_key].updated_at = datetime.utcnow()
             self.last_updated = datetime.utcnow()
         else:
-            logger.info(f"No new insights to add to section '{section_key}' (all {len(insights)} were duplicates)")
-        
-        # Update total insights count
+            LOG.info(f"No new insights to add to section '{section_key}' (all {len(insights)} were duplicates)")
+
         self.total_insights = sum(len(section.insights) for section in self.sections.values())
-    
+
     def _get_section_title(self, section_key: str) -> str:
         """Get human-readable title for section"""
         titles = {
             "research_progress": "Research Progress & Milestones",
-            "methodology": "Research Methods & Approach", 
+            "methodology": "Research Methods & Approach",
             "theoretical_framework": "Theoretical Foundations",
             "challenges_obstacles": "Challenges & Solutions",
             "next_steps": "Action Items & Next Steps",
@@ -114,7 +137,7 @@ class PhdCanvas(BaseModel):
             "motivation_mindset": "Motivation & Mindset"
         }
         return titles.get(section_key, section_key.replace("_", " ").title())
-    
+
     def _get_section_description(self, section_key: str) -> str:
         """Get description for each section"""
         descriptions = {
@@ -146,5 +169,5 @@ class CanvasResponse(BaseModel):
 class UpdateCanvasRequest(BaseModel):
     """Request model for updating canvas"""
     force_full_update: bool = Field(default=False)
-    include_chat_sessions: Optional[List[str]] = None  # Specific sessions to include
-    exclude_sections: Optional[List[str]] = None  # Sections to skip updating
+    include_chat_sessions: Optional[List[str]] = None
+    exclude_sections: Optional[List[str]] = None

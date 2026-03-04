@@ -1,3 +1,33 @@
+# NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
+# All Rights Reserved 2008-2025
+# Licensed under the BSD 3-Clause License
+# https://opensource.org/licenses/BSD-3-Clause
+#
+# Copyright (c) 2008-2025, Neongecko.com Inc.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
 """
 Course Catalog Scraper — fetches CU Boulder course listings from
 classes.colorado.edu and stores results in MongoDB.
@@ -18,7 +48,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-logger = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 FOSE_SEARCH_URL = "https://classes.colorado.edu/api/?page=fose&route=search"
 FOSE_TERMS_URL = "https://classes.colorado.edu/api/?page=fose&route=search"
@@ -80,13 +110,12 @@ def _parse_schedule(meets: str) -> Dict[str, Any]:
     return {"days": days, "start_time": start, "end_time": end, "raw": meets}
 
 
-def _row_to_course(item: dict, term: str) -> Optional[Dict[str, Any]]:
+def _row_to_course(item: Dict[str, Any], term: str) -> Optional[Dict[str, Any]]:
     """Convert a FOSE API result row to our DB schema.
 
     Returns ``None`` for rows that should be skipped (recitations,
     cancelled sections, etc.).
     """
-    # Skip non-lecture components (recitations, labs) and cancelled sections
     schd = item.get("schd", "")
     if schd and schd not in ("LEC", "SEM", ""):
         return None
@@ -94,7 +123,6 @@ def _row_to_course(item: dict, term: str) -> Optional[Dict[str, Any]]:
         return None
 
     meets = item.get("meets", "") or ""
-    # The API uses "code" for the full course code (e.g. "CSCI 1300")
     code = item.get("code", "").strip()
     if not code:
         code = (
@@ -105,8 +133,6 @@ def _row_to_course(item: dict, term: str) -> Optional[Dict[str, Any]]:
     section = item.get("no", "") or item.get("section", "")
     instructor = item.get("instr", "") or item.get("instructor", "Staff")
 
-    # "total" is the current enrollment count; the API doesn't expose
-    # seats_available directly but we can store enrollment count.
     enrollment_total = 0
     try:
         enrollment_total = int(item.get("total", 0))
@@ -139,13 +165,12 @@ async def _scrape_via_api(
     subjects = subjects or DEFAULT_SUBJECTS
 
     async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
-        # Establish a session by visiting the landing page first
         try:
             await client.get(
                 CLASSES_BASE_URL, headers={"User-Agent": BROWSER_UA}
             )
         except Exception as e:
-            logger.warning("CU classes landing page fetch failed: %s", e)
+            LOG.warning(f"CU classes landing page fetch failed: {e}")
 
         for subj in subjects:
             payload = {
@@ -186,14 +211,14 @@ async def _scrape_via_api(
                     )
 
                 if resp.status_code != 200:
-                    logger.warning(
-                        "CU API returned %d for %s", resp.status_code, subj
+                    LOG.warning(
+                        f"CU API returned {resp.status_code} for {subj}"
                     )
                     continue
 
                 body = resp.json()
                 if "fatal" in body:
-                    logger.warning("CU API fatal for %s: %s", subj, body["fatal"])
+                    LOG.warning(f"CU API fatal for {subj}: {body['fatal']}")
                     continue
 
                 results = body.get("results", body.get("data", []))
@@ -204,10 +229,10 @@ async def _scrape_via_api(
                         courses.append(row)
                         added += 1
 
-                logger.debug("API: %d lecture sections for %s (of %d total)", added, subj, len(results))
+                LOG.debug(f"API: {added} lecture sections for {subj} (of {len(results)} total)")
 
             except Exception as e:
-                logger.warning("CU API error for %s: %s", subj, e)
+                LOG.warning(f"CU API error for {subj}: {e}")
                 continue
 
     return courses
@@ -216,9 +241,9 @@ async def _scrape_via_api(
 async def _poll_fose(
     client: httpx.AsyncClient,
     task_id: str,
-    headers: dict,
+    headers: Dict[str, str],
     max_attempts: int = 10,
-) -> Optional[list]:
+) -> Optional[List]:
     """Poll the FOSE API for async results."""
     for attempt in range(max_attempts):
         await asyncio.sleep(2 * (attempt + 1))
@@ -281,7 +306,7 @@ async def _scrape_via_playwright(
     try:
         from playwright.async_api import async_playwright
     except ImportError:
-        logger.warning("playwright not installed — browser scrape unavailable")
+        LOG.warning("playwright not installed — browser scrape unavailable")
         return []
 
     courses: List[Dict[str, Any]] = []
@@ -297,7 +322,7 @@ async def _scrape_via_playwright(
         page = await ctx.new_page()
 
         try:
-            logger.info("Playwright: navigating to CU classes site")
+            LOG.info("Playwright: navigating to CU classes site")
             await page.goto(
                 CLASSES_BASE_URL, timeout=60_000, wait_until="domcontentloaded"
             )
@@ -314,16 +339,16 @@ async def _scrape_via_playwright(
                             row = _row_to_course(item, term)
                             if row:
                                 courses.append(row)
-                        logger.debug(
-                            "Playwright: %d courses for %s", len(items), subj
+                        LOG.debug(
+                            f"Playwright: {len(items)} courses for {subj}"
                         )
                     await page.wait_for_timeout(500)
                 except Exception as e:
-                    logger.warning("Playwright fetch for %s failed: %s", subj, e)
+                    LOG.warning(f"Playwright fetch for {subj} failed: {e}")
                     continue
 
         except Exception as e:
-            logger.error("Playwright CU courses error: %s", e)
+            LOG.error(f"Playwright CU courses error: {e}")
         finally:
             await browser.close()
 
@@ -337,20 +362,20 @@ async def scrape_courses(
     subjects: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
     """Run scraping strategies in order; return the first that succeeds."""
-    logger.info("Starting CU course scrape for %s", term)
+    LOG.info(f"Starting CU course scrape for {term}")
 
     courses = await _scrape_via_api(term, subjects)
     if courses:
-        logger.info("API strategy succeeded: %d courses for %s", len(courses), term)
+        LOG.info(f"API strategy succeeded: {len(courses)} courses for {term}")
         return courses
 
-    logger.info("API failed for %s — trying Playwright", term)
+    LOG.info(f"API failed for {term} — trying Playwright")
     courses = await _scrape_via_playwright(term, subjects)
     if courses:
-        logger.info("Playwright strategy succeeded: %d courses for %s", len(courses), term)
+        LOG.info(f"Playwright strategy succeeded: {len(courses)} courses for {term}")
         return courses
 
-    logger.error("All CU course scraping strategies failed for %s", term)
+    LOG.error(f"All CU course scraping strategies failed for {term}")
     return []
 
 
@@ -367,11 +392,11 @@ async def scrape_all_terms(
     for term in terms:
         courses = await scrape_courses(term=term, subjects=subjects)
         results[term] = courses
-        logger.info("Scraped %d courses for %s", len(courses), term)
+        LOG.info(f"Scraped {len(courses)} courses for {term}")
     return results
 
 
-async def store_courses(courses: List[Dict[str, Any]]):
+async def store_courses(courses: List[Dict[str, Any]]) -> None:
     """Upsert course data into MongoDB."""
     from app.core.database import get_database
 
@@ -389,7 +414,7 @@ async def store_courses(courses: List[Dict[str, Any]]):
             upsert=True,
         )
 
-    logger.info("Stored/updated %d course records", len(courses))
+    LOG.info(f"Stored/updated {len(courses)} course records")
 
 
 async def get_available_terms() -> List[str]:
@@ -397,7 +422,7 @@ async def get_available_terms() -> List[str]:
     return list(KNOWN_TERMS)
 
 
-async def run_course_scrape(term: str = "Spring 2026"):
+async def run_course_scrape(term: str = "Spring 2026") -> int:
     """Scrape + store for a single term."""
     courses = await scrape_courses(term=term)
     if courses:
@@ -415,6 +440,5 @@ async def run_all_terms_scrape(
         if courses:
             await store_courses(courses)
             total += len(courses)
-    logger.info("All-terms scrape complete: %d total courses across %d terms",
-                total, len(all_courses))
+    LOG.info(f"All-terms scrape complete: {total} total courses across {len(all_courses)} terms")
     return total

@@ -1,17 +1,47 @@
-from io import BytesIO
-from typing import List, Tuple, Union
-from docx import Document
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-from fastapi.responses import StreamingResponse
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListFlowable, ListItem
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
-from reportlab.lib.units import inch
-from io import BytesIO
-import re
+# NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
+# All Rights Reserved 2008-2025
+# Licensed under the BSD 3-Clause License
+# https://opensource.org/licenses/BSD-3-Clause
+#
+# Copyright (c) 2008-2025, Neongecko.com Inc.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
 
-def format_messages_for_export(messages: List[dict]) -> str:
+import re
+from io import BytesIO
+from typing import Any, Dict, List, Tuple, Union
+
+from docx import Document
+from fastapi.responses import StreamingResponse
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.platypus import ListFlowable, ListItem, Paragraph, SimpleDocTemplate, Spacer
+
+
+def format_messages_for_export(messages: List[Dict[str, Any]]) -> str:
     """
     Convert chat messages into a structured exportable string.
     """
@@ -41,18 +71,16 @@ def _clean_text_for_pdf(text: str) -> str:
     """
     Clean text for PDF generation to handle special characters and formatting.
     """
-    # Remove or replace problematic characters
-    text = text.replace('\u2019', "'")  # Smart apostrophe
-    text = text.replace('\u2018', "'")  # Smart apostrophe
-    text = text.replace('\u201c', '"')  # Smart quote
-    text = text.replace('\u201d', '"')  # Smart quote
-    text = text.replace('\u2013', '-')  # En dash
-    text = text.replace('\u2014', '-')  # Em dash
-    
-    # Handle markdown-style formatting
-    text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)  # Bold
-    text = re.sub(r'\*(.+?)\*', r'<i>\1</i>', text)      # Italic
-    
+    text = text.replace('\u2019', "'")
+    text = text.replace('\u2018', "'")
+    text = text.replace('\u201c', '"')
+    text = text.replace('\u201d', '"')
+    text = text.replace('\u2013', '-')
+    text = text.replace('\u2014', '-')
+
+    text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+    text = re.sub(r'\*(.+?)\*', r'<i>\1</i>', text)
+
     return text
 
 
@@ -62,7 +90,7 @@ def generate_pdf_file(text: str) -> BytesIO:
     """
     buffer = BytesIO()
     doc = SimpleDocTemplate(
-        buffer, 
+        buffer,
         pagesize=letter,
         leftMargin=inch,
         rightMargin=inch,
@@ -71,8 +99,7 @@ def generate_pdf_file(text: str) -> BytesIO:
     )
 
     styles = getSampleStyleSheet()
-    
-    # Create custom styles for better formatting
+
     role_style = ParagraphStyle(
         name="RoleStyle",
         parent=styles["Normal"],
@@ -81,51 +108,42 @@ def generate_pdf_file(text: str) -> BytesIO:
         spaceAfter=6,
         textColor='blue'
     )
-    
+
     content_style = ParagraphStyle(
         name="ContentStyle",
         parent=styles["Normal"],
         fontSize=10,
         fontName="Helvetica",
-        leading=14,  # Line spacing
+        leading=14,
         spaceAfter=12,
         leftIndent=20
     )
-    
-    story = []
-    
-    # Split text into message blocks
+
+    story: List[Any] = []
+
     blocks = text.split("\n\n")
-    
+
     for block in blocks:
         if not block.strip():
             continue
-            
-        # Clean the text for PDF
+
         clean_block = _clean_text_for_pdf(block.strip())
-        
-        # Check if this is a role indicator (user:, assistant:, etc.)
+
         lines = clean_block.split('\n', 1)
         if len(lines) > 1 and lines[0].strip().endswith(':'):
-            # This is a role header
             role = lines[0].strip()
             content = lines[1].strip() if len(lines) > 1 else ""
-            
-            # Add role header
+
             story.append(Paragraph(role, role_style))
-            
-            # Add content if it exists
+
             if content:
-                # Split long content into smaller paragraphs for better formatting
                 content_paragraphs = content.split('\n')
                 for para in content_paragraphs:
                     if para.strip():
                         story.append(Paragraph(para.strip(), content_style))
         else:
-            # Regular content block
             story.append(Paragraph(clean_block, content_style))
-        
-        # Add some space between message blocks
+
         story.append(Spacer(1, 12))
 
     doc.build(story)
@@ -140,7 +158,7 @@ def _render_rich_text(text: str) -> str:
     return re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
 
 
-def generate_pdf_file_from_blocks(blocks: List[dict]) -> BytesIO:
+def generate_pdf_file_from_blocks(blocks: List[Dict[str, Any]]) -> BytesIO:
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
 
@@ -168,7 +186,7 @@ def generate_pdf_file_from_blocks(blocks: List[dict]) -> BytesIO:
         leading=14
     )
 
-    story = []
+    story: List[Any] = []
 
     for block in blocks:
         if block["type"] == "heading":
@@ -198,7 +216,9 @@ def generate_pdf_file_from_blocks(blocks: List[dict]) -> BytesIO:
     return buffer
 
 
-def export_chat_as_file(content: Union[str, List[dict]], format: str) -> Tuple[BytesIO, str, str]:
+def export_chat_as_file(
+    content: Union[str, List[Dict[str, Any]]], format: str
+) -> Tuple[BytesIO, str, str]:
     """
     Export either a list of chat messages or a summary string to the specified format.
     """
@@ -220,10 +240,10 @@ def export_chat_as_file(content: Union[str, List[dict]], format: str) -> Tuple[B
 
     else:
         raise ValueError(f"Unsupported export format: {format}")
-    
+
 
 def prepare_export_response(
-    content: Union[str, List[dict]],
+    content: Union[str, List[Dict[str, Any]]],
     format: str,
     filename_prefix: str = "chat_export"
 ) -> StreamingResponse:
@@ -232,7 +252,6 @@ def prepare_export_response(
     """
     stream, filename, media_type = export_chat_as_file(content, format)
 
-    # Replace "chat_export" with custom prefix if needed
     final_filename = filename.replace("chat_export", filename_prefix)
 
     return StreamingResponse(

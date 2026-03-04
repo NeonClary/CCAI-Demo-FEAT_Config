@@ -1,20 +1,50 @@
+# NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
+# All Rights Reserved 2008-2025
+# Licensed under the BSD 3-Clause License
+# https://opensource.org/licenses/BSD-3-Clause
+#
+# Copyright (c) 2008-2025, Neongecko.com Inc.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
+import logging
 import os
+from contextlib import asynccontextmanager
+from typing import Dict, List
+
 from dotenv import load_dotenv
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-
-# Load configuration FIRST so every module can use it
 from app.config import load_settings
+
 settings = load_settings()
 
-# Import the new database functions
 from app.core.database import connect_to_mongo, close_mongo_connection
 
-# Import all route modules
 from app.api.routes import router as main_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.chat_sessions import router as chat_sessions_router
@@ -28,53 +58,56 @@ from app.api.routes.transcribe import router as transcribe_router
 from app.api.routes.tts import router as tts_router
 from app.api.routes.voice import router as voice_router
 
-import logging
+LOG = logging.getLogger(__name__)
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+
+APP_VERSION = "2.0.0"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    """Manage startup and shutdown lifecycle events."""
     await connect_to_mongo()
-    # Scrape CU Boulder general info pages into data/ for Global RAG.
-    # This is fast (~20 HTTP fetches) and only writes files that changed.
+
     try:
         from app.scrapers.cu_info_scraper import run_cu_info_scrape
         await run_cu_info_scrape()
-    except Exception as e:
-        logging.getLogger(__name__).warning(f"CU info scrape skipped: {e}")
-    # Load data/ files into ChromaDB for background knowledge
+    except Exception as exc:
+        LOG.warning(f"CU info scrape skipped: {exc}")
+
     try:
         from app.core.global_rag import seed_global_documents
         seed_global_documents()
-    except Exception as e:
-        logging.getLogger(__name__).warning(f"Global RAG seed skipped: {e}")
-    # Start monthly scheduler for scraper refreshes.
-    # Scraped data persists in MongoDB between runs.
+    except Exception as exc:
+        LOG.warning(f"Global RAG seed skipped: {exc}")
+
     try:
         from app.core.scheduler import init_scheduler
         init_scheduler()
-    except Exception as e:
-        logging.getLogger(__name__).warning(f"Scheduler init skipped: {e}")
+    except Exception as exc:
+        LOG.warning(f"Scheduler init skipped: {exc}")
+
     yield
-    # Shutdown
+
     from app.llm.improved_gemini_client import close_shared_client as close_gemini
     from app.llm.improved_ollama_client import close_shared_client as close_ollama
     await close_gemini()
     await close_ollama()
     await close_mongo_connection()
 
+
 app = FastAPI(
     title=f"{settings.app.title} Backend",
-    version="2.0.0",
-    lifespan=lifespan
+    version=APP_VERSION,
+    lifespan=lifespan,
 )
 
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
-cors_origins = [origin.strip() for origin in cors_origins]  # Clean whitespace
+cors_origins = [origin.strip() for origin in cors_origins]
 
 app.add_middleware(
     CORSMiddleware,
@@ -84,7 +117,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include all routers
 app.include_router(main_router)
 app.include_router(auth_router, prefix="/auth", tags=["authentication"])
 app.include_router(chat_sessions_router, prefix="/api", tags=["chat-sessions"])
@@ -98,25 +130,25 @@ app.include_router(transcribe_router, prefix="/api", tags=["transcribe"])
 app.include_router(tts_router, prefix="/api", tags=["tts"])
 app.include_router(voice_router, prefix="/api", tags=["voice"])
 
-# ---------------------------------------------------------------------------
-# Public configuration endpoint — serves the frontend-safe subset
-# ---------------------------------------------------------------------------
+
 @app.get("/api/config")
-def get_public_config():
+def get_public_config() -> Dict:
     """Return the public (non-secret) application configuration."""
     return settings.get_public_config()
 
+
 @app.get("/")
-def root():
+def root() -> Dict:
+    """Health-check endpoint returning basic service metadata."""
     return {
         "message": f"{settings.app.title} Backend",
-        "version": "2.0.0",
+        "version": APP_VERSION,
         "features": [
-            "User Authentication", 
+            "User Authentication",
             "Persistent Chat Sessions",
             "MongoDB Integration",
-            "Ollama Support", 
+            "Ollama Support",
             "Gemini API Support",
-            "Configurable Personas"
-        ]
+            "Configurable Personas",
+        ],
     }

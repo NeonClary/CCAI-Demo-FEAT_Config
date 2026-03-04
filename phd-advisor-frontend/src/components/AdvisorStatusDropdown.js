@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Users, ChevronDown } from 'lucide-react';
+import { Users, ChevronDown, RefreshCw, Loader2 } from 'lucide-react';
 
-const AdvisorStatusDropdown = ({ advisors, thinkingAdvisors, getAdvisorColors, isDark, activeAdvisors, onToggleAdvisor }) => {
+const AdvisorStatusDropdown = ({ advisors, thinkingAdvisors, getAdvisorColors, isDark, activeAdvisors, onToggleAdvisor, currentProvider, onReloadModels, isReloadingModels }) => {
   const [isOpen, setIsOpen] = useState(false);
   
   // Close dropdown when clicking outside
@@ -111,6 +111,20 @@ const AdvisorStatusDropdown = ({ advisors, thinkingAdvisors, getAdvisorColors, i
               );
             })}
           </div>
+          {(currentProvider === 'ollama' || currentProvider === 'hybrid') && onReloadModels && (
+            <div className="advisor-reload-section">
+              <button
+                className="advisor-reload-btn"
+                onClick={onReloadModels}
+                disabled={isReloadingModels}
+              >
+                {isReloadingModels
+                  ? <Loader2 size={13} className="advisor-reload-spin" />
+                  : <RefreshCw size={13} />}
+                <span>{isReloadingModels ? 'Reloading...' : 'Reload Available Models'}</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
       
@@ -322,6 +336,39 @@ const AdvisorStatusDropdown = ({ advisors, thinkingAdvisors, getAdvisorColors, i
         .advisor-toggle input:checked + .toggle-slider { background: var(--accent-primary); }
         .advisor-toggle input:checked + .toggle-slider::before { transform: translateX(14px); }
         .advisor-toggle input:disabled + .toggle-slider { opacity: 0.4; cursor: not-allowed; }
+
+        .advisor-reload-section {
+          border-top: 1px solid var(--border-primary);
+          padding: 8px 12px;
+        }
+        .advisor-reload-btn {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          width: 100%;
+          padding: 8px 12px;
+          border: none;
+          border-radius: 8px;
+          background: transparent;
+          color: var(--accent-primary, #7c3aed);
+          font-size: 12px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: background 0.15s;
+        }
+        .advisor-reload-btn:hover:not(:disabled) {
+          background: var(--bg-secondary);
+        }
+        .advisor-reload-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+        .advisor-reload-spin {
+          animation: spin-reload 1s linear infinite;
+        }
+        @keyframes spin-reload {
+          to { transform: rotate(360deg); }
+        }
 
         @keyframes thinking-bounce {
           0%, 80%, 100% { transform: scale(0); }

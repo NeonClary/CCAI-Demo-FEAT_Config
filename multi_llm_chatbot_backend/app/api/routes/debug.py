@@ -1,22 +1,54 @@
-from fastapi import APIRouter, Request, Query
-from app.core.session_manager import get_session_manager
-from app.core.rag_manager import get_rag_manager
-from app.core.bootstrap import chat_orchestrator
+# NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
+# All Rights Reserved 2008-2025
+# Licensed under the BSD 3-Clause License
+# https://opensource.org/licenses/BSD-3-Clause
+#
+# Copyright (c) 2008-2025, Neongecko.com Inc.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
 import logging
 
-from app.api.old_routes import get_or_create_session_for_request
+from fastapi import APIRouter, Query, Request
 
-logger = logging.getLogger(__name__)
+from app.api.old_routes import get_or_create_session_for_request
+from app.core.bootstrap import chat_orchestrator
+from app.core.rag_manager import get_rag_manager
+from app.core.session_manager import get_session_manager
+
+LOG = logging.getLogger(__name__)
 
 router = APIRouter()
 
-session_manager = get_session_manager()
+SESSION_MANAGER = get_session_manager()
+
 
 @router.get("/debug/personas")
-async def debug_personas(request: Request):
+async def debug_personas(request: Request) -> dict:
     try:
         session_id = get_or_create_session_for_request(request)
-        session = session_manager.get_session(session_id)
+        session = SESSION_MANAGER.get_session(session_id)
         rag_manager = get_rag_manager()
         rag_stats = rag_manager.get_document_stats(session_id)
 
@@ -35,15 +67,16 @@ async def debug_personas(request: Request):
             }
         }
     except Exception as e:
-        logger.error(f"Error in debug endpoint: {str(e)}")
+        LOG.error(f"Error in debug endpoint: {str(e)}")
         return {
             "personas": {},
             "session_info": {"context_length": 0},
             "error": str(e)
         }
 
+
 @router.get("/debug/ranked-personas")
-async def get_ranked_personas(request: Request, k: int = Query(3, ge=1, le=10)):
+async def get_ranked_personas(request: Request, k: int = Query(3, ge=1, le=10)) -> dict:
     try:
         session_id = get_or_create_session_for_request(request)
         top_personas = await chat_orchestrator.get_top_personas(session_id=session_id, k=k)
@@ -53,18 +86,19 @@ async def get_ranked_personas(request: Request, k: int = Query(3, ge=1, le=10)):
             "session_id": session_id
         }
     except Exception as e:
-        logger.error(f"Error in /debug/ranked-personas: {e}")
+        LOG.error(f"Error in /debug/ranked-personas: {e}")
         return {
             "ranked_personas": [],
             "error": str(e)
         }
 
+
 @router.get("/debug/rag-status")
-async def debug_rag_status(request: Request):
+async def debug_rag_status(request: Request) -> dict:
     try:
         session_id = get_or_create_session_for_request(request)
         rag_manager = get_rag_manager()
-        session_stats = session_manager.get_session_stats(session_id)
+        session_stats = SESSION_MANAGER.get_session_stats(session_id)
 
         test_search = rag_manager.search_documents(
             query="test methodology research",
@@ -94,7 +128,7 @@ async def debug_rag_status(request: Request):
         }
 
     except Exception as e:
-        logger.error(f"Error in RAG debug: {str(e)}")
+        LOG.error(f"Error in RAG debug: {str(e)}")
         return {
             "rag_manager_healthy": False,
             "error": str(e),

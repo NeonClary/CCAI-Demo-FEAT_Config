@@ -16,9 +16,9 @@ RUN apt-get update && \
 
 # ---- Python dependencies (cached unless requirements.txt changes) ----------
 WORKDIR /ccai/multi_llm_chatbot_backend
-COPY multi_llm_chatbot_backend/requirements.txt ./
+COPY multi_llm_chatbot_backend/requirements/requirements.txt requirements/
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --break-system-packages -r requirements.txt
+    pip install --break-system-packages -r requirements/requirements.txt
 
 # ---- Node dependencies (cached unless package.json changes) ----------------
 WORKDIR /ccai/phd-advisor-frontend

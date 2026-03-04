@@ -1,9 +1,8 @@
-// src/components/ProviderDropdown.js
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Cpu, Cloud, Loader2 } from 'lucide-react';
+import { ChevronDown, Cpu, Cloud, Loader2, Blend } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 
-const ProviderDropdown = ({ currentProvider, onProviderChange, isLoading = false }) => {
+const ProviderDropdown = ({ currentProvider, onProviderChange, isLoading = false, onConfigureModels }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
   const { isDark } = useTheme();
@@ -12,22 +11,28 @@ const ProviderDropdown = ({ currentProvider, onProviderChange, isLoading = false
     {
       id: 'gemini',
       name: 'Gemini',
-      description: 'Google\'s Gemini AI',
+      description: "Google's Gemini AI",
       icon: Cloud,
       badge: ''
     },
     {
       id: 'ollama', 
       name: 'Ollama',
-      description: 'Local LLM via Ollama',
+      description: 'Self-hosted vLLM inference',
       icon: Cpu,
       badge: 'Local'
+    },
+    {
+      id: 'hybrid',
+      name: 'Hybrid',
+      description: 'Mix Gemini + self-hosted models',
+      icon: Blend,
+      badge: 'Mix'
     }
   ];
 
   const currentProviderInfo = providers.find(p => p.id === currentProvider);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -42,10 +47,16 @@ const ProviderDropdown = ({ currentProvider, onProviderChange, isLoading = false
   }, []);
 
   const handleProviderSelect = (providerId) => {
-    if (providerId !== currentProvider && !isLoading) {
-      onProviderChange(providerId);
-      setIsOpen(false);
+    if (isLoading) return;
+    if (providerId === currentProvider) {
+      if ((providerId === 'ollama' || providerId === 'hybrid') && onConfigureModels) {
+        setIsOpen(false);
+        onConfigureModels();
+      }
+      return;
     }
+    onProviderChange(providerId);
+    setIsOpen(false);
   };
 
   const toggleDropdown = () => {
@@ -89,7 +100,7 @@ const ProviderDropdown = ({ currentProvider, onProviderChange, isLoading = false
                 key={provider.id}
                 className={`provider-option ${isSelected ? 'selected' : ''}`}
                 onClick={() => handleProviderSelect(provider.id)}
-                disabled={isSelected}
+                disabled={isSelected && provider.id === 'gemini'}
               >
                 <Icon className="provider-option-icon" size={16} />
                 <div className="provider-option-info">
@@ -107,6 +118,7 @@ const ProviderDropdown = ({ currentProvider, onProviderChange, isLoading = false
               </button>
             );
           })}
+
         </div>
       )}
     </div>

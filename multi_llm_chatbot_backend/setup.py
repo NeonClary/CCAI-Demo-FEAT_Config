@@ -28,46 +28,32 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-import time
+from setuptools import setup, find_packages
 
-import requests
+from version import __version__
 
-BASE_URL = "http://localhost:8000"
 
-def test_unified_chat():
-    print("\nSending unified chat request to /chat...\n")
-    payload = {
-        "user_input": "I'm a second year PhD student in Machine Learning. Any advice for my research paper presentation? I am preparing for final QnA session."
-    }
+def _read_requirements():
+    with open("requirements/requirements.txt", "r", encoding="utf-8") as fh:
+        return [
+            line.strip()
+            for line in fh
+            if line.strip() and not line.startswith("#")
+        ]
 
-    try:
-        response = requests.post(f"{BASE_URL}/chat", json=payload)
-        response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        print("Error:", e)
-        return
 
-    data = response.json()
-    print(f"Type: {data.get('type')}")
-    print(f"Collected Info: {data.get('collected_info')}")
-
-    for reply in data.get("responses", []):
-        print(f"\n{reply['persona']}:\n{reply['response'][:500]}...\n")  # show only first 500 chars
-
-def test_context_log():
-    print("\nFetching /context...\n")
-    try:
-        response = requests.get(f"{BASE_URL}/context")
-        response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        print("Error fetching context:", e)
-        return
-
-    context = response.json()
-    for entry in context[-6:]:  # Show the last 6 interactions for relevance
-        print(f"{entry['role']}: {entry['content'][:120]}...")  # preview each entry
-
-if __name__ == "__main__":
-    test_unified_chat()
-    time.sleep(2)
-    test_context_log()
+setup(
+    name="ccai-demo-undergrad-advisor",
+    version=__version__,
+    description="Multi-LLM Undergraduate Advisor Chatbot Backend",
+    author="Neongecko.com Inc.",
+    license="BSD-3-Clause",
+    packages=find_packages(),
+    install_requires=_read_requirements(),
+    python_requires=">=3.10",
+    entry_points={
+        "console_scripts": [
+            "ccai-advisor=app.__main__:main",
+        ],
+    },
+)

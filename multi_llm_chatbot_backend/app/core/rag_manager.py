@@ -1,36 +1,67 @@
+# NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
+# All Rights Reserved 2008-2025
+# Licensed under the BSD 3-Clause License
+# https://opensource.org/licenses/BSD-3-Clause
+#
+# Copyright (c) 2008-2025, Neongecko.com Inc.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
+import logging
+import re
+import uuid
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 import chromadb
-from chromadb.config import Settings
-from sentence_transformers import SentenceTransformer
 import nltk
 import tiktoken
-from typing import List, Dict, Any, Optional
-import uuid
-import logging
-import os
-import re
-from pathlib import Path
+from chromadb.config import Settings
+from sentence_transformers import SentenceTransformer
 
-logger = logging.getLogger(__name__)
+from app.config import get_settings
 
-# Download required NLTK data
+LOG = logging.getLogger(__name__)
+
 try:
     nltk.data.find('tokenizers/punkt')
 except LookupError:
     try:
         nltk.download('punkt')
     except Exception as e:
-        logger.warning(f"Could not download NLTK punkt: {e}")
+        LOG.warning(f"Could not download NLTK punkt: {e}")
 
 class DocumentChunker:
     """Intelligent document chunking with overlaps and semantic boundaries"""
     
-    def __init__(self, chunk_size: int = 500, overlap: int = 50):
+    def __init__(self, chunk_size: int = 500, overlap: int = 50) -> None:
         self.chunk_size = chunk_size
         self.overlap = overlap
         try:
             self.encoding = tiktoken.get_encoding("cl100k_base")  # GPT-4 encoding
         except Exception as e:
-            logger.warning(f"Could not load tiktoken encoding: {e}")
+            LOG.warning(f"Could not load tiktoken encoding: {e}")
             self.encoding = None
     
     def _count_tokens(self, text: str) -> int:
@@ -111,7 +142,7 @@ class DocumentChunker:
             )
             chunks.append(chunk_data)
         
-        logger.info(f"Created {len(chunks)} chunks from document: {metadata.get('filename', 'unknown')}")
+        LOG.info(f"Created {len(chunks)} chunks from document: {metadata.get('filename', 'unknown')}")
         return chunks
     
     def _clean_text(self, text: str) -> str:
@@ -153,10 +184,10 @@ class DocumentChunker:
 class SimpleEmbeddingFunction:
     """Simple embedding function wrapper for ChromaDB - FIXED for new interface"""
     
-    def __init__(self, model):
+    def __init__(self, model: Any) -> None:
         self.model = model
     
-    def __call__(self, input):
+    def __call__(self, input: Any) -> List[List[float]]:
         """Generate embeddings for input texts - Updated signature for ChromaDB 0.4.16+"""
         try:
             # Handle both single string and list of strings
@@ -166,7 +197,7 @@ class SimpleEmbeddingFunction:
             embeddings = self.model.encode(input, convert_to_tensor=False)
             return embeddings.tolist() if hasattr(embeddings, 'tolist') else embeddings
         except Exception as e:
-            logger.error(f"Error generating embeddings: {e}")
+            LOG.error(f"Error generating embeddings: {e}")
             # Return dummy embeddings as fallback
             return [[0.0] * 384 for _ in input]  # 384 is dimension for all-MiniLM-L6-v2
 
@@ -177,8 +208,7 @@ class RAGManager:
     Handles document storage, embedding, and retrieval using ChromaDB
     """
     
-    def __init__(self, embedding_model: str = None, persist_directory: str = "./chroma_db"):
-        from app.config import get_settings
+    def __init__(self, embedding_model: Optional[str] = None, persist_directory: str = "./chroma_db") -> None:
         settings = get_settings()
         if embedding_model is None:
             embedding_model = settings.rag.embedding_model
@@ -187,12 +217,12 @@ class RAGManager:
         self.persist_directory.mkdir(exist_ok=True)
         
         # Initialize embedding model
-        logger.info(f"Loading embedding model: {embedding_model}")
+        LOG.info(f"Loading embedding model: {embedding_model}")
         try:
             self.embedding_model = SentenceTransformer(embedding_model)
-            logger.info("Embedding model loaded successfully")
+            LOG.info("Embedding model loaded successfully")
         except Exception as e:
-            logger.error(f"Failed to load embedding model: {e}")
+            LOG.error(f"Failed to load embedding model: {e}")
             raise
         
         # Initialize ChromaDB client
@@ -204,9 +234,9 @@ class RAGManager:
                     allow_reset=True
                 )
             )
-            logger.info("ChromaDB client initialized")
+            LOG.info("ChromaDB client initialized")
         except Exception as e:
-            logger.error(f"Failed to initialize ChromaDB client: {e}")
+            LOG.error(f"Failed to initialize ChromaDB client: {e}")
             raise
         
         # Initialize collection — name from config
@@ -216,42 +246,43 @@ class RAGManager:
         # Initialize chunker
         self.chunker = DocumentChunker()
     
-    def _get_or_create_collection(self):
+    def _get_or_create_collection(self) -> Any:
         """Get or create the ChromaDB collection"""
+        settings = get_settings()
         try:
             # First, try to get existing collection
             try:
                 collection = self.client.get_collection(
                     name=self.collection_name
                 )
-                logger.info(f"Found existing collection: {self.collection_name}")
+                LOG.info(f"Found existing collection: {self.collection_name}")
                 return collection
             except ValueError:
                 # Collection doesn't exist, create it
-                logger.info(f"Creating new collection: {self.collection_name}")
+                LOG.info(f"Creating new collection: {self.collection_name}")
                 collection = self.client.create_collection(
                     name=self.collection_name,
                     embedding_function=SimpleEmbeddingFunction(self.embedding_model),
                     metadata={"description": f"{settings.app.title} document storage"}
                 )
-                logger.info(f"Created collection: {self.collection_name}")
+                LOG.info(f"Created collection: {self.collection_name}")
                 return collection
                 
         except Exception as e:
-            logger.error(f"Error with collection management: {e}")
+            LOG.error(f"Error with collection management: {e}")
             # Try to reset and recreate
             try:
-                logger.info("Attempting to reset and recreate collection...")
+                LOG.info("Attempting to reset and recreate collection...")
                 self.client.reset()
                 collection = self.client.create_collection(
                     name=self.collection_name,
                     embedding_function=SimpleEmbeddingFunction(self.embedding_model),
                     metadata={"description": f"{settings.app.title} document storage"}
                 )
-                logger.info("Successfully recreated collection")
+                LOG.info("Successfully recreated collection")
                 return collection
             except Exception as e2:
-                logger.error(f"Failed to recreate collection: {e2}")
+                LOG.error(f"Failed to recreate collection: {e2}")
                 raise
     
     def add_document(self, content: str, filename: str, session_id: str, file_type: str = "unknown") -> Dict[str, Any]:
@@ -289,9 +320,9 @@ class RAGManager:
                     documents=chunk_texts,
                     metadatas=chunk_metadatas
                 )
-                logger.info(f"Successfully added {len(chunks)} chunks for document: {filename}")
+                LOG.info(f"Successfully added {len(chunks)} chunks for document: {filename}")
             except Exception as e:
-                logger.error(f"Error adding chunks to ChromaDB: {e}")
+                LOG.error(f"Error adding chunks to ChromaDB: {e}")
                 # Try to recreate collection and try again
                 self.collection = self._get_or_create_collection()
                 self.collection.add(
@@ -299,7 +330,7 @@ class RAGManager:
                     documents=chunk_texts,
                     metadatas=chunk_metadatas
                 )
-                logger.info(f"Successfully added {len(chunks)} chunks after collection reset")
+                LOG.info(f"Successfully added {len(chunks)} chunks after collection reset")
             
             return {
                 "success": True,
@@ -310,7 +341,7 @@ class RAGManager:
             }
             
         except Exception as e:
-            logger.error(f"Error adding document {filename}: {str(e)}")
+            LOG.error(f"Error adding document {filename}: {str(e)}")
             return {
                 "success": False,
                 "filename": filename,
@@ -353,11 +384,11 @@ class RAGManager:
                     }
                     retrieved_chunks.append(chunk_data)
             
-            logger.info(f"Retrieved {len(retrieved_chunks)} chunks for query: {query[:50]}...")
+            LOG.info(f"Retrieved {len(retrieved_chunks)} chunks for query: {query[:50]}...")
             return retrieved_chunks
             
         except Exception as e:
-            logger.error(f"Error searching documents: {str(e)}")
+            LOG.error(f"Error searching documents: {str(e)}")
             return []
     
     def get_document_stats(self, session_id: str) -> Dict[str, Any]:
@@ -399,7 +430,7 @@ class RAGManager:
             }
             
         except Exception as e:
-            logger.error(f"Error getting document stats: {str(e)}")
+            LOG.error(f"Error getting document stats: {str(e)}")
             return {"total_chunks": 0, "total_documents": 0, "documents": []}
     
     def delete_session_documents(self, session_id: str) -> bool:
@@ -413,13 +444,13 @@ class RAGManager:
             if results and results.get('ids'):
                 chunk_ids = results['ids']
                 self.collection.delete(ids=chunk_ids)
-                logger.info(f"Deleted {len(chunk_ids)} chunks for session: {session_id}")
+                LOG.info(f"Deleted {len(chunk_ids)} chunks for session: {session_id}")
                 return True
             
             return True  # No documents to delete is also success
             
         except Exception as e:
-            logger.error(f"Error deleting session documents: {str(e)}")
+            LOG.error(f"Error deleting session documents: {str(e)}")
             return False
     
     def health_check(self) -> Dict[str, Any]:
@@ -459,9 +490,8 @@ class RAGManager:
 
 
 class EnhancedRAGManager:
-    def __init__(self, persist_directory: str = "./chromadb_storage"):
+    def __init__(self, persist_directory: str = "./chromadb_storage") -> None:
         """Initialize enhanced RAG manager with improved document handling"""
-        from app.config import get_settings
         settings = get_settings()
 
         self.persist_directory = persist_directory
@@ -482,7 +512,7 @@ class EnhancedRAGManager:
             metadata={"hnsw:space": "cosine"}
         )
         
-        logger.info(f"Enhanced RAG Manager initialized with collection: {self.collection.name}")
+        LOG.info(f"Enhanced RAG Manager initialized with collection: {self.collection.name}")
     
     def add_document(self, content: str, filename: str, session_id: str, 
                     file_type: str = "unknown") -> Dict[str, Any]:
@@ -544,7 +574,7 @@ class EnhancedRAGManager:
             
             total_tokens = sum(metadata["estimated_tokens"] for metadata in chunk_metadatas)
             
-            logger.info(f"Successfully added document {filename}: {len(chunks)} chunks, ~{total_tokens:.0f} tokens")
+            LOG.info(f"Successfully added document {filename}: {len(chunks)} chunks, ~{total_tokens:.0f} tokens")
             
             return {
                 "success": True,
@@ -555,7 +585,7 @@ class EnhancedRAGManager:
             }
             
         except Exception as e:
-            logger.error(f"Error adding document {filename}: {str(e)}")
+            LOG.error(f"Error adding document {filename}: {str(e)}")
             return {
                 "success": False,
                 "filename": filename,
@@ -564,7 +594,7 @@ class EnhancedRAGManager:
     
     def search_documents_with_context(self, query: str, session_id: str, 
                                     persona_context: str = "", n_results: int = 5,
-                                    document_hint: str = None) -> List[Dict[str, Any]]:
+                                    document_hint: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Enhanced search with document awareness and context
         """
@@ -613,11 +643,11 @@ class EnhancedRAGManager:
             # Enhance results with context and attribution
             enhanced_results = self._enhance_search_results(all_results, query)
             
-            logger.info(f"Enhanced search returned {len(enhanced_results)} results for query: {query[:50]}...")
+            LOG.info(f"Enhanced search returned {len(enhanced_results)} results for query: {query[:50]}...")
             return enhanced_results
             
         except Exception as e:
-            logger.error(f"Error in enhanced document search: {str(e)}")
+            LOG.error(f"Error in enhanced document search: {str(e)}")
             return []
     
     def _search_with_filters(self, query: str, filters: Dict, n_results: int) -> List[Dict[str, Any]]:
@@ -936,28 +966,17 @@ class EnhancedRAGManager:
             }
             
         except Exception as e:
-            logger.error(f"Error getting document stats: {str(e)}")
+            LOG.error(f"Error getting document stats: {str(e)}")
             return {"error": str(e), "total_chunks": 0, "total_documents": 0}
 
 
 # Global RAG manager instance
-_rag_manager = None
+_RAG_MANAGER = None
 
-# def get_rag_manager() -> RAGManager:
-#     """Get the global RAG manager instance"""
-#     global _rag_manager
-#     if _rag_manager is None:
-#         try:
-#             _rag_manager = RAGManager()
-#             logger.info("RAG Manager initialized successfully")
-#         except Exception as e:
-#             logger.error(f"Failed to initialize RAG Manager: {e}")
-#             raise
-#     return _rag_manager
 
 def get_rag_manager() -> EnhancedRAGManager:
     """Get or create the global RAG manager instance"""
-    global _rag_manager
-    if _rag_manager is None:
-        _rag_manager = EnhancedRAGManager()
-    return _rag_manager
+    global _RAG_MANAGER
+    if _RAG_MANAGER is None:
+        _RAG_MANAGER = EnhancedRAGManager()
+    return _RAG_MANAGER

@@ -1,24 +1,55 @@
-import re
-import logging
-from typing import Dict, List, Tuple, Set
-from datetime import datetime
-from collections import defaultdict
+# NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
+# All Rights Reserved 2008-2025
+# Licensed under the BSD 3-Clause License
+# https://opensource.org/licenses/BSD-3-Clause
+#
+# Copyright (c) 2008-2025, Neongecko.com Inc.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
 
-from app.models.phd_canvas import CanvasInsight, CanvasSection
+import logging
+import re
+import traceback
+from collections import defaultdict
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+from app.config import get_settings
 from app.llm.improved_gemini_client import ImprovedGeminiClient
 from app.llm.improved_ollama_client import ImprovedOllamaClient
-from app.config import get_settings
+from app.models.phd_canvas import CanvasInsight, CanvasSection
 
-logger = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 class CanvasAnalysisService:
     """Service for extracting and categorizing insights from chat messages"""
     
-    def __init__(self, llm_client=None):
+    def __init__(self, llm_client: Optional[Any] = None) -> None:
         self.llm_client = llm_client
         
         # Predefined section mappings for semantic analysis
-        self.section_keywords = {
+        self.section_keywords: Dict[str, List[str]] = {
             "research_progress": [
                 "progress", "milestone", "completed", "finished", "accomplished", 
                 "achieved", "timeline", "deadline", "chapter", "draft", "version"
@@ -68,24 +99,21 @@ class CanvasAnalysisService:
             insights = []
             
             for message in messages:
-                # Handle the actual stored message format from your database
                 msg_type = message.get("type", "")
                 
                 if msg_type == "advisor":
-                    # This is the format used in your database
                     content = message.get("content", "")
                     persona_id = message.get("advisorName", message.get("persona", "advisor"))
                     message_id = message.get("id", str(message.get("_id", "")))
                     
-                    if content and len(content.strip()) > 20:  # Only process substantial content
+                    if content and len(content.strip()) > 20:
                         persona_insights = await self._extract_insights_from_content(
                             content, persona_id, message_id, chat_session_id
                         )
                         insights.extend(persona_insights)
-                        logger.debug(f"Extracted {len(persona_insights)} insights from {persona_id} message")
+                        LOG.debug(f"Extracted {len(persona_insights)} insights from {persona_id} message")
                         
                 elif msg_type == "assistant" and "responses" in message:
-                    # Handle multi-persona responses (if this format exists)
                     for response in message.get("responses", []):
                         persona_insights = await self._extract_insights_from_persona_response(
                             response, message.get("id"), chat_session_id
@@ -93,7 +121,6 @@ class CanvasAnalysisService:
                         insights.extend(persona_insights)
                         
                 elif message.get("role") == "assistant" and message.get("content"):
-                    # Handle converted message format (from export functions)
                     persona_insights = await self._extract_insights_from_content(
                         message.get("content", ""), "assistant", 
                         message.get("id"), chat_session_id
@@ -102,15 +129,14 @@ class CanvasAnalysisService:
             
             # Remove duplicates and low-confidence insights
             unique_insights = self._deduplicate_insights(insights)
-            high_confidence_insights = [i for i in unique_insights if i.confidence_score >= 0.5]  # Lowered threshold
+            high_confidence_insights = [i for i in unique_insights if i.confidence_score >= 0.5]
             
-            logger.info(f"Extracted {len(high_confidence_insights)} insights from {len(messages)} messages")
+            LOG.info(f"Extracted {len(high_confidence_insights)} insights from {len(messages)} messages")
             return high_confidence_insights
             
         except Exception as e:
-            logger.error(f"Error extracting insights from messages: {e}")
-            import traceback
-            logger.error(f"Full traceback: {traceback.format_exc()}")
+            LOG.error(f"Error extracting insights from messages: {e}")
+            LOG.error(f"Full traceback: {traceback.format_exc()}")
             return []
     
     async def _extract_insights_from_persona_response(self, response: Dict, message_id: str, chat_session_id: str) -> List[CanvasInsight]:
@@ -149,14 +175,13 @@ class CanvasAnalysisService:
                         max_tokens=500
                     )
                     
-                    # Parse numbered list lines (e.g. "1. ...", "2. ...")
                     lines = [
                         re.sub(r"^\d+[\.\)]\s*", "", line).strip()
                         for line in llm_response.strip().splitlines()
                         if re.match(r"^\d+[\.\)]", line.strip())
                     ]
                     
-                    insights = []
+                    insights: List[CanvasInsight] = []
                     for line in lines:
                         if len(line) < 15:
                             continue
@@ -172,26 +197,25 @@ class CanvasAnalysisService:
                         insights.append(insight)
                     
                     if insights:
-                        logger.debug(f"LLM extracted {len(insights)} insights from {persona_id}")
+                        LOG.debug(f"LLM extracted {len(insights)} insights from {persona_id}")
                         return insights
                     
-                    logger.warning(f"LLM returned no parseable insights for {persona_id}, falling back to rule-based")
+                    LOG.warning(f"LLM returned no parseable insights for {persona_id}, falling back to rule-based")
                     
                 except Exception as llm_error:
-                    logger.warning(f"LLM extraction failed for {persona_id}: {llm_error}")
+                    LOG.warning(f"LLM extraction failed for {persona_id}: {llm_error}")
             
             # Fallback: rule-based extraction
             return self._extract_insights_rule_based(content, persona_id, message_id, chat_session_id)
             
         except Exception as e:
-            logger.error(f"Error extracting insights from {persona_id} content: {e}")
+            LOG.error(f"Error extracting insights from {persona_id} content: {e}")
             return []
     
     def _extract_insights_rule_based(self, content: str, persona_id: str, message_id: str, chat_session_id: str) -> List[CanvasInsight]:
         """Fallback rule-based insight extraction"""
-        insights = []
+        insights: List[CanvasInsight] = []
         
-        # Extract actionable sentences
         sentences = re.split(r'[.!?]+', content)
         actionable_patterns = [
             r"(?:you should|consider|try|focus on|prioritize|next step|recommended?|suggest)",
@@ -202,10 +226,9 @@ class CanvasAnalysisService:
         
         for sentence in sentences:
             sentence = sentence.strip()
-            if len(sentence) < 15:  # Lowered minimum length
+            if len(sentence) < 15:
                 continue
                 
-            # Count how many actionable patterns match
             match_count = sum(1 for pattern in actionable_patterns if re.search(pattern, sentence, re.IGNORECASE))
             
             if match_count > 0:
@@ -222,15 +245,13 @@ class CanvasAnalysisService:
                 )
                 insights.append(insight)
         
-        logger.debug(f"Rule-based extracted {len(insights)} insights from {persona_id}")
-        return insights[:3]  # Limit to 3 insights per message to avoid noise
+        LOG.debug(f"Rule-based extracted {len(insights)} insights from {persona_id}")
+        return insights[:3]
     
     def _extract_keywords_from_sentence(self, sentence: str) -> List[str]:
         """Extract relevant keywords from a sentence"""
-        # Simple keyword extraction
-        words = re.findall(r'\b\w{4,}\b', sentence.lower())  # Words with 4+ chars
+        words = re.findall(r'\b\w{4,}\b', sentence.lower())
         
-        # Filter out common words
         stop_words = {
             "should", "could", "would", "your", "research", "work", "study", 
             "consider", "think", "important", "also", "really", "maybe",
@@ -238,11 +259,11 @@ class CanvasAnalysisService:
         }
         
         keywords = [word for word in words if word not in stop_words]
-        return keywords[:5]  # Limit to 5 keywords
+        return keywords[:5]
     
     def categorize_insights(self, insights: List[CanvasInsight]) -> Dict[str, List[CanvasInsight]]:
         """Categorize insights into canvas sections using semantic analysis"""
-        categorized = defaultdict(list)
+        categorized: Dict[str, List[CanvasInsight]] = defaultdict(list)
         
         for insight in insights:
             section = self._determine_section(insight)
@@ -256,18 +277,16 @@ class CanvasAnalysisService:
         keywords_lower = [k.lower() for k in insight.keywords]
         all_text = content_lower + " " + " ".join(keywords_lower)
         
-        # Score each section based on keyword matches
-        section_scores = {}
+        section_scores: Dict[str, int] = {}
         for section, keywords in self.section_keywords.items():
             score = sum(1 for keyword in keywords if keyword in all_text)
             if score > 0:
                 section_scores[section] = score
         
-        # Return the section with highest score, or default
         if section_scores:
             return max(section_scores, key=section_scores.get)
         else:
-            return "general_notes"  # Default section
+            return "general_notes"
     
     def prioritize_insights(self, insights: List[CanvasInsight]) -> List[CanvasInsight]:
         """Sort insights by priority (confidence score and recency)"""
@@ -278,12 +297,11 @@ class CanvasAnalysisService:
         if not insights:
             return insights
         
-        unique_insights = []
-        seen_content = set()
+        unique_insights: List[CanvasInsight] = []
+        seen_content: Set[str] = set()
         
         for insight in insights:
-            # Simple deduplication based on content similarity
-            content_key = insight.content.lower().strip()[:100]  # First 100 chars
+            content_key = insight.content.lower().strip()[:100]
             
             if content_key not in seen_content:
                 seen_content.add(content_key)

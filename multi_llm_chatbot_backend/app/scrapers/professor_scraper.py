@@ -1,3 +1,33 @@
+# NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
+# All Rights Reserved 2008-2025
+# Licensed under the BSD 3-Clause License
+# https://opensource.org/licenses/BSD-3-Clause
+#
+# Copyright (c) 2008-2025, Neongecko.com Inc.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
 """
 Professor Ratings Scraper — fetches CU Boulder professor ratings from
 RateMyProfessors and stores results in MongoDB.
@@ -8,15 +38,14 @@ Multi-strategy approach:
 """
 
 import asyncio
-import json
 import logging
 import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 import httpx
 
-logger = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 RMP_SEARCH_URL = "https://www.ratemyprofessors.com/search/professors/1087?q=*"
 RMP_GRAPHQL_URL = "https://www.ratemyprofessors.com/graphql"
@@ -64,7 +93,7 @@ query TeacherSearchPaginationQuery(
 """
 
 
-def _node_to_professor(node: dict) -> dict:
+def _node_to_professor(node: Dict[str, Any]) -> Dict[str, Any]:
     """Convert a GraphQL teacher node to our DB schema."""
     return {
         "name": f"{node.get('firstName', '')} {node.get('lastName', '')}".strip(),
@@ -94,11 +123,11 @@ async def _extract_auth_token(client: httpx.AsyncClient) -> str:
             r'"Authorization"\s*:\s*"(Basic\s+[A-Za-z0-9+/=]+)"', html
         )
         if m:
-            logger.info("Extracted auth token from page JS")
+            LOG.info("Extracted auth token from page JS")
             return m.group(1)
 
     except Exception as e:
-        logger.debug("Auth token extraction failed: %s", e)
+        LOG.debug(f"Auth token extraction failed: {e}")
 
     return "Basic dGVzdDp0ZXN0"
 
@@ -143,7 +172,7 @@ async def _scrape_via_graphql() -> List[Dict[str, Any]]:
                 )
 
                 if resp.status_code == 403:
-                    logger.warning("RMP GraphQL 403 on page %d — auth may be invalid", page)
+                    LOG.warning(f"RMP GraphQL 403 on page {page} — auth may be invalid")
                     break
 
                 resp.raise_for_status()
@@ -170,7 +199,7 @@ async def _scrape_via_graphql() -> List[Dict[str, Any]]:
                 page += 1
 
             except Exception as e:
-                logger.error("RMP GraphQL error (page %d): %s", page, e)
+                LOG.error(f"RMP GraphQL error (page {page}): {e}")
                 break
 
     return professors
@@ -186,11 +215,11 @@ async def _scrape_via_playwright() -> List[Dict[str, Any]]:
     try:
         from playwright.async_api import async_playwright
     except ImportError:
-        logger.warning("playwright not installed — browser scrape unavailable")
+        LOG.warning("playwright not installed — browser scrape unavailable")
         return []
 
     professors: List[Dict[str, Any]] = []
-    captured: List[dict] = []
+    captured: List[Dict[str, Any]] = []
 
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(
@@ -200,7 +229,7 @@ async def _scrape_via_playwright() -> List[Dict[str, Any]]:
         ctx = await browser.new_context(user_agent=BROWSER_UA)
         page = await ctx.new_page()
 
-        async def _on_response(resp):
+        async def _on_response(resp) -> None:
             if "/graphql" in resp.url:
                 try:
                     body = await resp.json()
@@ -210,7 +239,7 @@ async def _scrape_via_playwright() -> List[Dict[str, Any]]:
 
         page.on("response", _on_response)
 
-        async def _block_ads(route):
+        async def _block_ads(route) -> None:
             await route.abort()
 
         await page.route(
@@ -222,7 +251,7 @@ async def _scrape_via_playwright() -> List[Dict[str, Any]]:
         )
 
         try:
-            logger.info("Playwright: navigating to RMP search page")
+            LOG.info("Playwright: navigating to RMP search page")
             await page.goto(
                 RMP_SEARCH_URL, timeout=60_000, wait_until="domcontentloaded"
             )
@@ -268,7 +297,7 @@ async def _scrape_via_playwright() -> List[Dict[str, Any]]:
                     break
 
         except Exception as e:
-            logger.error("Playwright navigation error: %s", e)
+            LOG.error(f"Playwright navigation error: {e}")
         finally:
             await browser.close()
 
@@ -287,8 +316,8 @@ async def _scrape_via_playwright() -> List[Dict[str, Any]]:
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _deduplicate(profs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    seen: set = set()
-    unique: list = []
+    seen: Set = set()
+    unique: List[Dict[str, Any]] = []
     for p in profs:
         key = (p["name"], p["department"])
         if key not in seen:
@@ -301,26 +330,26 @@ def _deduplicate(profs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 async def scrape_professors() -> List[Dict[str, Any]]:
     """Run scraping strategies in order; return the first that succeeds."""
-    logger.info("Starting RMP professor scrape for CU Boulder")
+    LOG.info("Starting RMP professor scrape for CU Boulder")
 
     profs = await _scrape_via_graphql()
     if profs:
         profs = _deduplicate(profs)
-        logger.info("GraphQL strategy succeeded: %d professors", len(profs))
+        LOG.info(f"GraphQL strategy succeeded: {len(profs)} professors")
         return profs
 
-    logger.info("GraphQL failed — trying Playwright")
+    LOG.info("GraphQL failed — trying Playwright")
     profs = await _scrape_via_playwright()
     if profs:
         profs = _deduplicate(profs)
-        logger.info("Playwright strategy succeeded: %d professors", len(profs))
+        LOG.info(f"Playwright strategy succeeded: {len(profs)} professors")
         return profs
 
-    logger.error("All RMP scraping strategies failed")
+    LOG.error("All RMP scraping strategies failed")
     return []
 
 
-async def store_professors(professors: List[Dict[str, Any]]):
+async def store_professors(professors: List[Dict[str, Any]]) -> None:
     """Upsert professor ratings into MongoDB."""
     from app.core.database import get_database
 
@@ -334,10 +363,10 @@ async def store_professors(professors: List[Dict[str, Any]]):
             upsert=True,
         )
 
-    logger.info("Stored/updated %d professor records", len(professors))
+    LOG.info(f"Stored/updated {len(professors)} professor records")
 
 
-async def run_professor_scrape():
+async def run_professor_scrape() -> int:
     """Full pipeline: scrape + store."""
     profs = await scrape_professors()
     if profs:
