@@ -350,7 +350,7 @@ const EnhancedChatInput = ({
                 <button
                   onClick={!synthesizedMode ? onToggleSynthesized : undefined}
                   type="button"
-                  title="Single synthesized answer"
+                  title="Aggregate synthesized answer"
                   style={{
                     display: 'flex', alignItems: 'center', gap: '4px',
                     padding: '5px 10px', fontSize: '12px', fontWeight: 600,
@@ -361,7 +361,7 @@ const EnhancedChatInput = ({
                   }}
                 >
                   <FileOutput size={13} />
-                  Single
+                  Aggregate
                 </button>
               </div>
             )}

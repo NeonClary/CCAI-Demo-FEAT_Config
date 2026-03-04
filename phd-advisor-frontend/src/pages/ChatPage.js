@@ -326,18 +326,19 @@ const loadChatSession = async (sessionId) => {
 };
 
 // Save a message to the current session
-const saveMessageToSession = async (message) => {
-  if (!currentSessionId || !authToken) return;
+const saveMessageToSession = async (message, sessionIdOverride) => {
+  const sid = sessionIdOverride || currentSessionId;
+  if (!sid || !authToken) return;
 
   try {
-    await fetch(`${process.env.REACT_APP_API_URL}/api/chat-sessions/${currentSessionId}/messages`, {
+    await fetch(`${process.env.REACT_APP_API_URL}/api/chat-sessions/${sid}/messages`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        session_id: currentSessionId,
+        session_id: sid,
         message: {
           ...message,
           timestamp: message.timestamp.toISOString()
@@ -492,7 +493,7 @@ const handleNewChat = async (sessionId = null) => {
     }
 
     // Fire-and-forget: save user message to DB without blocking
-    saveMessageToSession(userMessage).catch(err =>
+    saveMessageToSession(userMessage, sessionId).catch(err =>
       console.error('Failed to persist user message:', err)
     );
 
@@ -566,7 +567,7 @@ const handleNewChat = async (sessionId = null) => {
             };
             setMessages(prev => [...prev, msg]);
             setThinkingAdvisors(prev => prev.filter(id => id !== parsed.persona_id && id !== 'system'));
-            dbSavePromises.push(saveMessageToSession(msg));
+            dbSavePromises.push(saveMessageToSession(msg, sessionId));
           } else if (eventType === 'progress') {
             // Synthesized mode: an advisor finished but we only show
             // the final merged answer. Update thinking indicator.
@@ -588,7 +589,7 @@ const handleNewChat = async (sessionId = null) => {
               document_chunks_used: parsed.document_chunks_used || 0,
             };
             setMessages(prev => [...prev, msg]);
-            dbSavePromises.push(saveMessageToSession(msg));
+            dbSavePromises.push(saveMessageToSession(msg, sessionId));
           } else if (eventType === 'clarification') {
             const cMsg = {
               id: generateMessageId(),
@@ -598,7 +599,7 @@ const handleNewChat = async (sessionId = null) => {
               timestamp: new Date(),
             };
             setMessages(prev => [...prev, cMsg]);
-            dbSavePromises.push(saveMessageToSession(cMsg));
+            dbSavePromises.push(saveMessageToSession(cMsg, sessionId));
           } else if (eventType === 'error') {
             setMessages(prev => [...prev, {
               id: generateMessageId(),

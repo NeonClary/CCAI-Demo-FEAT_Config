@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { X, ChevronRight, ChevronLeft, GraduationCap, Sparkles } from 'lucide-react';
+import { X, ChevronRight, ChevronLeft, GraduationCap, Sparkles, Volume2, VolumeX, Loader2 } from 'lucide-react';
 import '../styles/Tutorial.css';
 
 const STEPS = [
   {
     id: 'welcome',
     type: 'modal',
-    title: 'Welcome to Your Advisor!',
+    title: 'Welcome to CU Undergraduate Advisor!',
     body: "Let\u2019s take a quick tour of the key features. We\u2019ll start by asking a question, search for courses, and explore the different response modes.",
     buttonText: "Let\u2019s Go!",
   },
@@ -25,22 +25,24 @@ const STEPS = [
     title: 'Search for Courses',
     body: "We\u2019ve pre-filled a course search for you. Edit it if you like, then press Enter or click Send.\n\nThe Course Advisor searches the real CU Boulder catalog \u2014 sections, schedules, and professor ratings.",
     position: 'top',
+    extraGap: 60,
     prefill: 'Find CSCI 1300 sections for Spring 2026 with professors rated 4+',
   },
   {
     id: 'panel-toggle',
     type: 'highlight',
-    target: '[title="Single synthesized answer"]',
+    target: '[title="Aggregate synthesized answer"]',
     title: 'Response Mode',
-    body: 'Your first question got a Panel response \u2014 each advisor answers separately.\n\nClick "Single" to switch to a single merged answer. Try it now!',
+    body: 'Your first question got a Panel response \u2014 each advisor answers separately.\n\nClick "Aggregate" to switch to a single merged answer. Try it now!',
     position: 'top-left',
+    extraGap: 60,
   },
   {
     id: 'single-query',
     type: 'highlight',
     target: '.main-textarea',
-    title: 'Try Single Mode',
-    body: "Here\u2019s another query to try in Single mode. Send it to see how a single synthesized answer looks compared to the panel view.",
+    title: 'Try Aggregate Mode',
+    body: "Here\u2019s another query to try in Aggregate mode. Send it to see how an aggregate synthesized answer looks compared to the panel view.",
     position: 'top',
     prefill: 'What are the best electives for a Computer Science major?',
   },
@@ -59,6 +61,7 @@ const STEPS = [
     title: 'Upload Documents',
     body: 'Upload PDFs, Word docs, or text files. Advisors will reference your actual document content \u2014 perfect for resume reviews, essay feedback, or syllabus analysis.',
     position: 'top',
+    extraGap: 60,
   },
   {
     id: 'new-chat',
@@ -96,7 +99,7 @@ const STEPS = [
     id: 'complete',
     type: 'modal',
     title: "You\u2019re All Set!",
-    body: "You now know the essentials. Here are some things to try:\n\n\u2022 Search for courses: \u201cMATH 2400 MWF sections\u201d\n\u2022 Ask for advice: \u201cHow do I choose a minor?\u201d\n\u2022 Upload a resume for career feedback\n\u2022 Toggle Single mode for quick answers\n\nThe tutorial is always available from the Settings menu. Enjoy!",
+    body: "You now know the essentials. Here are some things to try:\n\n\u2022 Search for courses: \u201cMATH 2400 MWF sections\u201d\n\u2022 Ask for advice: \u201cHow do I choose a minor?\u201d\n\u2022 Upload a resume for career feedback\n\u2022 Toggle Aggregate mode for quick answers\n\nThe tutorial is always available from the Settings menu. Enjoy!",
     buttonText: 'Done',
     isFinal: true,
   },
@@ -104,7 +107,7 @@ const STEPS = [
 
 /* ── Tooltip positioning ─────────────────────────────────────────── */
 
-function getTooltipStyle(targetRect, position, tooltipEl) {
+function getTooltipStyle(targetRect, position, tooltipEl, extraGap = 0) {
   if (!targetRect) return {};
   const pad = 16;
   const tooltipW = tooltipEl?.offsetWidth || 340;
@@ -115,11 +118,11 @@ function getTooltipStyle(targetRect, position, tooltipEl) {
 
   switch (position) {
     case 'top':
-      top = targetRect.top - tooltipH - pad;
+      top = targetRect.top - tooltipH - pad - extraGap;
       left = targetRect.left + targetRect.width / 2 - tooltipW / 2;
       break;
     case 'top-left':
-      top = targetRect.top - tooltipH - pad;
+      top = targetRect.top - tooltipH - pad - extraGap;
       left = targetRect.right - tooltipW;
       break;
     case 'bottom':
@@ -185,6 +188,44 @@ function fillTextarea(selector, text) {
   el.focus();
 }
 
+/* ── TTS helpers ─────────────────────────────────────────────────── */
+
+function getStepTTSText(stepDef) {
+  if (!stepDef) return '';
+  let text = stepDef.title + '. ' + (stepDef.body || '');
+  return text
+    .replace(/\u2022/g, ',')
+    .replace(/[\u201c\u201d]/g, '"')
+    .replace(/\u2019/g, "'")
+    .replace(/\u2014/g, ', ')
+    .replace(/\n+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function fetchTTSBlob(text, retries = 2) {
+  const token = localStorage.getItem('authToken');
+  if (!token || !text) return null;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const resp = await fetch(`${process.env.REACT_APP_API_URL}/api/tts`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text }),
+      });
+      if (resp.ok) return await resp.blob();
+      if (attempt < retries) await new Promise(r => setTimeout(r, 3000));
+    } catch {
+      if (attempt < retries) await new Promise(r => setTimeout(r, 3000));
+    }
+  }
+  return null;
+}
+
 /* ══════════════════════════════════════════════════════════════════ */
 
 export default function Tutorial({ active, onClose }) {
@@ -200,9 +241,25 @@ export default function Tutorial({ active, onClose }) {
   const prevTargetRectRef = useRef(null);
   const timersRef = useRef([]);
 
+  /* ── TTS state ──────────────────────────────────────────────────── */
+  const ttsCacheRef = useRef(new Map());
+  const currentAudioRef = useRef(null);
+  const mountedRef = useRef(true);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
+
   const current = STEPS[step];
 
   /* ── helpers ───────────────────────────────────────────────────── */
+
+  const stopAudio = useCallback(() => {
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
+    setIsPlaying(false);
+    setIsLoadingAudio(false);
+  }, []);
 
   const clearTimers = useCallback(() => {
     timersRef.current.forEach(clearTimeout);
@@ -219,8 +276,79 @@ export default function Tutorial({ active, onClose }) {
   const doCleanup = useCallback(() => {
     clearTimers();
     removeHighlight();
+    stopAudio();
     setTargetRect(null);
-  }, [clearTimers, removeHighlight]);
+  }, [clearTimers, removeHighlight, stopAudio]);
+
+  /* ── TTS playback ───────────────────────────────────────────────── */
+
+  const playStepAudio = useCallback(async (stepIndex) => {
+    stopAudio();
+
+    const stepDef = STEPS[stepIndex];
+    if (!stepDef) return;
+
+    setIsLoadingAudio(true);
+
+    let blob = ttsCacheRef.current.get(stepIndex);
+    if (!blob) {
+      blob = await fetchTTSBlob(getStepTTSText(stepDef));
+      if (blob && mountedRef.current) {
+        ttsCacheRef.current.set(stepIndex, blob);
+      }
+    }
+
+    if (!blob || !mountedRef.current) {
+      setIsLoadingAudio(false);
+      return;
+    }
+
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    currentAudioRef.current = audio;
+    setIsLoadingAudio(false);
+    setIsPlaying(true);
+
+    audio.onended = () => {
+      setIsPlaying(false);
+      URL.revokeObjectURL(url);
+      currentAudioRef.current = null;
+    };
+    audio.onerror = () => {
+      setIsPlaying(false);
+      URL.revokeObjectURL(url);
+      currentAudioRef.current = null;
+    };
+    audio.play().catch(() => {
+      setIsPlaying(false);
+      URL.revokeObjectURL(url);
+      currentAudioRef.current = null;
+    });
+  }, [stopAudio]);
+
+  const toggleAudio = useCallback(() => {
+    if (isLoadingAudio) return;
+    if (isPlaying && currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      setIsPlaying(false);
+    } else if (currentAudioRef.current && currentAudioRef.current.paused) {
+      currentAudioRef.current.play().catch(() => {});
+      setIsPlaying(true);
+    } else {
+      playStepAudio(step);
+    }
+  }, [isPlaying, isLoadingAudio, step, playStepAudio]);
+
+  const preloadSteps = useCallback(async (indices) => {
+    for (const i of indices) {
+      if (!mountedRef.current) break;
+      if (ttsCacheRef.current.has(i)) continue;
+      const blob = await fetchTTSBlob(getStepTTSText(STEPS[i]), 2);
+      if (blob && mountedRef.current) {
+        ttsCacheRef.current.set(i, blob);
+      }
+    }
+  }, []);
 
   /* ── navigation (never used as an effect dependency) ───────────── */
 
@@ -253,8 +381,6 @@ export default function Tutorial({ active, onClose }) {
   }, [doCleanup, onClose]);
 
   /* ── Effect: highlight target when step changes ────────────────── */
-  // Intentionally only depends on `active` and `step` —
-  // navigation functions are accessed via refs to avoid re-triggers.
 
   const stepRef = useRef(step);
   stepRef.current = step;
@@ -283,13 +409,11 @@ export default function Tutorial({ active, onClose }) {
       if (cancelled) return;
       const el = findTarget();
       if (!el) {
-        // Keep retrying — the user may navigate back to the right page
         const t = setTimeout(tryFind, 500);
         timersRef.current.push(t);
         return;
       }
 
-      // Only scroll if the element is outside the viewport
       const rect = el.getBoundingClientRect();
       const inView =
         rect.top >= 0 &&
@@ -300,7 +424,6 @@ export default function Tutorial({ active, onClose }) {
         el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
 
-      // Double-rAF: first frame applies styles, second measures final geometry
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           if (cancelled) return;
@@ -317,7 +440,6 @@ export default function Tutorial({ active, onClose }) {
 
     tryFind();
 
-    // Keep the rect accurate on scroll / resize; clear if target vanishes
     const updateRect = () => {
       const el = findTarget();
       if (el) {
@@ -331,7 +453,6 @@ export default function Tutorial({ active, onClose }) {
     window.addEventListener('scroll', updateRect, true);
     window.addEventListener('resize', updateRect);
 
-    // Poll for target disappearance (scroll/resize alone won't catch DOM removal)
     const poll = setInterval(() => {
       if (cancelled) return;
       if (highlightedElRef.current && !document.contains(highlightedElRef.current)) {
@@ -366,18 +487,75 @@ export default function Tutorial({ active, onClose }) {
     if (!active) doCleanup();
   }, [active, doCleanup]);
 
+  /* ── TTS effects ────────────────────────────────────────────────── */
+
+  // Track mount/unmount for async safety
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      stopAudio();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Preload first 2 steps on mount if tutorial not yet completed
+  useEffect(() => {
+    const dismissed = localStorage.getItem('tutorialDismissed') === 'true';
+    if (!dismissed) {
+      preloadSteps([0, 1]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // When tutorial becomes active, preload remaining steps (2+)
+  useEffect(() => {
+    if (active) {
+      const remaining = Array.from({ length: STEPS.length }, (_, i) => i).filter(i => i >= 2);
+      preloadSteps(remaining);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+
+  // Auto-play audio when step changes and tutorial is active
+  useEffect(() => {
+    if (!active) return;
+    playStepAudio(step);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, step]);
+
+  /* ── Render ─────────────────────────────────────────────────────── */
+
   if (!active) return null;
 
   const progress = ((step + 1) / STEPS.length) * 100;
+
+  const audioButton = (size = 14) => (
+    <button
+      className={`tutorial-audio-btn ${isPlaying ? 'playing' : ''}`}
+      onClick={toggleAudio}
+      title={isLoadingAudio ? 'Loading audio...' : isPlaying ? 'Pause narration' : 'Play narration'}
+    >
+      {isLoadingAudio
+        ? <Loader2 size={size} className="spinning" />
+        : isPlaying
+          ? <Volume2 size={size} />
+          : <VolumeX size={size} />
+      }
+    </button>
+  );
 
   /* ── Modal step ────────────────────────────────────────────────── */
   if (current.type === 'modal') {
     return (
       <div className="tutorial-overlay">
         <div className={`tutorial-modal ${current.isFinal ? 'final' : ''}`}>
-          <button className="tutorial-close" onClick={handleClose} title="Exit tutorial">
-            <X size={18} />
-          </button>
+          <div className="tutorial-modal-top-actions">
+            {audioButton(16)}
+            <button className="tutorial-close" onClick={handleClose} title="Exit tutorial">
+              <X size={18} />
+            </button>
+          </div>
           <div className="tutorial-modal-icon">
             {current.isFinal ? <Sparkles size={32} /> : <GraduationCap size={32} />}
           </div>
@@ -417,15 +595,15 @@ export default function Tutorial({ active, onClose }) {
       }
     : null;
 
-  /* If the target isn't on screen (e.g. the user already interacted
-     and the element disappeared), show a compact floating panel so
-     navigation controls remain accessible. */
   if (!targetRect) {
     return (
       <div className={`tutorial-tooltip tutorial-tooltip-floating${floatingFlash ? ' tutorial-flash' : ''}`}>
-        <button className="tutorial-close" onClick={handleClose} title="Exit tutorial">
-          <X size={16} />
-        </button>
+        <div className="tutorial-tooltip-actions">
+          {audioButton()}
+          <button className="tutorial-close" onClick={handleClose} title="Exit tutorial">
+            <X size={16} />
+          </button>
+        </div>
         <h3 className="tutorial-tooltip-title">{current.title}</h3>
         <p className="tutorial-tooltip-body">{current.body}</p>
         <div className="tutorial-tooltip-footer">
@@ -487,11 +665,14 @@ export default function Tutorial({ active, onClose }) {
       <div
         className="tutorial-tooltip"
         ref={tooltipRef}
-        style={getTooltipStyle(targetRect, current.position, tooltipRef.current)}
+        style={getTooltipStyle(targetRect, current.position, tooltipRef.current, current.extraGap)}
       >
-        <button className="tutorial-close" onClick={handleClose} title="Exit tutorial">
-          <X size={16} />
-        </button>
+        <div className="tutorial-tooltip-actions">
+          {audioButton()}
+          <button className="tutorial-close" onClick={handleClose} title="Exit tutorial">
+            <X size={16} />
+          </button>
+        </div>
 
         <h3 className="tutorial-tooltip-title">{current.title}</h3>
         <p className="tutorial-tooltip-body">{current.body}</p>

@@ -364,7 +364,7 @@ const Sidebar = ({
                         <div className="session-title">{session.title}</div>
                         <div className="session-meta">
                           <span className="session-date">{formatDate(session.updated_at)}</span>
-                          <span className="session-messages">{session.message_count} messages</span>
+                          <span className="session-messages">{session.message_count} {session.message_count === 1 ? 'message' : 'messages'}</span>
                         </div>
                       </div>
                     )}

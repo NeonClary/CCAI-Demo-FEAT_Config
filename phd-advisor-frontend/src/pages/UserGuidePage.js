@@ -41,9 +41,9 @@ const GUIDE_SECTIONS = [
         content: `Type your question in the input box at the bottom of the chat and press Enter or click the send button. You can ask about anything related to college life — academics, career planning, study tips, campus resources, well-being, or writing help.\n\nIf your question is too vague, the system may ask you to clarify with a follow-up question and clickable suggestion buttons.`
       },
       {
-        id: 'panel-vs-single',
-        title: 'Panel Mode vs. Single Answer',
-        content: `You can toggle between two response modes using the button next to the chat input:\n\n- **Panel Mode** (three columns icon) — Three advisors respond independently, each from their own specialty. Their responses appear as a carousel you can swipe through.\n- **Single Answer** (document icon) — All advisors' insights are merged into one synthesized response that combines the best of each perspective.\n\nPanel mode is great for seeing diverse viewpoints. Single mode is faster to read when you just want one consolidated answer.`
+        id: 'panel-vs-aggregate',
+        title: 'Panel Mode vs. Aggregate Answer',
+        content: `You can toggle between two response modes using the button next to the chat input:\n\n- **Panel Mode** (three columns icon) — Three advisors respond independently, each from their own specialty. Their responses appear as a carousel you can swipe through.\n- **Aggregate Answer** (document icon) — All advisors' insights are merged into one synthesized response that combines the best of each perspective.\n\nPanel mode is great for seeing diverse viewpoints. Aggregate mode is faster to read when you just want one consolidated answer.`
       },
       {
         id: 'replying-to-advisors',
@@ -215,7 +215,7 @@ const GUIDE_SECTIONS = [
       {
         id: 'using-multiple-advisors',
         title: 'Getting the Most from Multiple Advisors',
-        content: `Use **Panel Mode** when you want diverse perspectives on a decision. For example, asking "Should I take a summer internship or summer classes?" will get different angles from the Career Coach, Academic Planner, and Wellness Advisor.\n\nIf one advisor's response resonates, **reply directly** to continue that thread. You can always switch back to panel mode for your next question.`
+        content: `Use **Panel Mode** when you want diverse perspectives on a decision. For example, asking "Should I take a summer internship or summer classes?" will get different angles from the Career Coach, Academic Planner, and Wellness Advisor.\n\nIf one advisor's response resonates, **reply directly** to continue that thread. You can always switch back to Panel mode for your next question.`
       },
       {
         id: 'document-workflow',
