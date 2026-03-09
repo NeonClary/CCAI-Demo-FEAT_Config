@@ -1,3 +1,33 @@
+# NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
+# All Rights Reserved 2008-2025
+# Licensed under the BSD 3-Clause License
+# https://opensource.org/licenses/BSD-3-Clause
+#
+# Copyright (c) 2008-2025, Neongecko.com Inc.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
 import chromadb
 from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
@@ -177,7 +207,11 @@ class RAGManager:
     Handles document storage, embedding, and retrieval using ChromaDB
     """
     
-    def __init__(self, embedding_model: str = "all-MiniLM-L6-v2", persist_directory: str = "./chroma_db"):
+    def __init__(self, embedding_model: str = None, persist_directory: str = "./chroma_db"):
+        from app.config import get_settings
+        settings = get_settings()
+        if embedding_model is None:
+            embedding_model = settings.rag.embedding_model
         self.embedding_model_name = embedding_model
         self.persist_directory = Path(persist_directory)
         self.persist_directory.mkdir(exist_ok=True)
@@ -205,8 +239,8 @@ class RAGManager:
             logger.error(f"Failed to initialize ChromaDB client: {e}")
             raise
         
-        # Initialize collection
-        self.collection_name = "phd_advisor_documents"
+        # Initialize collection — name from config
+        self.collection_name = settings.rag.chroma_collection
         self.collection = self._get_or_create_collection()
         
         # Initialize chunker
@@ -228,7 +262,7 @@ class RAGManager:
                 collection = self.client.create_collection(
                     name=self.collection_name,
                     embedding_function=SimpleEmbeddingFunction(self.embedding_model),
-                    metadata={"description": "PhD Advisor document storage"}
+                    metadata={"description": f"{settings.app.title} document storage"}
                 )
                 logger.info(f"Created collection: {self.collection_name}")
                 return collection
@@ -242,7 +276,7 @@ class RAGManager:
                 collection = self.client.create_collection(
                     name=self.collection_name,
                     embedding_function=SimpleEmbeddingFunction(self.embedding_model),
-                    metadata={"description": "PhD Advisor document storage"}
+                    metadata={"description": f"{settings.app.title} document storage"}
                 )
                 logger.info("Successfully recreated collection")
                 return collection
@@ -457,6 +491,9 @@ class RAGManager:
 class EnhancedRAGManager:
     def __init__(self, persist_directory: str = "./chromadb_storage"):
         """Initialize enhanced RAG manager with improved document handling"""
+        from app.config import get_settings
+        settings = get_settings()
+
         self.persist_directory = persist_directory
         Path(persist_directory).mkdir(exist_ok=True)
         
@@ -466,9 +503,12 @@ class EnhancedRAGManager:
             settings=Settings(anonymized_telemetry=False)
         )
         
+        # Collection name from config
+        collection_name = settings.rag.chroma_collection
+
         # Create or get collection
         self.collection = self.client.get_or_create_collection(
-            name="phd_advisor_documents",
+            name=collection_name,
             metadata={"hnsw:space": "cosine"}
         )
         

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { AppConfigProvider } from './contexts/AppConfigContext';
 import HomePage from './pages/HomePage';
 import ChatPage from './pages/ChatPage';
 import AuthPage from './pages/AuthPage';
@@ -48,11 +49,6 @@ function App() {
 
   const navigateToHome = () => {
     setCurrentView('home');
-    setIsAuthenticated(false);
-    setUser(null);
-    setAuthToken(null);
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('user');
   };
 
   const handleAuthSuccess = (userData, token) => {
@@ -72,33 +68,38 @@ function App() {
   };
 
   return (
-    <ThemeProvider>
-      <div className="App">
-        {currentView === 'home' && (
-          <HomePage onNavigateToChat={navigateToAuth} />
-        )}
-        {currentView === 'auth' && (
-          <AuthPage onAuthSuccess={handleAuthSuccess} />
-        )}
-        {currentView === 'canvas' && isAuthenticated && (
-          <CanvasPage 
-            user={user}
-            authToken={authToken}
-            onNavigateToChat={navigateToChat}
-            onSignOut={handleSignOut}
-          />
-        )}
-        {currentView === 'chat' && isAuthenticated && (
-          <ChatPage 
-            user={user}
-            authToken={authToken}
-            onNavigateToHome={navigateToHome}
-            onNavigateToCanvas={navigateToCanvas}
-            onSignOut={handleSignOut}
-          />
-        )}
-      </div>
-    </ThemeProvider>
+    <AppConfigProvider>
+      <ThemeProvider>
+        <div className="App">
+          {currentView === 'home' && (
+            <HomePage
+              onNavigateToChat={isAuthenticated ? navigateToChat : navigateToAuth}
+              isAuthenticated={isAuthenticated}
+            />
+          )}
+          {currentView === 'auth' && (
+            <AuthPage onAuthSuccess={handleAuthSuccess} />
+          )}
+          {currentView === 'canvas' && isAuthenticated && (
+            <CanvasPage 
+              user={user}
+              authToken={authToken}
+              onNavigateToChat={navigateToChat}
+              onSignOut={handleSignOut}
+            />
+          )}
+          {currentView === 'chat' && isAuthenticated && (
+            <ChatPage 
+              user={user}
+              authToken={authToken}
+              onNavigateToHome={navigateToHome}
+              onNavigateToCanvas={navigateToCanvas}
+              onSignOut={handleSignOut}
+            />
+          )}
+        </div>
+      </ThemeProvider>
+    </AppConfigProvider>
   );
 }
 

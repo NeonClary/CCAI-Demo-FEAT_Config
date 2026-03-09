@@ -1,21 +1,55 @@
+# NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
+# All Rights Reserved 2008-2025
+# Licensed under the BSD 3-Clause License
+# https://opensource.org/licenses/BSD-3-Clause
+#
+# Copyright (c) 2008-2025, Neongecko.com Inc.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
 import httpx
 import os
+import re
 from typing import List
 from app.llm.llm_client import LLMClient
 from app.core.context_manager import get_context_manager
+from app.config import get_settings
 import logging
 
 logger = logging.getLogger(__name__)
 
 class ImprovedGeminiClient(LLMClient):
     def __init__(self, model_name: str = None):
+        settings = get_settings()
         if model_name is None:
-            model_name = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")
+            model_name = settings.llm.gemini.model
         
         self.model_name = model_name
-        self.api_key = os.getenv("GEMINI_API_KEY")
+        # Config validator already falls back to GEMINI_API_KEY env var
+        self.api_key = settings.llm.gemini.api_key or os.getenv("GEMINI_API_KEY")
         if not self.api_key:
-            raise ValueError("GEMINI_API_KEY environment variable is required")
+            raise ValueError("Gemini API key not set. Provide it in config.yaml (llm.gemini.api_key) or as GEMINI_API_KEY env var.")
         
         self.base_url = "https://generativelanguage.googleapis.com/v1beta/models"
         self.context_manager = get_context_manager()
@@ -89,7 +123,12 @@ class ImprovedGeminiClient(LLMClient):
                     logger.error(f"Invalid candidate structure: {candidate}")
                     return "I apologize, but I received an unexpected response format. Please try again."
                 
-                text = candidate["content"]["parts"][0].get("text", "").strip()
+                parts = candidate["content"]["parts"]
+                text = "\n\n".join(
+                    p.get("text", "")
+                    for p in parts
+                    if not p.get("thought") and p.get("text", "").strip()
+                ).strip()
                 
                 if not text:
                     logger.warning("Empty response from Gemini")
@@ -108,21 +147,8 @@ class ImprovedGeminiClient(LLMClient):
             return "I encountered an unexpected error. Please try again."
     
     def _clean_response(self, response: str) -> str:
-        """Clean up response text"""
-        # Remove common issues
-        """response = response.strip()
-        
-        # Remove duplicate spaces and normalize
-        response = ' '.join(response.split())
-        
-        return response"""
-        response = response.strip()
-
-        # Preserve line breaks for Markdown; only trim right-side spaces and collapse 3+ blank lines
+        """Clean up response text, preserving Markdown formatting."""
         response = response.replace("\r\n", "\n").replace("\r", "\n")
         lines = [ln.rstrip() for ln in response.split("\n")]
-
-        import re
         response = re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
-
         return response

@@ -1,5 +1,34 @@
+# NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
+# All Rights Reserved 2008-2025
+# Licensed under the BSD 3-Clause License
+# https://opensource.org/licenses/BSD-3-Clause
+#
+# Copyright (c) 2008-2025, Neongecko.com Inc.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
 import re
-import json
 import logging
 from typing import Dict, List, Tuple, Set
 from datetime import datetime
@@ -8,6 +37,7 @@ from collections import defaultdict
 from app.models.phd_canvas import CanvasInsight, CanvasSection
 from app.llm.improved_gemini_client import ImprovedGeminiClient
 from app.llm.improved_ollama_client import ImprovedOllamaClient
+from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -122,72 +152,62 @@ class CanvasAnalysisService:
     
     async def _extract_insights_from_content(self, content: str, persona_id: str, message_id: str, chat_session_id: str) -> List[CanvasInsight]:
         """Extract actionable insights from content using LLM analysis"""
-        if not content or len(content.strip()) < 30:  # Lowered minimum length
+        if not content or len(content.strip()) < 30:
             return []
         
         try:
-            # Use LLM to extract key insights
-            extraction_prompt = f"""
-            Extract actionable insights from this PhD advisor response that would be valuable for a student's progress summary:
-
-            PERSONA: {persona_id}
-            CONTENT: {content}
-
-            Return a JSON list of insights. Each insight should be:
-            - Actionable and specific to PhD progress
-            - 1-2 sentences long
-            - Valuable for advisor meetings
-            - Not generic advice
-
-            Format: [{{"insight": "specific actionable insight here", "keywords": ["keyword1", "keyword2"]}}]
-            
-            Return ONLY the JSON array, no other text.
-            """
+            app_title = get_settings().app.title
+            extraction_prompt = (
+                f"Extract actionable insights from this {app_title} advisor response "
+                f"that would be valuable for a user's progress summary.\n\n"
+                f"PERSONA: {persona_id}\n"
+                f"CONTENT: {content}\n\n"
+                f"Return ONLY a numbered list (1. 2. 3.) of insights. Each insight should be:\n"
+                f"- Actionable and specific to the user's progress\n"
+                f"- 1-2 sentences long\n"
+                f"- Valuable for advisor meetings\n"
+                f"- Not generic advice\n\n"
+                f"Return ONLY the numbered list, no other text."
+            )
             
             if self.llm_client:
                 try:
                     llm_response = await self.llm_client.generate(
-                        system_prompt="You are an expert at extracting actionable PhD guidance from advisor responses.",
+                        system_prompt=f"You are an expert at extracting actionable guidance from {app_title} advisor responses.",
                         context=[{"role": "user", "content": extraction_prompt}],
                         temperature=0.3,
                         max_tokens=500
                     )
                     
-                    # Clean the response to extract just the JSON
-                    llm_response = llm_response.strip()
-                    if llm_response.startswith('```json'):
-                        llm_response = llm_response[7:]
-                    if llm_response.endswith('```'):
-                        llm_response = llm_response[:-3]
-                    llm_response = llm_response.strip()
+                    lines = [
+                        re.sub(r"^\d+[\.\)]\s*", "", line).strip()
+                        for line in llm_response.strip().splitlines()
+                        if re.match(r"^\d+[\.\)]", line.strip())
+                    ]
                     
-                    insights_data = json.loads(llm_response)
                     insights = []
+                    for line in lines:
+                        if len(line) < 15:
+                            continue
+                        length_bonus = min(len(line) / 500, 1.0) * 0.15
+                        insight = CanvasInsight(
+                            content=line,
+                            source_persona=persona_id,
+                            source_message_id=message_id,
+                            source_chat_session=chat_session_id,
+                            confidence_score=round(0.75 + length_bonus, 2),
+                            keywords=self._extract_keywords_from_sentence(line)
+                        )
+                        insights.append(insight)
                     
-                    for item in insights_data:
-                        if isinstance(item, dict) and "insight" in item:
-                            insight = CanvasInsight(
-                                content=item["insight"],
-                                source_persona=persona_id,
-                                source_message_id=message_id,
-                                source_chat_session=chat_session_id,
-                                confidence_score=0.8,  # High confidence from LLM extraction
-                                keywords=item.get("keywords", [])
-                            )
-                            insights.append(insight)
+                    if insights:
+                        logger.debug(f"LLM extracted {len(insights)} insights from {persona_id}")
+                        return insights
                     
-                    logger.debug(f"LLM extracted {len(insights)} insights from {persona_id}")
-                    return insights
+                    logger.warning(f"LLM returned no parseable insights for {persona_id}, falling back to rule-based")
                     
-                except json.JSONDecodeError as je:
-                    logger.warning(f"Failed to parse LLM insights response for {persona_id}: {je}")
-                    logger.debug(f"Raw LLM response: {llm_response}")
-                    # Fallback to rule-based extraction
-                    return self._extract_insights_rule_based(content, persona_id, message_id, chat_session_id)
                 except Exception as llm_error:
                     logger.warning(f"LLM extraction failed for {persona_id}: {llm_error}")
-                    # Fallback to rule-based extraction
-                    return self._extract_insights_rule_based(content, persona_id, message_id, chat_session_id)
             
             # Fallback if no LLM available
             return self._extract_insights_rule_based(content, persona_id, message_id, chat_session_id)
@@ -214,19 +234,18 @@ class CanvasAnalysisService:
             if len(sentence) < 15:  # Lowered minimum length
                 continue
                 
-            # Check if sentence contains actionable language
-            is_actionable = any(re.search(pattern, sentence, re.IGNORECASE) for pattern in actionable_patterns)
+            match_count = sum(1 for pattern in actionable_patterns if re.search(pattern, sentence, re.IGNORECASE))
             
-            if is_actionable:
-                # Extract keywords
+            if match_count > 0:
                 keywords = self._extract_keywords_from_sentence(sentence)
+                confidence = round(0.55 + min(match_count * 0.05, 0.15), 2)
                 
                 insight = CanvasInsight(
                     content=sentence,
                     source_persona=persona_id,
                     source_message_id=message_id,
                     source_chat_session=chat_session_id,
-                    confidence_score=0.6,  # Lower confidence for rule-based
+                    confidence_score=confidence,
                     keywords=keywords
                 )
                 insights.append(insight)

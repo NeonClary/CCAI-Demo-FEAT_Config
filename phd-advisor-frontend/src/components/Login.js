@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Mail, Lock, ArrowRight, BookOpen, Phone } from 'lucide-react';
+import { useAppConfig } from '../contexts/AppConfigContext';
 import '../styles/Login.css';
 
 const Login = ({ onNavigateToSignup, onNavigateToHome }) => {
+  const { config } = useAppConfig();
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -103,7 +105,7 @@ const Login = ({ onNavigateToSignup, onNavigateToHome }) => {
           </div>
           <h1 className="login-title">Welcome Back</h1>
           <p className="login-subtitle">
-            Sign in to continue your PhD research journey
+            {config?.login?.subtitle || 'Sign in to continue'}
           </p>
         </div>
 
@@ -245,6 +247,12 @@ const Login = ({ onNavigateToSignup, onNavigateToHome }) => {
               Sign up here
             </button>
           </p>
+          <div className="login-powered-by">
+            <a href="https://neon.ai" target="_blank" rel="noopener noreferrer" className="footer-neon-link">
+              <img src="/neon-logo.png" alt="" className="footer-neon-logo" />
+              Powered by Neon.ai
+            </a>
+          </div>
         </div>
       </div>
     </div>

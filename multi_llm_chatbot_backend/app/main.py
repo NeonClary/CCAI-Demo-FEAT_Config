@@ -1,3 +1,33 @@
+# NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
+# All Rights Reserved 2008-2025
+# Licensed under the BSD 3-Clause License
+# https://opensource.org/licenses/BSD-3-Clause
+#
+# Copyright (c) 2008-2025, Neongecko.com Inc.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
 import os
 from dotenv import load_dotenv
 
@@ -6,6 +36,10 @@ load_dotenv()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+
+# Load configuration FIRST so every module can use it
+from app.config import load_settings
+settings = load_settings()
 
 # Import the new database functions
 from app.core.database import connect_to_mongo, close_mongo_connection
@@ -32,7 +66,7 @@ async def lifespan(app: FastAPI):
     await close_mongo_connection()
 
 app = FastAPI(
-    title="Multi-LLM Chatbot Backend",
+    title=f"{settings.app.title} Backend",
     version="2.0.0",
     lifespan=lifespan
 )
@@ -54,16 +88,25 @@ app.include_router(auth_router, prefix="/auth", tags=["authentication"])
 app.include_router(chat_sessions_router, prefix="/api", tags=["chat-sessions"])
 app.include_router(phd_canvas_router, prefix="/api", tags=["phd-canvas"])
 
+# ---------------------------------------------------------------------------
+# Public configuration endpoint — serves the frontend-safe subset
+# ---------------------------------------------------------------------------
+@app.get("/api/config")
+def get_public_config():
+    """Return the public (non-secret) application configuration."""
+    return settings.get_public_config()
+
 @app.get("/")
 def root():
     return {
-        "message": "Multi-LLM PhD Advisor Backend with Authentication",
+        "message": f"{settings.app.title} Backend",
         "version": "2.0.0",
         "features": [
             "User Authentication", 
             "Persistent Chat Sessions",
             "MongoDB Integration",
             "Ollama Support", 
-            "Gemini API Support"
+            "Gemini API Support",
+            "Configurable Personas"
         ]
     }

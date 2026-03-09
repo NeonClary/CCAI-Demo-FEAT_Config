@@ -13,6 +13,7 @@ import {
   ChevronRight,
   FileText
 } from 'lucide-react';
+import { useAppConfig } from '../contexts/AppConfigContext';
 import '../styles/Sidebar.css';
 
 const Sidebar = ({ 
@@ -27,6 +28,8 @@ const Sidebar = ({
   onMobileToggle,
   onNavigateToCanvas
 }) => {
+  const { config } = useAppConfig();
+  const canvasLabel = config?.app?.title ? `${config.app.title} Canvas` : 'Canvas';
   const [chatSessions, setChatSessions] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -227,10 +230,10 @@ const Sidebar = ({
               <button 
                 className="sidebar-canvas-btn"
                 onClick={onNavigateToCanvas}
-                title="PhD Canvas"
+                title={canvasLabel}
               >
                 <FileText size={20} />
-                {!isCollapsed && <span>PhD Canvas</span>}
+                {!isCollapsed && <span>{canvasLabel}</span>}
               </button>
             </>
           )}
@@ -256,10 +259,10 @@ const Sidebar = ({
               <button 
                 className="sidebar-canvas-btn"
                 onClick={onNavigateToCanvas}
-                title="PhD Canvas"
+                title={canvasLabel}
               >
                 <FileText size={20} />
-                {!isCollapsed && <span>PhD Canvas</span>}
+                {!isCollapsed && <span>{canvasLabel}</span>}
               </button>
             </div>
           )}
@@ -332,6 +335,28 @@ const Sidebar = ({
                 </div>
               ))}
             </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className={`sidebar-footer ${isCollapsed ? 'collapsed' : ''}`}>
+          <a 
+            href="https://neon.ai" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="sidebar-neon-link"
+            title="Neon.ai"
+          >
+            <img src="/neon-logo.png" alt="" className="sidebar-neon-logo" />
+            {!isCollapsed && <span className="sidebar-neon-text">Neon.ai</span>}
+          </a>
+          {!isCollapsed && (
+            <p className="sidebar-copyright-text">
+              Copyright Neon.ai, portions copyright University of Colorado Boulder. All rights reserved.{' '}
+              <a href="https://www.neon.ai/contact" target="_blank" rel="noopener noreferrer" className="sidebar-patents-link">
+                Patents and licensing.
+              </a>
+            </p>
           )}
         </div>
       </div>

@@ -1,3 +1,33 @@
+# NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
+# All Rights Reserved 2008-2025
+# Licensed under the BSD 3-Clause License
+# https://opensource.org/licenses/BSD-3-Clause
+#
+# Copyright (c) 2008-2025, Neongecko.com Inc.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
 from fastapi import APIRouter, Request, HTTPException, Body, Depends
 from app.models.persona import Persona
 from app.core.session_manager import get_session_manager
@@ -194,8 +224,30 @@ async def chat_sequential_enhanced(
         rag_stats = session.get_rag_stats()
         logger.info(f"Session {session_id} has {rag_stats.get('total_documents', 0)} documents available")
         
-        # Add user message to session (needed for persona ranking)
-        session.append_message("user", message.user_input)
+        # Ensure user message exists in session exactly once
+        already_in_session = (
+            session.messages
+            and session.messages[-1].get('role') == 'user'
+            and session.messages[-1].get('content') == message.user_input
+        )
+        if not already_in_session:
+            session.append_message("user", message.user_input)
+        
+        # Check if the user's message is vague and needs clarification
+        if chat_orchestrator._needs_clarification(session, message.user_input):
+            clarification = await chat_orchestrator.generate_contextual_clarification(
+                message.user_input
+            )
+            logger.info(f"Clarification triggered for input: {message.user_input!r}")
+            return {
+                "status": "clarification_needed",
+                "message": clarification["question"],
+                "suggestions": clarification["suggestions"],
+                "session_debug": {
+                    "session_id": session_id,
+                    "trigger": "vague_input"
+                }
+            }
         
         # RESTORED: Get intelligently ordered personas based on context
         top_personas = await chat_orchestrator.get_top_personas(
