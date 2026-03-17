@@ -2,8 +2,11 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from datetime import datetime, timedelta
 from bson import ObjectId
 from app.models.user import UserCreate, UserLogin, User, Token, UserResponse
+from pydantic import BaseModel
+from typing import Optional
 from app.core.auth import (
     get_password_hash, 
+    verify_password,
     authenticate_user, 
     create_access_token, 
     get_user_by_email,
@@ -13,6 +16,18 @@ from app.core.auth import (
 )
 from app.core.database import get_database
 import logging
+
+LOG = logging.getLogger(__name__)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class UserUpdate(BaseModel):
+    email: Optional[str] = None
+    full_name: Optional[str] = None
 
 logger = logging.getLogger(__name__)
 
@@ -128,3 +143,47 @@ async def logout():
 async def verify_token(current_user: User = Depends(get_current_active_user)):
     """Verify token and return user info"""
     return create_user_response(current_user)
+
+
+@router.post("/me/password")
+async def change_password(
+    body: ChangePasswordRequest,
+    current_user: User = Depends(get_current_active_user),
+) -> dict:
+    """Change the current user's password."""
+    if not verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+    if len(body.new_password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be at least 6 characters",
+        )
+    db = get_database()
+    await db.users.update_one(
+        {"_id": current_user.id},
+        {"$set": {"hashed_password": get_password_hash(body.new_password)}},
+    )
+    return {"message": "Password changed successfully"}
+
+
+@router.delete("/me")
+async def delete_account(current_user: User = Depends(get_current_active_user)) -> dict:
+    """Permanently delete the current user's account and all associated data."""
+    try:
+        db = get_database()
+        uid = current_user.id
+        uid_str = str(uid)
+
+        await db.user_profiles.delete_many({"user_id": uid})
+        await db.chat_sessions.delete_many({"user_id": uid})
+        await db.phd_canvases.delete_many({"user_id": uid_str})
+        await db.users.delete_one({"_id": uid})
+
+        LOG.info(f"Deleted account and all data for user {uid}")
+        return {"message": "Account deleted"}
+    except Exception as e:
+        LOG.error(f"Error deleting account: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete account")
