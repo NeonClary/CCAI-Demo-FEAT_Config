@@ -105,11 +105,15 @@ export const AppConfigProvider = ({ children }) => {
   }, [config]);
 
   const getAdvisorColors = buildGetAdvisorColors(advisors);
+  const allPersonas = advisors;
+  const getAllPersonaColors = getAdvisorColors;
 
   const value = {
-    config,          // raw config object from /api/config
-    advisors,        // { methodologist: { name, role, icon, color, ... }, ... }
+    config,
+    advisors,
+    allPersonas,
     getAdvisorColors,
+    getAllPersonaColors,
     resolveIcon,
     loading,
     error,
