@@ -27,7 +27,8 @@ const Sidebar = ({
   isMobileOpen = false,
   onMobileToggle,
   onNavigateToCanvas,
-  onNavigateToUserGuide
+  onNavigateToUserGuide,
+  onShowProfile
 }) => {
   const { config } = useAppConfig();
   const canvasLabel = config?.app?.title ? `${config.app.title} Canvas` : 'Canvas';
@@ -205,6 +206,12 @@ const Sidebar = ({
                     
                     {showUserMenu && (
                       <div className="user-menu">
+                        {onShowProfile && (
+                          <button className="user-menu-item" onClick={onShowProfile}>
+                            <User size={16} />
+                            <span>Tell Us About Yourself</span>
+                          </button>
+                        )}
                         <button className="user-menu-item">
                           <Settings size={16} />
                           <span>Settings</span>

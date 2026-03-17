@@ -14,6 +14,7 @@ import '../styles/ChatPage.css';
 import '../styles/EnhancedChatInput.css';
 import AdvisorStatusDropdown from '../components/AdvisorStatusDropdown';
 import AdvisorCarousel from '../components/AdvisorCarousel';
+import ProfileWalkthrough from '../components/ProfileWalkthrough';
 
 const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNavigateToUserGuide, onSignOut }) => {
   const { config, advisors, getAdvisorColors } = useAppConfig();
@@ -34,6 +35,7 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNav
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [synthesizedMode, setSynthesizedMode] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
   
 
@@ -733,6 +735,7 @@ const handleNewChat = async (sessionId = null) => {
         onMobileToggle={setIsMobileMenuOpen}
         onNavigateToCanvas={onNavigateToCanvas}
         onNavigateToUserGuide={onNavigateToUserGuide}
+        onShowProfile={() => setShowProfile(true)}
       />
       
       <div className={`main-chat-area ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
@@ -979,6 +982,13 @@ const handleNewChat = async (sessionId = null) => {
           </div>
         </div>
       </div>
+
+      {showProfile && (
+        <ProfileWalkthrough
+          authToken={authToken}
+          onClose={() => setShowProfile(false)}
+        />
+      )}
     </div>
   );
 };
