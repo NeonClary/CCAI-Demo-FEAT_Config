@@ -16,6 +16,7 @@ import AdvisorStatusDropdown from '../components/AdvisorStatusDropdown';
 import AdvisorCarousel from '../components/AdvisorCarousel';
 import ProfileWalkthrough from '../components/ProfileWalkthrough';
 import ClearDataModal from '../components/ClearDataModal';
+import Tutorial from '../components/Tutorial';
 
 const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNavigateToUserGuide, onSignOut }) => {
   const { config, advisors, getAdvisorColors } = useAppConfig();
@@ -38,6 +39,7 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNav
   const [synthesizedMode, setSynthesizedMode] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showClearData, setShowClearData] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   
 
@@ -739,6 +741,7 @@ const handleNewChat = async (sessionId = null) => {
         onNavigateToUserGuide={onNavigateToUserGuide}
         onShowProfile={() => setShowProfile(true)}
         onShowClearData={() => setShowClearData(true)}
+        onShowTutorial={() => setShowTutorial(true)}
       />
       
       <div className={`main-chat-area ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
@@ -990,6 +993,13 @@ const handleNewChat = async (sessionId = null) => {
         <ProfileWalkthrough
           authToken={authToken}
           onClose={() => setShowProfile(false)}
+        />
+      )}
+
+      {showTutorial && (
+        <Tutorial
+          onClose={() => setShowTutorial(false)}
+          onSendMessage={handleSendMessage}
         />
       )}
 

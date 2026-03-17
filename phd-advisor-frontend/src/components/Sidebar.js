@@ -11,7 +11,8 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  FileText
+  FileText,
+  HelpCircle
 } from 'lucide-react';
 import { useAppConfig } from '../contexts/AppConfigContext';
 import '../styles/Sidebar.css';
@@ -29,7 +30,8 @@ const Sidebar = ({
   onNavigateToCanvas,
   onNavigateToUserGuide,
   onShowProfile,
-  onShowClearData
+  onShowClearData,
+  onShowTutorial
 }) => {
   const { config } = useAppConfig();
   const canvasLabel = config?.app?.title ? `${config.app.title} Canvas` : 'Canvas';
@@ -211,6 +213,12 @@ const Sidebar = ({
                           <button className="user-menu-item" onClick={onShowProfile}>
                             <User size={16} />
                             <span>Tell Us About Yourself</span>
+                          </button>
+                        )}
+                        {onShowTutorial && (
+                          <button className="user-menu-item" onClick={onShowTutorial}>
+                            <HelpCircle size={16} />
+                            <span>Tutorial</span>
                           </button>
                         )}
                         {onShowClearData && (
