@@ -16,6 +16,11 @@ const resolveIcon = (iconName) => {
  * Build the advisors lookup object (keyed by persona id) from the config
  * personas array, mirroring the shape that components already expect.
  */
+const buildAvatarUrl = (filename) => {
+  if (!filename) return null;
+  return `/avatars/${filename}`;
+};
+
 const buildAdvisors = (personaItems) => {
   if (!personaItems || !Array.isArray(personaItems)) return {};
   const advisors = {};
@@ -29,6 +34,7 @@ const buildAdvisors = (personaItems) => {
       darkColor: p.dark_color || '#9CA3AF',
       darkBgColor: p.dark_bg_color || '#374151',
       icon: resolveIcon(p.icon),
+      avatarUrl: buildAvatarUrl(p.avatar),
     };
   }
   return advisors;
