@@ -173,13 +173,30 @@ class GeminiConfig(BaseModel):
 
 class OllamaConfig(BaseModel):
     model: str = "llama3.2:1b"
-    # TODO: Drop support for `OLLAMA_BASE_URL` envvar handling
     base_url: str = Field(default=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
+
+
+class VLLMClientEntry(BaseModel):
+    id: str
+    name: str = ""
+    api_url: str = ""
+
+
+class VLLMConfig(BaseModel):
+    api_key: str = ""
+    clients: List[VLLMClientEntry] = []
+
+    @model_validator(mode="after")
+    def _fallback_api_key(self):
+        if not self.api_key:
+            self.api_key = os.getenv("VLLM_API_KEY", "")
+        return self
 
 
 class LLMConfig(BaseModel):
     gemini: GeminiConfig = GeminiConfig()
     ollama: OllamaConfig = OllamaConfig()
+    vllm: VLLMConfig = VLLMConfig()
 
 
 class RAGConfig(BaseModel):

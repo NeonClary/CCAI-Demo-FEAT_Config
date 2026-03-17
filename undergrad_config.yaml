@@ -427,6 +427,9 @@ llm:
     model: "gemini-2.0-flash"
   ollama:
     model: "llama3.2:1b"
+  vllm:
+    api_key: ""
+    clients: []
 
 rag:
   embedding_model: "all-MiniLM-L6-v2"
