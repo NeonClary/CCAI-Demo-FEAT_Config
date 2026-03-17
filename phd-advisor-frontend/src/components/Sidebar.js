@@ -26,7 +26,8 @@ const Sidebar = ({
   onSidebarToggle,
   isMobileOpen = false,
   onMobileToggle,
-  onNavigateToCanvas
+  onNavigateToCanvas,
+  onNavigateToUserGuide
 }) => {
   const { config } = useAppConfig();
   const canvasLabel = config?.app?.title ? `${config.app.title} Canvas` : 'Canvas';
@@ -235,6 +236,17 @@ const Sidebar = ({
                 <FileText size={20} />
                 {!isCollapsed && <span>{canvasLabel}</span>}
               </button>
+
+              {onNavigateToUserGuide && (
+                <button 
+                  className="sidebar-canvas-btn"
+                  onClick={onNavigateToUserGuide}
+                  title="User Guide"
+                >
+                  <FileText size={20} />
+                  {!isCollapsed && <span>User Guide</span>}
+                </button>
+              )}
             </>
           )}
 

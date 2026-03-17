@@ -5,6 +5,7 @@ import HomePage from './pages/HomePage';
 import ChatPage from './pages/ChatPage';
 import AuthPage from './pages/AuthPage';
 import CanvasPage from './pages/CanvasPage';
+import UserGuidePage from './pages/UserGuidePage';
 import './styles/components.css';
 
 function App() {
@@ -51,6 +52,10 @@ function App() {
     setCurrentView('home');
   };
 
+  const navigateToUserGuide = () => {
+    setCurrentView('userguide');
+  };
+
   const handleAuthSuccess = (userData, token) => {
     setUser(userData);
     setAuthToken(token);
@@ -88,12 +93,18 @@ function App() {
               onSignOut={handleSignOut}
             />
           )}
+          {currentView === 'userguide' && isAuthenticated && (
+            <UserGuidePage
+              onNavigateToChat={navigateToChat}
+            />
+          )}
           {currentView === 'chat' && isAuthenticated && (
             <ChatPage 
               user={user}
               authToken={authToken}
               onNavigateToHome={navigateToHome}
               onNavigateToCanvas={navigateToCanvas}
+              onNavigateToUserGuide={navigateToUserGuide}
               onSignOut={handleSignOut}
             />
           )}
