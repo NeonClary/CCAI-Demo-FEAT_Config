@@ -33,6 +33,7 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNav
   const [isSavingSession, setIsSavingSession] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [synthesizedMode, setSynthesizedMode] = useState(false);
 
   
 
@@ -400,6 +401,7 @@ const handleNewChat = async (sessionId = null) => {
           user_input: inputMessage,
           response_length: 'medium',
           chat_session_id: currentSessionId,
+          synthesized: synthesizedMode,
         }),
       });
 
@@ -790,14 +792,28 @@ const handleNewChat = async (sessionId = null) => {
                   authToken={authToken}
                 />
                 
-                {/* Provider Dropdown */}
+                <button
+                  className={`synthesized-toggle ${synthesizedMode ? 'active' : ''}`}
+                  onClick={() => setSynthesizedMode(prev => !prev)}
+                  title={synthesizedMode ? 'Showing synthesized answers' : 'Showing individual advisors'}
+                  style={{
+                    padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                    background: synthesizedMode ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+                    color: synthesizedMode ? '#fff' : 'var(--text-secondary)',
+                    border: `1px solid ${synthesizedMode ? 'var(--accent-primary)' : 'var(--border-primary)'}`,
+                    cursor: 'pointer', transition: 'all 0.2s ease',
+                  }}
+                >
+                  <Sparkles size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                  {synthesizedMode ? 'Aggregate' : 'Panel'}
+                </button>
+
                 <ProviderDropdown 
                   currentProvider={currentProvider}
                   onProviderChange={handleProviderSwitch}
                   isLoading={isProviderSwitching}
                 />
                 
-                {/* Theme Toggle */}
                 <ThemeToggle />
               </div>
             </div>
