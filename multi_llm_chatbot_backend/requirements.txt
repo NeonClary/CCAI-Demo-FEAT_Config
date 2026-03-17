@@ -22,6 +22,7 @@ sentence-transformers
 # Natural language processing
 nltk
 tiktoken
+markdown
 
 # PDF generation and export
 reportlab
