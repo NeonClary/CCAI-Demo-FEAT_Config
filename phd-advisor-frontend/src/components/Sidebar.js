@@ -28,7 +28,8 @@ const Sidebar = ({
   onMobileToggle,
   onNavigateToCanvas,
   onNavigateToUserGuide,
-  onShowProfile
+  onShowProfile,
+  onShowClearData
 }) => {
   const { config } = useAppConfig();
   const canvasLabel = config?.app?.title ? `${config.app.title} Canvas` : 'Canvas';
@@ -210,6 +211,12 @@ const Sidebar = ({
                           <button className="user-menu-item" onClick={onShowProfile}>
                             <User size={16} />
                             <span>Tell Us About Yourself</span>
+                          </button>
+                        )}
+                        {onShowClearData && (
+                          <button className="user-menu-item" onClick={onShowClearData}>
+                            <Trash2 size={16} />
+                            <span>Clear User Data</span>
                           </button>
                         )}
                         <button className="user-menu-item">
