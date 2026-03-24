@@ -13,8 +13,12 @@ import { useTheme } from '../contexts/ThemeContext';
 import '../styles/ChatPage.css';
 import '../styles/EnhancedChatInput.css';
 import AdvisorStatusDropdown from '../components/AdvisorStatusDropdown';
+import AdvisorCarousel from '../components/AdvisorCarousel';
+import ProfileWalkthrough from '../components/ProfileWalkthrough';
+import ClearDataModal from '../components/ClearDataModal';
+import Tutorial from '../components/Tutorial';
 
-const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onSignOut }) => {
+const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNavigateToUserGuide, onSignOut }) => {
   const { config, advisors, getAdvisorColors } = useAppConfig();
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -32,6 +36,10 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onSig
   const [isSavingSession, setIsSavingSession] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [synthesizedMode, setSynthesizedMode] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showClearData, setShowClearData] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   
 
@@ -358,7 +366,6 @@ const handleNewChat = async (sessionId = null) => {
   const handleSendMessage = async (inputMessage) => {
     if (!inputMessage.trim()) return;
 
-    // Create user message
     const userMessage = {
       id: generateMessageId(),
       type: 'user',
@@ -366,10 +373,8 @@ const handleNewChat = async (sessionId = null) => {
       timestamp: new Date()
     };
 
-    // Add to local state immediately
     setMessages(prev => [...prev, userMessage]);
 
-    // Create new session if we don't have one
     let sessionId = currentSessionId;
     if (!sessionId) {
       sessionId = await createNewSession(inputMessage);
@@ -379,10 +384,8 @@ const handleNewChat = async (sessionId = null) => {
       }
     }
 
-    // Save user message to database
     await saveMessageToSession(userMessage);
 
-    // Update session title if this is the first message and title is generic
     if (messages.length === 0 && currentSessionTitle.includes('Chat ')) {
       const newTitle = inputMessage.length > 30 
         ? `${inputMessage.substring(0, 30)}...` 
@@ -390,26 +393,21 @@ const handleNewChat = async (sessionId = null) => {
       await updateSessionTitle(sessionId, newTitle);
     }
 
-    // Set loading state
     setIsLoading(true);
     setThinkingAdvisors(['system']);
 
     try {
-      const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`,
-      };
-      
-
-      console.log('Sending message with session ID:', currentSessionId); // Debug log
-
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/chat-sequential`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/chat-stream`, {
         method: 'POST',
-        headers: headers,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
         body: JSON.stringify({
           user_input: inputMessage,
           response_length: 'medium',
-          chat_session_id: currentSessionId // Include current session ID
+          chat_session_id: currentSessionId,
+          synthesized: synthesizedMode,
         }),
       });
 
@@ -417,32 +415,72 @@ const handleNewChat = async (sessionId = null) => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      // Rest of the function remains the same...
-      const data = await response.json();
-      
-      // Process responses...
-      if (data.responses && Array.isArray(data.responses)) {
-        const newResponses = data.responses.map(response => ({
-          id: generateMessageId(),
-          type: 'advisor',
-          persona_id: response.persona_id,
-          content: response.content,
-          timestamp: new Date(),
-          advisorName: response.persona_name || response.persona_id,
-          used_documents: response.used_documents || false,
-          document_chunks_used: response.document_chunks_used || 0
-        }));
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-        setMessages(prev => [...prev, ...newResponses]);
-        
-        // Save advisor responses to database
-        for (const response of newResponses) {
-          await saveMessageToSession(response);
-        }
-        
-        // Log session debug info if available
-        if (data.session_debug) {
-          console.log('Session debug info:', data.session_debug);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        let eventType = null;
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            eventType = line.slice(7).trim();
+          } else if (line.startsWith('data: ') && eventType) {
+            const payload = JSON.parse(line.slice(6));
+
+            if (eventType === 'advisor') {
+              const msg = {
+                id: generateMessageId(),
+                type: 'advisor',
+                persona_id: payload.persona_id,
+                content: payload.content,
+                timestamp: new Date(),
+                advisorName: payload.persona_name || payload.persona_id,
+                used_documents: payload.used_documents || false,
+                document_chunks_used: payload.document_chunks_used || 0,
+              };
+              setMessages(prev => [...prev, msg]);
+              setThinkingAdvisors(prev => prev.filter(a => a !== payload.persona_id));
+              await saveMessageToSession(msg);
+            } else if (eventType === 'synthesized') {
+              const msg = {
+                id: generateMessageId(),
+                type: 'advisor',
+                persona_id: 'orchestrator',
+                content: payload.content,
+                timestamp: new Date(),
+                advisorName: payload.persona_name || 'Synthesized Answer',
+                used_documents: payload.used_documents || false,
+                document_chunks_used: payload.document_chunks_used || 0,
+              };
+              setMessages(prev => [...prev, msg]);
+              await saveMessageToSession(msg);
+            } else if (eventType === 'clarification') {
+              setMessages(prev => [...prev, {
+                id: generateMessageId(),
+                type: 'clarification',
+                content: payload.message,
+                suggestions: payload.suggestions || [],
+                timestamp: new Date(),
+              }]);
+            } else if (eventType === 'progress') {
+              setThinkingAdvisors(prev => prev.filter(a => a !== payload.persona_id));
+            } else if (eventType === 'error') {
+              setMessages(prev => [...prev, {
+                id: generateMessageId(),
+                type: 'error',
+                content: payload.detail || 'An error occurred',
+                timestamp: new Date(),
+              }]);
+            }
+            eventType = null;
+          }
         }
       }
 
@@ -700,6 +738,10 @@ const handleNewChat = async (sessionId = null) => {
         isMobileOpen={isMobileMenuOpen}
         onMobileToggle={setIsMobileMenuOpen}
         onNavigateToCanvas={onNavigateToCanvas}
+        onNavigateToUserGuide={onNavigateToUserGuide}
+        onShowProfile={() => setShowProfile(true)}
+        onShowClearData={() => setShowClearData(true)}
+        onShowTutorial={() => setShowTutorial(true)}
       />
       
       <div className={`main-chat-area ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
@@ -759,14 +801,28 @@ const handleNewChat = async (sessionId = null) => {
                   authToken={authToken}
                 />
                 
-                {/* Provider Dropdown */}
+                <button
+                  className={`synthesized-toggle ${synthesizedMode ? 'active' : ''}`}
+                  onClick={() => setSynthesizedMode(prev => !prev)}
+                  title={synthesizedMode ? 'Showing synthesized answers' : 'Showing individual advisors'}
+                  style={{
+                    padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                    background: synthesizedMode ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+                    color: synthesizedMode ? '#fff' : 'var(--text-secondary)',
+                    border: `1px solid ${synthesizedMode ? 'var(--accent-primary)' : 'var(--border-primary)'}`,
+                    cursor: 'pointer', transition: 'all 0.2s ease',
+                  }}
+                >
+                  <Sparkles size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                  {synthesizedMode ? 'Aggregate' : 'Panel'}
+                </button>
+
                 <ProviderDropdown 
                   currentProvider={currentProvider}
                   onProviderChange={handleProviderSwitch}
                   isLoading={isProviderSwitching}
                 />
                 
-                {/* Theme Toggle */}
                 <ThemeToggle />
               </div>
             </div>
@@ -776,6 +832,7 @@ const handleNewChat = async (sessionId = null) => {
           <div className="chat-content">
             {!hasMessages ? (
               <div className="welcome-state">
+                <AdvisorCarousel />
                 <SuggestionsPanel onSuggestionClick={handleSendMessage} />
               </div>
             ) : (
@@ -813,6 +870,7 @@ const handleNewChat = async (sessionId = null) => {
                             onExpand={handleExpandMessage}
                             onClick={handleMessageClick}
                             showReplyButton={true}
+                            inlineAvatar={true}
                           />
                         )}
 
@@ -930,6 +988,33 @@ const handleNewChat = async (sessionId = null) => {
           </div>
         </div>
       </div>
+
+      {showProfile && (
+        <ProfileWalkthrough
+          authToken={authToken}
+          onClose={() => setShowProfile(false)}
+        />
+      )}
+
+      {showTutorial && (
+        <Tutorial
+          onClose={() => setShowTutorial(false)}
+          onSendMessage={handleSendMessage}
+        />
+      )}
+
+      {showClearData && (
+        <ClearDataModal
+          authToken={authToken}
+          onClose={() => setShowClearData(false)}
+          onDataCleared={() => {
+            setMessages([]);
+            setCurrentSessionId(null);
+            setCurrentSessionTitle('');
+            setShowClearData(false);
+          }}
+        />
+      )}
     </div>
   );
 };

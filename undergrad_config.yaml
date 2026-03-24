@@ -55,6 +55,7 @@ chat_page:
   examples:
     - title: "Academic Planning"
       icon: "BookOpen"
+      avatar: "academic_planner.png"
       color: "#2563EB"
       bg_color: "#EFF6FF"
       suggestions:
@@ -63,6 +64,7 @@ chat_page:
         - "Should I double-major, pick up a minor, or focus on one field?"
     - title: "Career & Internships"
       icon: "Briefcase"
+      avatar: "career_coach.png"
       color: "#059669"
       bg_color: "#ECFDF5"
       suggestions:
@@ -71,6 +73,7 @@ chat_page:
         - "What can I do now as a freshman to prepare for the job market after graduation?"
     - title: "Study Skills & Time Management"
       icon: "Clock"
+      avatar: "study_strategist.png"
       color: "#7C3AED"
       bg_color: "#F3E8FF"
       suggestions:
@@ -79,6 +82,7 @@ chat_page:
         - "How do I recover from a bad midterm grade?"
     - title: "Campus Life & Well-being"
       icon: "Heart"
+      avatar: "wellness_advisor.png"
       color: "#E11D48"
       bg_color: "#FFF1F2"
       suggestions:
@@ -111,6 +115,7 @@ personas:
       dark_color: "#60A5FA"
       dark_bg_color: "#1E3A8A"
       icon: "BookOpen"
+      avatar: "academic_planner.png"
       temperature: 4
       persona_prompt: |
         You are an experienced undergraduate academic advisor with 12+ years of experience helping college students plan their coursework, choose majors and minors, and stay on track for graduation. You have deep knowledge of general education requirements, prerequisite chains, credit hour planning, and how to balance workload across semesters.
@@ -151,6 +156,7 @@ personas:
       dark_color: "#34D399"
       dark_bg_color: "#065F46"
       icon: "Briefcase"
+      avatar: "career_coach.png"
       temperature: 5
       persona_prompt: |
         You are an undergraduate career coach with extensive experience in career services, employer relations, and professional development. You have helped hundreds of students land internships, build resumes, and navigate the transition from college to career. You stay up-to-date on job market trends and employer expectations.
@@ -192,6 +198,7 @@ personas:
       dark_color: "#A78BFA"
       dark_bg_color: "#581C87"
       icon: "Brain"
+      avatar: "study_strategist.png"
       temperature: 5
       persona_prompt: |
         You are a learning sciences specialist and academic performance coach who helps undergraduates develop effective study habits, time management skills, and test-taking strategies. Your advice is grounded in cognitive science research on memory, learning, and motivation.
@@ -233,6 +240,7 @@ personas:
       dark_color: "#FBBF24"
       dark_bg_color: "#92400E"
       icon: "MapPin"
+      avatar: "campus_guide.png"
       temperature: 6
       persona_prompt: |
         You are a campus life advisor who knows the ins and outs of the undergraduate experience -- from clubs and organizations to dining halls, housing, financial aid, and campus traditions. You help students make the most of their college years beyond the classroom.
@@ -274,6 +282,7 @@ personas:
       dark_color: "#FB7185"
       dark_bg_color: "#9F1239"
       icon: "Heart"
+      avatar: "wellness_advisor.png"
       temperature: 6
       persona_prompt: |
         You are a student wellness advisor with training in counseling psychology and health promotion. You help undergraduates manage stress, maintain mental and physical health, and build resilience during the challenging college years. You take a compassionate, whole-person approach.
@@ -317,6 +326,7 @@ personas:
       dark_color: "#22D3EE"
       dark_bg_color: "#0E7490"
       icon: "PenTool"
+      avatar: "writing_tutor.png"
       temperature: 5
       persona_prompt: |
         You are an academic writing specialist who helps undergraduate students improve their essays, research papers, lab reports, and other written assignments. You have experience in writing centers and composition instruction across multiple disciplines.
@@ -355,6 +365,7 @@ personas:
 # -- Orchestrator / Clarification --------------------------------------------
 
 orchestrator:
+  avatar: "orchestrator.png"
   # Minimum word count (with no specific keywords) before clarification triggers
   min_words_without_keywords: 6
 
@@ -416,6 +427,9 @@ llm:
     model: "gemini-2.0-flash"
   ollama:
     model: "llama3.2:1b"
+  vllm:
+    api_key: ""
+    clients: []
 
 rag:
   embedding_model: "all-MiniLM-L6-v2"

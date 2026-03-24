@@ -19,6 +19,11 @@ from app.api.routes import router as main_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.chat_sessions import router as chat_sessions_router
 from app.api.routes.phd_canvas import router as phd_canvas_router
+from app.api.routes.user_profile import router as user_profile_router
+from app.api.routes.onboarding import router as onboarding_router
+from app.api.routes.transcribe import router as transcribe_router
+from app.api.routes.tts import router as tts_router
+from app.api.routes.voice import router as voice_router
 
 import logging
 
@@ -57,6 +62,11 @@ app.include_router(main_router)
 app.include_router(auth_router, prefix="/auth", tags=["authentication"])
 app.include_router(chat_sessions_router, prefix="/api", tags=["chat-sessions"])
 app.include_router(phd_canvas_router, prefix="/api", tags=["phd-canvas"])
+app.include_router(user_profile_router, prefix="/api", tags=["user-profile"])
+app.include_router(onboarding_router, prefix="/api", tags=["onboarding"])
+app.include_router(transcribe_router, prefix="/api", tags=["speech-to-text"])
+app.include_router(tts_router, prefix="/api", tags=["text-to-speech"])
+app.include_router(voice_router, prefix="/api", tags=["voice"])
 
 # ---------------------------------------------------------------------------
 # Public configuration endpoint — serves the frontend-safe subset

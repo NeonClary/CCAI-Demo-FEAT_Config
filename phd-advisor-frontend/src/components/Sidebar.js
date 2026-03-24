@@ -11,7 +11,8 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  FileText
+  FileText,
+  HelpCircle
 } from 'lucide-react';
 import { useAppConfig } from '../contexts/AppConfigContext';
 import '../styles/Sidebar.css';
@@ -26,7 +27,11 @@ const Sidebar = ({
   onSidebarToggle,
   isMobileOpen = false,
   onMobileToggle,
-  onNavigateToCanvas
+  onNavigateToCanvas,
+  onNavigateToUserGuide,
+  onShowProfile,
+  onShowClearData,
+  onShowTutorial
 }) => {
   const { config } = useAppConfig();
   const canvasLabel = config?.app?.title ? `${config.app.title} Canvas` : 'Canvas';
@@ -204,6 +209,24 @@ const Sidebar = ({
                     
                     {showUserMenu && (
                       <div className="user-menu">
+                        {onShowProfile && (
+                          <button className="user-menu-item" onClick={onShowProfile}>
+                            <User size={16} />
+                            <span>Tell Us About Yourself</span>
+                          </button>
+                        )}
+                        {onShowTutorial && (
+                          <button className="user-menu-item" onClick={onShowTutorial}>
+                            <HelpCircle size={16} />
+                            <span>Tutorial</span>
+                          </button>
+                        )}
+                        {onShowClearData && (
+                          <button className="user-menu-item" onClick={onShowClearData}>
+                            <Trash2 size={16} />
+                            <span>Clear User Data</span>
+                          </button>
+                        )}
                         <button className="user-menu-item">
                           <Settings size={16} />
                           <span>Settings</span>
@@ -235,6 +258,17 @@ const Sidebar = ({
                 <FileText size={20} />
                 {!isCollapsed && <span>{canvasLabel}</span>}
               </button>
+
+              {onNavigateToUserGuide && (
+                <button 
+                  className="sidebar-canvas-btn"
+                  onClick={onNavigateToUserGuide}
+                  title="User Guide"
+                >
+                  <FileText size={20} />
+                  {!isCollapsed && <span>User Guide</span>}
+                </button>
+              )}
             </>
           )}
 

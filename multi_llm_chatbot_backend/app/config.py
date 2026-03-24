@@ -72,6 +72,7 @@ class LoginConfig(BaseModel):
 class ExampleCategory(_IconValidatorMixin):
     title: str
     icon: str = "BookOpen"
+    avatar: str = ""
     color: str = "#3B82F6"
     bg_color: str = "#EFF6FF"
     suggestions: List[str] = []
@@ -93,6 +94,7 @@ class PersonaItemConfig(_IconValidatorMixin):
     dark_color: str = "#9CA3AF"
     dark_bg_color: str = "#374151"
     icon: str = "HelpCircle"
+    avatar: str = ""
     temperature: int = 5
     persona_prompt: str = ""
 
@@ -106,7 +108,8 @@ class PersonaItemConfig(_IconValidatorMixin):
             "bg_color": self.bg_color,
             "dark_color": self.dark_color,
             "dark_bg_color": self.dark_bg_color,
-            "icon": self.icon
+            "icon": self.icon,
+            "avatar": self.avatar
             }
 
 
@@ -132,6 +135,7 @@ class PersonasConfig(BaseModel):
 
 
 class OrchestratorConfig(BaseModel):
+    avatar: str = ""
     min_words_without_keywords: int = 6
     specific_keywords: List[str] = []
     clarification_questions: List[str] = [
@@ -202,13 +206,30 @@ class GeminiConfig(BaseModel):
 
 class OllamaConfig(BaseModel):
     model: str = "llama3.2:1b"
-    # TODO: Drop support for `OLLAMA_BASE_URL` envvar handling
     base_url: str = Field(default=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
+
+
+class VLLMClientEntry(BaseModel):
+    id: str
+    name: str = ""
+    api_url: str = ""
+
+
+class VLLMConfig(BaseModel):
+    api_key: str = ""
+    clients: List[VLLMClientEntry] = []
+
+    @model_validator(mode="after")
+    def _fallback_api_key(self):
+        if not self.api_key:
+            self.api_key = os.getenv("VLLM_API_KEY", "")
+        return self
 
 
 class LLMConfig(BaseModel):
     gemini: GeminiConfig = GeminiConfig()
     ollama: OllamaConfig = OllamaConfig()
+    vllm: VLLMConfig = VLLMConfig()
 
 
 class RAGConfig(BaseModel):

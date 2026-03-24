@@ -1,6 +1,6 @@
 // src/components/ProviderDropdown.js
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Cpu, Cloud, Loader2 } from 'lucide-react';
+import { ChevronDown, Cpu, Cloud, Loader2, Server } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 
 const ProviderDropdown = ({ currentProvider, onProviderChange, isLoading = false }) => {
@@ -18,10 +18,17 @@ const ProviderDropdown = ({ currentProvider, onProviderChange, isLoading = false
     },
     {
       id: 'ollama', 
-      name: 'Ollama',
-      description: 'Local LLM via Ollama',
+      name: 'Neon.ai',
+      description: 'Self-hosted models via vLLM',
       icon: Cpu,
       badge: 'Local'
+    },
+    {
+      id: 'hybrid',
+      name: 'Hybrid',
+      description: 'Gemini + self-hosted models',
+      icon: Server,
+      badge: 'Mixed'
     }
   ];
 
