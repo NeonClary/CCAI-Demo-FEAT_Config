@@ -12,10 +12,10 @@ services:
       - database
     environment:
       MONGODB_CONNECTION_STRING: "mongodb://database:27017"
-      MONGODB_DATABASE: undergrad_advisor
+      MONGODB_DATABASE: dunn_construction_planner
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-CHANGEME-by-overriding-in-dot-env-file}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-?}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3005,http://localhost:3000}
       GEMINI_MODEL: gemini-2.5-flash
       VLLM_API_KEY: ${VLLM_API_KEY:-}
   frontend:
@@ -24,7 +24,7 @@ services:
       dockerfile: Dockerfile
       target: frontend
     ports:
-      - "3000:3000"
+      - "3005:3000"
     networks:
       - application
     depends_on:
@@ -42,7 +42,7 @@ services:
       - database
     environment:
       MONGODB_CONNECTION_STRING: "mongodb://database:27017"
-      MONGODB_DATABASE: undergrad_advisor
+      MONGODB_DATABASE: dunn_construction_planner
       GEMINI_API_KEY: ${GEMINI_API_KEY:-?}
     command: ["python3", "scheduler_main.py"]
   database:
