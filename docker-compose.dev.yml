@@ -1,0 +1,45 @@
+# Development overlay: bind-mount source + hot reload (merge with docker-compose.yml).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Or set once in .env next to this file:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml
+#
+# Why the default stack does not hot-reload: images COPY code at build time with no
+# volume mounts, so edits on the host never reach the container until rebuild.
+
+services:
+  backend:
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+      - --reload
+      - --reload-dir
+      - /ccai/multi_llm_chatbot_backend
+      # Uvicorn reload-include must be relative to CWD (/ccai/multi_llm_chatbot_backend)
+      - --reload-include
+      - ../config.yaml
+    volumes:
+      - ./multi_llm_chatbot_backend:/ccai/multi_llm_chatbot_backend
+      - ./config.yaml:/ccai/config.yaml
+
+  frontend:
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "3000"
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+      WDS_SOCKET_PORT: "0"
+    volumes:
+      - ./phd-advisor-frontend:/ccai/phd-advisor-frontend
+      # Keep node_modules from the image (bind mount would hide host install)
+      - /ccai/phd-advisor-frontend/node_modules
+
+  scheduler:
+    volumes:
+      - ./multi_llm_chatbot_backend:/ccai/multi_llm_chatbot_backend
+      - ./config.yaml:/ccai/config.yaml

@@ -55,6 +55,14 @@ CORS_ORIGINS=http://localhost:3000
 docker compose up -d
 ```
 
+**Hot reload (development):** The default Compose file bakes code into the image, so edits on your machine do not appear until you rebuild. For the same behavior as other local dev apps (live backend + React refresh), merge the dev overlay (bind mounts, `uvicorn --reload`, webpack polling):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+```
+
+Optional: set `COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml` in a `.env` file next to `docker-compose.yml`, then run `docker compose up` as usual.
+
 3. **Access the application**
    - Frontend: `http://localhost:3000`
    - Backend API: `http://localhost:8000`
