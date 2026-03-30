@@ -1,13 +1,13 @@
 # ============================================================================
-# Dunn Construction Project Planner — Application Configuration
+# Construction Project Planner — Application Configuration
 # (Merged with FEAT_UndergraduateAdvisor_v2 feature set: vLLM, LemonSlice, etc.)
 # ============================================================================
 
 app:
-  title: "Dunn Construction Project Planner"
+  title: "Construction Project Planner"
   subtitle: "AI-Powered Planning for Construction Professionals"
   primary_color: "#D97706"
-  footer_text: "© 2026 Dunn Construction Company. All rights reserved."
+  footer_text: "© 2026 Construction Project Planner. All rights reserved."
   user_avatars:
     - { id: "hardhat-amber", icon: "HardHat", color: "#D97706", bg: "#FFFBEB" }
     - { id: "shield-red", icon: "ShieldCheck", color: "#DC2626", bg: "#FEF2F2" }
@@ -26,8 +26,8 @@ homepage:
   description: >-
     Get AI-powered guidance on project scheduling, cost estimation, safety
     compliance, quality assurance, and operations from a team of specialized
-    advisors — each built to help mid-level managers deliver roads Dunn right.
-  features_title: "Why Use Dunn Construction Project Planner?"
+    advisors — each built to help mid-level managers deliver quality road and site work.
+  features_title: "Why Use Construction Project Planner?"
   features:
     - title: "Comprehensive Project Support"
       description: "Get expert guidance on scheduling, budgeting, safety, quality, and operations from specialized AI advisors"
@@ -125,7 +125,7 @@ personas:
       temperature: 4
       lemonslice_agent_id: ""
       persona_prompt: |
-        You are a senior construction project scheduler with 15+ years of experience planning timelines for heavy civil and asphalt paving in the southeastern U.S. You work for Dunn Construction in Birmingham, Alabama. Your users are mid-level managers (PMs, superintendents, site supervisors).
+        You are a senior construction project scheduler with 15+ years of experience planning timelines for heavy civil and asphalt paving in the southeastern U.S. You work for a regional heavy civil contractor. Your users are mid-level managers (PMs, superintendents, site supervisors).
 
         **YOUR EXPERTISE:** CPM scheduling, crew/equipment allocation, weather contingency for HMA, ALDOT phasing, look-ahead schedules, schedule recovery, subcontractor and traffic control coordination.
 
@@ -149,7 +149,7 @@ personas:
       temperature: 4
       lemonslice_agent_id: ""
       persona_prompt: |
-        You are a construction safety professional focused on OSHA, hazard assessment, and safety programs for heavy civil and asphalt paving. Dunn Construction is committed to every employee going home safe.
+        You are a construction safety professional focused on OSHA, hazard assessment, and safety programs for heavy civil and asphalt paving. Your organization is committed to every employee going home safe.
 
         **YOUR EXPERTISE:** OSHA 1926, work zone traffic control (MUTCD/ALDOT), HMA safety, heat illness programs, heavy equipment, trenching, PPE, incident investigation, toolbox talks.
 
@@ -157,7 +157,7 @@ personas:
 
         **DOCUMENT HANDLING:** Review JHAs, safety plans, incident reports; identify gaps; reference documents specifically.
 
-        **INTERACTION GUIDELINES:** Reinforce Dunn's safety culture; proactive not just reactive; conservative when uncertain.
+        **INTERACTION GUIDELINES:** Reinforce a strong safety culture; proactive not just reactive; conservative when uncertain.
 
     - id: cost_estimator
       type: advisor
@@ -173,7 +173,7 @@ personas:
       temperature: 4
       lemonslice_agent_id: ""
       persona_prompt: |
-        You are a senior construction cost estimator for asphalt paving and heavy civil bidding. Dunn is vertically integrated (asphalt, aggregates, trucking). Users need budgeting, tracking, and bid help.
+        You are a senior construction cost estimator for asphalt paving and heavy civil bidding. Your firm is vertically integrated (asphalt, aggregates, trucking). Users need budgeting, tracking, and bid help.
 
         **YOUR EXPERTISE:** Takeoffs, unit costs, ALDOT bid structures, material and fuel tracking, production rates, change orders, overhead and margins.
 
@@ -197,7 +197,7 @@ personas:
       temperature: 4
       lemonslice_agent_id: ""
       persona_prompt: |
-        You are a QC/QA specialist for asphalt mix design, materials testing, and DOT specs. Dunn is committed to quality on every project.
+        You are a QC/QA specialist for asphalt mix design, materials testing, and DOT specs. The company is committed to quality on every project.
 
         **YOUR EXPERTISE:** HMA QC, density and cores, aggregate specs, ALDOT/FHWA acceptance, documentation, smoothness, plant calibration, non-conformance resolution.
 
@@ -221,7 +221,7 @@ personas:
       temperature: 5
       lemonslice_agent_id: ""
       persona_prompt: |
-        You manage equipment fleets, crews, and logistics for asphalt and road work. Dunn runs plants, quarries, and trucking across Alabama.
+        You manage equipment fleets, crews, and logistics for asphalt and road work. Your operation runs plants, quarries, and trucking across the region.
 
         **YOUR EXPERTISE:** Pavers, rollers, milling, haul dispatch, crew scheduling, plant coordination, aggregate supply, fuel and maintenance, subs, weather shutdowns.
 
@@ -245,7 +245,7 @@ personas:
       temperature: 5
       lemonslice_agent_id: ""
       persona_prompt: |
-        You advise on environmental compliance and sustainability for heavy civil work. Dunn emphasizes RAP, warm-mix, and responsible quarry operations.
+        You advise on environmental compliance and sustainability for heavy civil work. Emphasize RAP, warm-mix, and responsible quarry operations.
 
         **YOUR EXPERTISE:** NPDES/SWPPP, ADEM, plant emissions, erosion control, RAP/RAS, warm-mix, wetlands/404, SPCC, noise and dust near communities.
 
@@ -319,7 +319,7 @@ auth:
 
 mongodb:
   connection_string: ""
-  database_name: "dunn_construction_planner"
+  database_name: "construction_planner"
 
 llm:
   gemini:
@@ -355,7 +355,7 @@ llm:
 
 rag:
   embedding_model: "all-MiniLM-L6-v2"
-  chroma_collection: "dunn_construction_documents"
+  chroma_collection: "construction_documents"
 
 # Course scraper scheduler reads semesters; leave empty when not using CU course pipeline.
 scheduling:

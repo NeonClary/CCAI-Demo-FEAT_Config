@@ -1,3 +1,7 @@
+# Project name → container prefix (Compose requires lowercase).
+# Builds use BuildKit; Dockerfile RUN --mount caches apt/pip/npm/Playwright between builds.
+name: feat-construction-planner-v1
+
 services:
   backend:
     build:
@@ -12,7 +16,7 @@ services:
       - database
     environment:
       MONGODB_CONNECTION_STRING: "mongodb://database:27017"
-      MONGODB_DATABASE: dunn_construction_planner
+      MONGODB_DATABASE: construction_planner
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-CHANGEME-by-overriding-in-dot-env-file}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-?}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3005,http://localhost:3000}
@@ -42,7 +46,7 @@ services:
       - database
     environment:
       MONGODB_CONNECTION_STRING: "mongodb://database:27017"
-      MONGODB_DATABASE: dunn_construction_planner
+      MONGODB_DATABASE: construction_planner
       GEMINI_API_KEY: ${GEMINI_API_KEY:-?}
     command: ["python3", "scheduler_main.py"]
   database:
