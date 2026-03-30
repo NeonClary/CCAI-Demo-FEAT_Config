@@ -309,6 +309,45 @@ async def chat_sequential_enhanced(
                 }
             }
 
+        if query_type == "contractor_schedule":
+            LOG.info("Routing to Contractor Scheduler tool")
+            tool_resp = await chat_orchestrator.handle_contractor_schedule_query(
+                user_message=message.user_input,
+                session_id=session_id,
+                response_length=message.response_length or "medium",
+            )
+            return {
+                "responses": [tool_resp],
+                "session_debug": {
+                    "session_id": session_id,
+                    "route": "contractor_schedule",
+                    "documents_available": rag_stats.get('total_documents', 0),
+                    "selected_personas": ["contractor_scheduler"],
+                    "total_personas_available": len(chat_orchestrator.personas),
+                }
+            }
+
+        if query_type == "weather":
+            LOG.info("Routing to Weather Forecast tool")
+            tool_resp = await chat_orchestrator.handle_weather_query(
+                user_message=message.user_input,
+                session_id=session_id,
+                response_length=message.response_length or "medium",
+            )
+            if tool_resp is None:
+                LOG.info("Weather handler returned None — falling through to general panel")
+            else:
+                return {
+                    "responses": [tool_resp],
+                    "session_debug": {
+                        "session_id": session_id,
+                        "route": "weather",
+                        "documents_available": rag_stats.get('total_documents', 0),
+                        "selected_personas": ["weather_forecast"],
+                        "total_personas_available": len(chat_orchestrator.personas),
+                    }
+                }
+
         chat_orchestrator._clear_agent_route(session_id)
 
         _agent_ids = get_agent_ids()
@@ -454,6 +493,29 @@ async def chat_stream(
                 yield f"event: advisor\ndata: {json_mod.dumps(cr)}\n\n"
                 yield "event: done\ndata: {}\n\n"
                 return
+
+            if query_type == "contractor_schedule":
+                tr = await chat_orchestrator.handle_contractor_schedule_query(
+                    user_message=message.user_input,
+                    session_id=sid,
+                    response_length=message.response_length or "medium",
+                )
+                yield f"event: advisor\ndata: {json_mod.dumps(tr)}\n\n"
+                yield "event: done\ndata: {}\n\n"
+                return
+
+            if query_type == "weather":
+                wr = await chat_orchestrator.handle_weather_query(
+                    user_message=message.user_input,
+                    session_id=sid,
+                    response_length=message.response_length or "medium",
+                )
+                if wr is not None:
+                    yield f"event: advisor\ndata: {json_mod.dumps(wr)}\n\n"
+                    yield "event: done\ndata: {}\n\n"
+                    return
+                # wr is None → weather handler couldn't answer without location
+                # and it's a general weather question — fall through to panel
 
             chat_orchestrator._clear_agent_route(sid)
 

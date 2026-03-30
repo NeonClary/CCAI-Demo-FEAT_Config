@@ -92,6 +92,24 @@ chat_page:
         - "What QC/QA testing is required for hot-mix asphalt on a state highway project?"
         - "How do I handle a failing density test result on a freshly paved section?"
         - "What documentation do I need to maintain for aggregate quality compliance?"
+    - title: "Contractor Scheduling"
+      icon: "CalendarClock"
+      color: "#9333EA"
+      bg_color: "#F5F3FF"
+      suggestions:
+        - "I need to schedule a cement pour for Thursday, April 30, 2026"
+        - "Schedule roofing, window installation, and cement pouring across 3 consecutive days starting May 4, 2026 — use the same contractor as much as possible"
+        - "Which contractors are available for asphalt paving on April 29, 2026?"
+        - "I need excavation and electrical work done back-to-back starting April 28, 2026"
+        - "What are the flex/overtime options for getting framing done on Sunday, May 3, 2026?"
+    - title: "Weather Forecast"
+      icon: "CloudSun"
+      color: "#0891B2"
+      bg_color: "#ECFEFF"
+      suggestions:
+        - "What's the weather forecast for Dallas, TX this week?"
+        - "I need to pour cement on Thursday, April 30, 2026 in Raleigh, NC. Is the weather going to cooperate?"
+        - "Schedule roofing, window installation, and cement pouring over 3 consecutive days starting Monday, May 4, 2026 in Nashville, TN. Flag any weather concerns."
 
 personas:
   base_prompt: |
@@ -356,6 +374,16 @@ llm:
 rag:
   embedding_model: "all-MiniLM-L6-v2"
   chroma_collection: "construction_documents"
+
+tools:
+  - id: contractor_scheduler
+    name: "Contractor Scheduler"
+    description: "Find and schedule available contractors for construction tasks based on availability, preferences, and incentives"
+    icon: "CalendarClock"
+  - id: weather_forecast
+    name: "Weather Forecast"
+    description: "10-day weather forecast for any location with construction task advisories"
+    icon: "CloudSun"
 
 # Course scraper scheduler reads semesters; leave empty when not using CU course pipeline.
 scheduling:

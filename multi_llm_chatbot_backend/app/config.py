@@ -263,6 +263,15 @@ class SchedulingConfig(BaseModel):
     cu_semesters: List[SemesterConfig] = []
 
 
+class ToolConfig(BaseModel):
+    """Single tool entry exposed in the Tools menu."""
+
+    id: str
+    name: str = ""
+    description: str = ""
+    icon: str = "Wrench"
+
+
 class LemonSliceConfig(BaseModel):
     """LemonSlice integration settings."""
 
@@ -290,6 +299,7 @@ class AppSettings(BaseModel):
     llm: LLMConfig = LLMConfig()
     rag: RAGConfig = RAGConfig()
     scheduling: SchedulingConfig = SchedulingConfig()
+    tools: List[ToolConfig] = []
     lemonslice: LemonSliceConfig = LemonSliceConfig()
 
     # ------------------------------------------------------------------
@@ -330,6 +340,7 @@ class AppSettings(BaseModel):
             "orchestrator": {
                 "avatar": self.orchestrator.avatar,
             },
+            "tools": [t.dict() for t in self.tools],
             "lemonslice": {
                 "enabled": self.lemonslice.enabled,
                 "default_agent_id": self.lemonslice.default_agent_id,

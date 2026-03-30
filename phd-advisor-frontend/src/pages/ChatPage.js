@@ -16,6 +16,7 @@ import '../styles/ChatPage.css';
 import '../styles/EnhancedChatInput.css';
 import AdvisorStatusDropdown from '../components/AdvisorStatusDropdown';
 import AgentStatusDropdown from '../components/AgentStatusDropdown';
+import ToolsMenu from '../components/ToolsMenu';
 import OnboardingChat from '../components/OnboardingChat';
 import ProfileWalkthrough from '../components/ProfileWalkthrough';
 import ClearDataModal from '../components/ClearDataModal';
@@ -995,6 +996,13 @@ const handleNewChat = async (sessionId = null) => {
                 getAgentColors={getAgentColors}
                 isDark={isDark}
               />
+              <ToolsMenu onToolSelect={(tool) => {
+                const prompts = {
+                  contractor_scheduler: "I need to schedule a contractor — what tasks and dates do you need?",
+                  weather_forecast: "What location would you like a weather forecast for?",
+                };
+                handleSendMessage(prompts[tool.id] || `Use the ${tool.name} tool`);
+              }} />
               
               <div className="header-controls">
                 {/* Optional: Add header sign out button */}

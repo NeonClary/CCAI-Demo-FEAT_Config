@@ -554,19 +554,53 @@ class ImprovedChatOrchestrator:
     # ── Orchestrator routing ─────────────────────────────────────────────
 
     def classify_query(self, user_input: str, session_id: Optional[str] = None) -> str:
-        """Classify whether a query should be routed to the course-database
+        """Classify whether a query should be routed to a specialist
         sub-agent instead of the normal multi-persona panel.
 
-        Uses conversation history to detect follow-up questions that should
-        stay with the same specialist agent even when the wording alone
-        would not trigger specialist routing.
+        Routes:
+
+        - ``"course_db"`` — course / professor database queries
+        - ``"contractor_schedule"`` — contractor scheduling requests
+        - ``"weather"`` — weather forecast requests
+        - ``"general"`` — everything else (multi-persona panel)
 
         :param user_input: The user's raw message.
         :param session_id: Optional session identifier for follow-up detection.
-        :returns: ``"course_db"`` or ``"general"``.
+        :returns: One of the route strings above.
         """
         input_lower = user_input.lower()
 
+        # ── Contractor scheduling detection ──────────────────────────
+        contractor_patterns = [
+            r"schedul\w*\s+.*(contractor|cement|pour|roof|window|pav|asphalt|electric|plumb|paint|fram|excavat|inspect)",
+            r"(contractor|crew)\s+.*(availab|schedul|book|assign)",
+            r"(availab|book|assign)\s+.*(contractor|crew)",
+            r"(which|find|suggest)\s+(contractor|crew)",
+            r"(need|want)\s+to\s+schedul",
+            r"schedul\w*\s+.*(across|over|consecutive|days|week)",
+            r"(cement|concrete)\s+(pour|work)",
+            r"(roof|window|pav|asphalt|paint|fram)\w*\s+(install|work|job|schedul)",
+            r"organize\s+.*(contractor|task|job|work)",
+        ]
+        if any(re.search(p, input_lower) for p in contractor_patterns):
+            LOG.info(f"Query classified as contractor_schedule: {user_input[:80]!r}")
+            return "contractor_schedule"
+
+        # ── Weather detection ────────────────────────────────────────
+        weather_patterns = [
+            r"\bweather\b",
+            r"\bforecast\b",
+            r"(rain|snow|storm|thunder|sleet|hail|temperature)\s*(forecast|tomorrow|today|this week|next week)?",
+            r"(will it|is it going to)\s+(rain|snow|storm|be cold|be hot)",
+            r"what('s| is) the\s+(weather|forecast|temperature)",
+            r"(suitable|safe|advisable|good day)\s+(for|to)\s+(work|pour|pav|roof|paint)",
+            r"(can we|should we)\s+(work|pour|pave|roof)\s+.*(tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)",
+        ]
+        if any(re.search(p, input_lower) for p in weather_patterns):
+            LOG.info(f"Query classified as weather: {user_input[:80]!r}")
+            return "weather"
+
+        # ── Course DB detection (existing) ───────────────────────────
         has_course_code = bool(
             re.search(r'\b[A-Z]{2,4}\s*\d{3,4}\b', user_input)
         )
@@ -689,6 +723,27 @@ class ImprovedChatOrchestrator:
                 r"\b(another|different)\s+(section|professor|time)\b",
             ]
             if any(re.search(p, lower) for p in course_followup_patterns):
+                return True
+
+        if last_route == "contractor_schedule":
+            sched_followup = [
+                r"\b(contractor|crew|builder)\b",
+                r"\b(day|date|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+                r"\b(cement|roof|window|pav|asphalt|electric|plumb|paint|fram|excavat)\b",
+                r"\b(preferred|cheapest|fastest|earliest)\b",
+                r"\b(incentive|overtime|double\s*rate|flex)\b",
+            ]
+            if any(re.search(p, lower) for p in sched_followup):
+                return True
+
+        if last_route == "weather":
+            weather_followup = [
+                r"\b(rain|snow|storm|thunder|wind|temperature|forecast|weather)\b",
+                r"\b(tomorrow|today|this week|next week)\b",
+                r"\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+                r"\b(safe|advisable|suitable)\b",
+            ]
+            if any(re.search(p, lower) for p in weather_followup):
                 return True
 
         return False
@@ -878,6 +933,258 @@ class ImprovedChatOrchestrator:
             LOG.warning(f"Follow-up resolution failed: {e}")
 
         return user_message
+
+    # ── Contractor scheduling handler ──────────────────────────────────
+
+    async def handle_contractor_schedule_query(
+        self,
+        user_message: str,
+        session_id: str,
+        response_length: str = "medium",
+    ) -> Dict[str, Any]:
+        """Agentic handler: find contractors for a service/date and optionally
+        attach weather warnings for weather-sensitive tasks.
+
+        Uses the LLM to extract structured parameters from the user's
+        natural-language request, then calls the scheduling engine.
+        """
+        try:
+            session = self.session_manager.get_session(session_id)
+
+            params = await self._extract_schedule_params(user_message, session)
+
+            from app.tools.contractor_scheduler import (
+                find_available_contractors,
+                schedule_multi_day,
+                format_single_schedule,
+                format_multi_day_plan,
+                normalize_service_name,
+            )
+            from app.tools.weather_service import (
+                geocode_location,
+                get_forecast,
+                evaluate_weather_risks,
+                format_weather_warnings,
+            )
+
+            tasks_raw = params.get("tasks", [])
+            tasks = []
+            for t in tasks_raw:
+                sid = normalize_service_name(t)
+                if sid:
+                    tasks.append(sid)
+                else:
+                    tasks.append(t)
+
+            start_date = params.get("start_date")
+            is_multi = len(tasks) > 1
+
+            if is_multi and start_date:
+                result = schedule_multi_day(tasks, start_date, prefer_same_contractor=True)
+                body = format_multi_day_plan(result)
+                dates_used = result.get("dates", [])
+            elif tasks and start_date:
+                result = find_available_contractors(tasks[0], start_date)
+                body = format_single_schedule(result)
+                dates_used = [start_date]
+            else:
+                body = "I need a specific task and date to search contractor availability. For example: *Schedule a cement pour for Thursday, April 30, 2026.*"
+                self._set_last_agent_route(session_id, "contractor_schedule")
+                return self._tool_response("contractor_scheduler", "Contractor Scheduler", body, "contractor_schedule")
+
+            weather_block = ""
+            location_name = params.get("location")
+            weather_tasks = tasks if is_multi else tasks
+            from app.tools.contractor_scheduler import _load_data
+            svc_data = _load_data().get("services", {})
+            sensitive = [t for t in weather_tasks if svc_data.get(t, {}).get("weather_sensitive")]
+
+            if sensitive and location_name:
+                try:
+                    geo = await geocode_location(location_name)
+                    if geo:
+                        forecast = await get_forecast(geo["latitude"], geo["longitude"])
+                        task_dates = dates_used if is_multi else [start_date] * len(sensitive)
+                        if is_multi:
+                            aligned_tasks = []
+                            aligned_dates = []
+                            for t, d in zip(tasks, dates_used):
+                                if t in sensitive:
+                                    aligned_tasks.append(t)
+                                    aligned_dates.append(d)
+                            warnings = evaluate_weather_risks(forecast, aligned_tasks, aligned_dates)
+                        else:
+                            warnings = evaluate_weather_risks(forecast, sensitive, [start_date] * len(sensitive))
+                        weather_block = format_weather_warnings(warnings)
+                except Exception as we:
+                    LOG.warning(f"Weather check failed during scheduling: {we}")
+            elif sensitive and not location_name:
+                weather_block = (
+                    "\n\n> The task(s) you're scheduling ("
+                    + ", ".join(svc_data.get(t, {}).get("label", t) for t in sensitive)
+                    + ") are weather-sensitive. To check the forecast, please specify a location "
+                    "(e.g. *'in Dallas, TX'*)."
+                )
+
+            content = body + weather_block
+            session.append_message("contractor_scheduler", content)
+            self._set_last_agent_route(session_id, "contractor_schedule")
+
+            return self._tool_response("contractor_scheduler", "Contractor Scheduler", content, "contractor_schedule")
+
+        except Exception as e:
+            LOG.error(f"Contractor schedule handler failed: {e}")
+            LOG.error(traceback.format_exc())
+            return self._tool_response(
+                "contractor_scheduler", "Contractor Scheduler",
+                "I'm having trouble accessing the scheduling system right now. Please try again.",
+                "contractor_schedule",
+            )
+
+    async def _extract_schedule_params(self, user_message: str, session) -> Dict[str, Any]:
+        """Use the LLM to pull tasks, start_date, and location from a
+        natural-language scheduling request."""
+        from app.core.bootstrap import create_llm_client
+
+        recent = []
+        for msg in (session.messages[-6:] if len(session.messages) > 6 else session.messages):
+            if msg.get("role") != "system":
+                recent.append({"role": msg["role"], "content": msg["content"][:500]})
+
+        system = (
+            "You extract structured scheduling parameters from a construction "
+            "manager's message. Return ONLY valid JSON with these keys:\n"
+            '  "tasks": ["cement_pouring", "roofing", ...],\n'
+            '  "start_date": "YYYY-MM-DD" or null,\n'
+            '  "location": "City, State" or null\n\n'
+            "Known task types: cement_pouring, roofing, window_installation, "
+            "asphalt_paving, excavation, electrical_work, plumbing, framing, "
+            "painting_exterior, site_inspection.\n"
+            "Map synonyms (e.g. 'concrete pour' → 'cement_pouring', 'windows' → 'window_installation').\n"
+            "If the user says 'Thursday, April 30, 2026' convert to '2026-04-30'.\n"
+            "Return ONLY the JSON object — no markdown, no explanation."
+        )
+
+        llm = create_llm_client()
+        try:
+            raw = await llm.generate(
+                system_prompt=system,
+                context=recent + [{"role": "user", "content": user_message}],
+                temperature=0.1,
+                max_tokens=300,
+            )
+            cleaned = raw.strip()
+            cleaned = re.sub(r"```(?:json)?", "", cleaned).strip()
+            match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+            if match:
+                return json.loads(match.group(0))
+        except Exception as e:
+            LOG.warning(f"Schedule param extraction failed: {e}")
+        return {"tasks": [], "start_date": None, "location": None}
+
+    # ── Weather forecast handler ────────────────────────────────────
+
+    async def handle_weather_query(
+        self,
+        user_message: str,
+        session_id: str,
+        response_length: str = "medium",
+    ) -> Dict[str, Any]:
+        """Agentic handler: fetch a 10-day weather forecast for a location
+        extracted from the user's message."""
+        try:
+            session = self.session_manager.get_session(session_id)
+            location_name = self._extract_location(user_message)
+
+            if not location_name:
+                is_direct_weather = bool(re.search(
+                    r"(what('s| is) the (weather|forecast|temperature))|"
+                    r"(will it (rain|snow))|"
+                    r"(weather (tomorrow|today|this week|next))",
+                    user_message.lower(),
+                ))
+                if is_direct_weather:
+                    content = (
+                        "I'd be happy to check the weather forecast — could you "
+                        "specify a location? For example: *\"What's the weather "
+                        "in Nashville, TN?\"*"
+                    )
+                else:
+                    return None  # signal to caller: fall through to general panel
+
+                session.append_message("weather_forecast", content)
+                self._set_last_agent_route(session_id, "weather")
+                return self._tool_response("weather_forecast", "Weather Forecast", content, "weather")
+
+            from app.tools.weather_service import (
+                geocode_location,
+                get_forecast,
+                format_forecast_table,
+            )
+
+            geo = await geocode_location(location_name)
+            if not geo:
+                content = f"I couldn't find a location matching \"{location_name}\". Please try a more specific city or region name."
+                session.append_message("weather_forecast", content)
+                self._set_last_agent_route(session_id, "weather")
+                return self._tool_response("weather_forecast", "Weather Forecast", content, "weather")
+
+            forecast = await get_forecast(geo["latitude"], geo["longitude"])
+            label = f"{geo['name']}, {geo['admin1']}" if geo.get("admin1") else geo["name"]
+            content = format_forecast_table(forecast, label)
+
+            session.append_message("weather_forecast", content)
+            self._set_last_agent_route(session_id, "weather")
+            return self._tool_response("weather_forecast", "Weather Forecast", content, "weather")
+
+        except Exception as e:
+            LOG.error(f"Weather handler failed: {e}")
+            LOG.error(traceback.format_exc())
+            return self._tool_response(
+                "weather_forecast", "Weather Forecast",
+                "I'm having trouble fetching the weather forecast right now. Please try again.",
+                "weather",
+            )
+
+    @staticmethod
+    def _extract_location(text: str) -> Optional[str]:
+        """Pull a location from natural language using common patterns.
+
+        Returns ``None`` if no location is found (never guesses or defaults).
+        """
+        patterns = [
+            r"\bin\s+([A-Z][a-zA-Z\s]+,\s*[A-Z]{2})\b",
+            r"\bfor\s+([A-Z][a-zA-Z\s]+,\s*[A-Z]{2})\b",
+            r"\bin\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\b",
+            r"\bfor\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\b",
+        ]
+        stop_words = {
+            "Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
+            "Saturday", "Sunday", "January", "February", "March",
+            "April", "May", "June", "July", "August", "September",
+            "October", "November", "December", "Spring", "Summer",
+            "Fall", "Winter", "Schedule", "Roofing", "Cement",
+            "Window", "Asphalt", "Paint", "Frame", "Plumbing",
+        }
+        for pat in patterns:
+            m = re.search(pat, text)
+            if m:
+                loc = m.group(1).strip()
+                if loc.split()[0] not in stop_words and len(loc) > 2:
+                    return loc
+        return None
+
+    @staticmethod
+    def _tool_response(persona_id: str, persona_name: str, content: str, route: str) -> Dict[str, Any]:
+        """Build a standardised tool response dict."""
+        return {
+            "persona_id": persona_id,
+            "persona_name": persona_name,
+            "content": content,
+            "used_documents": False,
+            "document_chunks_used": 0,
+            "route": route,
+        }
 
     async def _retrieve_relevant_documents(self, user_input: str, session_id: str, persona_id: str = "") -> str:
         """Enhanced document retrieval with document awareness and better attribution.
