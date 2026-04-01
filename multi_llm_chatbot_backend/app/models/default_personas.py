@@ -56,7 +56,7 @@ def _build_personas_dict() -> Dict[str, Any]:
     registry: Dict[str, Any] = {}
     for p in cfg.personas.items:
         full_prompt = p.persona_prompt.strip()
-        if base_prompt:
+        if base_prompt and getattr(p, "type", "advisor") != "agent":
             full_prompt = f"{full_prompt}\n\n{base_prompt}"
         registry[p.id] = {
             "name": p.name,

@@ -29,7 +29,7 @@ const OnboardingChat = ({ authToken, onClose, userName }) => {
         setComplete(data.complete || false);
       }
     } catch (e) {
-      setMessages([{ role: 'agent', text: "Hi! Let's get to know each other. What are you studying?" }]);
+      setMessages([{ role: 'agent', text: "Hi! Let's get your advisory workspace configured. What domain or use case are you focusing on?" }]);
     }
   };
 
@@ -78,7 +78,7 @@ const OnboardingChat = ({ authToken, onClose, userName }) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <MessageCircle size={18} style={{ color: 'var(--accent-primary)' }} />
             <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 14 }}>
-              Tell us about yourself
+              Configure your advisory profile
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

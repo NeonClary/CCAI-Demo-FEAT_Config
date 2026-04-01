@@ -44,26 +44,26 @@ from app.core.database import get_database
 LOG = logging.getLogger(__name__)
 
 PROFILE_FIELDS: List[tuple] = [
-    ("major", "What is your major / area of study?",
-     "The student's declared or intended major (e.g. 'Computer Science', 'Biology')"),
-    ("minor", "Do you have a minor or secondary focus?",
-     "The student's minor or secondary area of study"),
-    ("year", "What year are you (freshman, sophomore, junior, senior)?",
-     "Academic year: freshman, sophomore, junior, senior, or graduate"),
-    ("gpa_range", "What GPA range are you in (e.g. 3.0-3.5)?",
-     "Approximate GPA range like '3.0-3.5' or 'around 3.5'"),
-    ("career_goals", "What career or goals are you working toward after graduation?",
-     "Post-graduation career goals, job aspirations, or grad school plans"),
-    ("courses_completed", "What key courses have you already completed?",
-     "List of courses already taken (course names or codes)"),
-    ("courses_planned", "Are there courses you're planning to take next?",
-     "Courses the student plans to take next semester or in the future"),
-    ("schedule_preferences", "Do you have schedule preferences (morning/afternoon, no Fridays, etc.)?",
-     "Time-of-day preferences, day-of-week preferences, or constraints like 'no 8am classes', 'prefer afternoons', 'MWF only', 'mornings', 'no Fridays'"),
-    ("learning_style", "How would you describe your learning style?",
-     "How the student learns best: visual, hands-on, reading, lectures, group work, etc."),
-    ("extracurriculars", "Are you involved in any clubs, sports, or extracurriculars?",
-     "Clubs, sports, organizations, volunteer work, or other activities"),
+    ("major", "What is your primary focus area for this advisory panel?",
+     "Primary domain or use case (e.g. customer support, HR operations, project planning)"),
+    ("minor", "Do you have a secondary focus area?",
+     "Secondary domain, optional"),
+    ("year", "What role level best fits you?",
+     "Role level such as executive, director, manager, individual contributor, consultant"),
+    ("gpa_range", "Which organization stage best describes your context?",
+     "Organization stage such as early stage, growth, established, enterprise"),
+    ("career_goals", "What outcomes are you trying to achieve with this advisory assistant?",
+     "Goals, success metrics, and desired business outcomes"),
+    ("courses_completed", "What initiatives have already been started?",
+     "Existing initiatives, projects, or workflows already in place"),
+    ("courses_planned", "What initiatives are planned next?",
+     "Upcoming initiatives or priorities"),
+    ("schedule_preferences", "Any collaboration preferences for responses (concise, detailed, weekly planning, etc.)?",
+     "Communication and planning preferences"),
+    ("learning_style", "How do you prefer information to be presented?",
+     "Preferred style such as executive summary, step-by-step, data-driven, visual"),
+    ("extracurriculars", "Any additional context, constraints, or stakeholders we should consider?",
+     "Extra organizational context"),
 ]
 
 
@@ -129,7 +129,7 @@ class OnboardingAgent:
         if not missing:
             return {
                 "reply": "Awesome — I've got everything I need! Your profile is all set. "
-                         "Your advisors will now use this info to give you more personalized guidance.",
+                         "Your personas will now use this info to provide more tailored guidance.",
                 "progress": 100,
                 "complete": True,
             }
@@ -190,8 +190,8 @@ class OnboardingAgent:
         filled_summary = ", ".join(filled_parts) or "nothing yet"
         next_field_key, next_field_q, _ = missing[0]
         system = (
-            "You are a friendly onboarding assistant helping a university student "
-            "fill out their profile. You chat like a friendly advisor — warm, curious, natural.\n"
+            "You are a friendly onboarding assistant helping a user "
+            "set up a configurable advisory workspace. You chat warmly and naturally.\n"
             "RULES:\n"
             "- Respond in exactly ONE short paragraph (2-3 sentences).\n"
             "- First, briefly acknowledge what the student just said.\n"

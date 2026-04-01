@@ -50,46 +50,37 @@ class CanvasAnalysisService:
         
         # Predefined section mappings for semantic analysis
         self.section_keywords: Dict[str, List[str]] = {
-            "research_progress": [
-                "progress", "milestone", "completed", "finished", "accomplished", 
-                "achieved", "timeline", "deadline", "chapter", "draft", "version"
+            "strategy_priorities": [
+                "strategy", "priority", "objective", "goal", "roadmap",
+                "decision", "focus", "alignment", "portfolio", "initiative"
             ],
-            "methodology": [
-                "method", "methodology", "approach", "design", "data collection",
-                "survey", "interview", "experiment", "analysis", "statistical", 
-                "qualitative", "quantitative", "mixed methods"
+            "implementation_roadmap": [
+                "phase", "timeline", "milestone", "plan", "next step",
+                "owner", "dependency", "rollout", "execution", "deliverable"
             ],
-            "theoretical_framework": [
-                "theory", "theoretical", "framework", "concept", "model",
-                "literature", "author", "philosophy", "paradigm", "assumption"
+            "operations_workflows": [
+                "workflow", "process", "handoff", "queue", "ticket",
+                "automation", "throughput", "bottleneck", "operational", "sop"
             ],
-            "challenges_obstacles": [
-                "challenge", "problem", "difficulty", "obstacle", "stuck",
-                "confused", "frustrated", "struggle", "barrier", "issue"
+            "knowledge_content": [
+                "document", "policy", "playbook", "knowledge base", "faq",
+                "content", "source", "retrieval", "rag", "context"
             ],
-            "next_steps": [
-                "next", "plan", "should", "will", "going to", "need to",
-                "action", "step", "priority", "focus", "goal", "objective"
+            "governance_risk": [
+                "risk", "governance", "compliance", "security", "privacy",
+                "guardrail", "audit", "approval", "control", "policy"
             ],
-            "writing_communication": [
-                "write", "writing", "paper", "thesis", "dissertation", "publication",
-                "communication", "presentation", "defense", "draft", "revision"
+            "metrics_roi": [
+                "kpi", "metric", "roi", "impact", "value",
+                "measurement", "baseline", "target", "scorecard", "dashboard"
             ],
-            "career_development": [
-                "career", "job", "position", "networking", "conference",
-                "skills", "CV", "resume", "application", "fellowship", "grant"
+            "change_enablement": [
+                "adoption", "training", "enablement", "communication", "stakeholder",
+                "change", "readiness", "coaching", "playbook", "buy-in"
             ],
-            "literature_review": [
-                "literature", "sources", "papers", "articles", "bibliography",
-                "citation", "author", "study", "research", "gap", "review"
-            ],
-            "data_analysis": [
-                "data", "analysis", "results", "findings", "statistics",
-                "coding", "software", "tool", "visualization", "pattern"
-            ],
-            "motivation_mindset": [
-                "motivation", "confidence", "stress", "anxiety", "balance",
-                "mental health", "mindset", "support", "overwhelmed", "burnout"
+            "opportunities_innovation": [
+                "opportunity", "innovation", "experiment", "pilot", "expansion",
+                "new use case", "future", "growth", "idea", "differentiation"
             ]
         }
     

@@ -50,7 +50,7 @@ class CanvasInsight(BaseModel):
     keywords: List[str] = Field(default_factory=list)
 
 class CanvasSection(BaseModel):
-    """A themed section of the PhD Canvas with related insights"""
+    """A themed section of the advisory canvas with related insights"""
     title: str
     description: str
     insights: List[CanvasInsight] = Field(default_factory=list)
@@ -58,7 +58,7 @@ class CanvasSection(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 class PhdCanvas(BaseModel):
-    """Main PhD Canvas model storing all user insights organized by sections"""
+    """Main advisory canvas model storing user insights by section"""
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     user_id: PyObjectId
 
@@ -125,32 +125,30 @@ class PhdCanvas(BaseModel):
     def _get_section_title(self, section_key: str) -> str:
         """Get human-readable title for section"""
         titles = {
-            "research_progress": "Research Progress & Milestones",
-            "methodology": "Research Methods & Approach",
-            "theoretical_framework": "Theoretical Foundations",
-            "challenges_obstacles": "Challenges & Solutions",
-            "next_steps": "Action Items & Next Steps",
-            "writing_communication": "Writing & Communication",
-            "career_development": "Academic Career Planning",
-            "literature_review": "Literature & Sources",
-            "data_analysis": "Data & Analysis",
-            "motivation_mindset": "Motivation & Mindset"
+            "strategy_priorities": "Strategy & Priorities",
+            "implementation_roadmap": "Implementation Roadmap",
+            "operations_workflows": "Operations & Workflows",
+            "knowledge_content": "Knowledge & Content",
+            "governance_risk": "Governance & Risk",
+            "metrics_roi": "Metrics & ROI",
+            "change_enablement": "Change Enablement",
+            "opportunities_innovation": "Opportunities & Innovation",
+            "general_notes": "General Notes",
         }
         return titles.get(section_key, section_key.replace("_", " ").title())
 
     def _get_section_description(self, section_key: str) -> str:
         """Get description for each section"""
         descriptions = {
-            "research_progress": "Key milestones, accomplishments, and timeline updates",
-            "methodology": "Research design decisions and methodological insights",
-            "theoretical_framework": "Theoretical perspectives and conceptual foundations",
-            "challenges_obstacles": "Challenges faced and strategies for overcoming them",
-            "next_steps": "Immediate action items and upcoming priorities",
-            "writing_communication": "Writing strategies and communication insights",
-            "career_development": "Professional development and career planning",
-            "literature_review": "Literature gaps, sources, and review strategies",
-            "data_analysis": "Data collection and analysis approaches",
-            "motivation_mindset": "Motivational insights and mental health considerations"
+            "strategy_priorities": "Strategic goals, sequencing decisions, and priority alignment",
+            "implementation_roadmap": "Recommended rollout phases, owners, and next actions",
+            "operations_workflows": "Process design, workflow changes, and execution patterns",
+            "knowledge_content": "Insights tied to documents, policies, and reusable knowledge assets",
+            "governance_risk": "Controls, compliance concerns, and risk mitigation guidance",
+            "metrics_roi": "KPIs, measurement plans, and business impact indicators",
+            "change_enablement": "Team readiness, training, communication, and adoption support",
+            "opportunities_innovation": "New initiatives, growth ideas, and future-state opportunities",
+            "general_notes": "Additional guidance and cross-cutting observations",
         }
         return descriptions.get(section_key, "General insights and guidance")
 

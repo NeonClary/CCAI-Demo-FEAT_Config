@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Mail, Lock, User, ArrowRight, BookOpen, Phone, GraduationCap } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, ArrowRight, BookOpen, Phone, Briefcase } from 'lucide-react';
 import { useAppConfig } from '../contexts/AppConfigContext';
 import '../styles/Signup.css';
 
@@ -75,7 +75,7 @@ const Signup = ({ onNavigateToLogin, onNavigateToHome }) => {
     }
     
     if (!formData.academicStage) {
-      newErrors.academicStage = 'Please select your academic stage';
+      newErrors.academicStage = 'Please select your role level';
     }
     
     setErrors(newErrors);
@@ -144,7 +144,7 @@ const Signup = ({ onNavigateToLogin, onNavigateToHome }) => {
           </div>
           <h1 className="signup-title">Join Our Community</h1>
           <p className="signup-subtitle">
-            {config?.login?.signup_subtitle || 'Create your account to get personalized guidance from expert advisors'}
+            {config?.login?.signup_subtitle || 'Create your account to explore this white-label AI advisory template'}
           </p>
         </div>
 
@@ -285,13 +285,13 @@ const Signup = ({ onNavigateToLogin, onNavigateToHome }) => {
               </div>
             </div>
 
-            {/* Academic Stage */}
+            {/* Role Level */}
             <div className="form-group">
               <label htmlFor="academicStage" className="form-label">
-                Academic Stage
+                Role Level
               </label>
               <div className="input-container">
-                <GraduationCap className="input-icon" />
+                <Briefcase className="input-icon" />
                 <select
                   id="academicStage"
                   name="academicStage"
@@ -312,10 +312,10 @@ const Signup = ({ onNavigateToLogin, onNavigateToHome }) => {
               )}
             </div>
 
-            {/* Research Area (Optional) */}
+            {/* Focus Area (Optional) */}
             <div className="form-group">
               <label htmlFor="researchArea" className="form-label">
-                Research Area <span className="optional">(Optional)</span>
+                Focus Area <span className="optional">(Optional)</span>
               </label>
               <div className="input-container">
                 <BookOpen className="input-icon" />
@@ -326,7 +326,7 @@ const Signup = ({ onNavigateToLogin, onNavigateToHome }) => {
                   value={formData.researchArea}
                   onChange={handleInputChange}
                   className="form-input"
-                  placeholder="e.g., Computer Science, Biology, Psychology..."
+                  placeholder="e.g., Construction planning, HR support, Higher education..."
                   disabled={isLoading}
                 />
               </div>

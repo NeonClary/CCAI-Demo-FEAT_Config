@@ -42,6 +42,7 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNav
   const [isSavingSession, setIsSavingSession] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const activeTimerHandlesRef = useRef({});
 
   // Phase 1.1: User avatar
   const [userAvatarId, setUserAvatarId] = useState(() => localStorage.getItem('userAvatarId') || (user?.avatarId ?? null));
@@ -170,6 +171,13 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNav
     fetchCurrentProvider();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      Object.values(activeTimerHandlesRef.current).forEach((h) => clearTimeout(h));
+      activeTimerHandlesRef.current = {};
+    };
+  }, []);
+
   const fetchCurrentProvider = async () => {
     try {
       const response = await fetch(`${process.env.REACT_APP_API_URL}/current-provider`);
@@ -282,6 +290,43 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNav
 
   const generateMessageId = () => {
     return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+  };
+
+  const scheduleTimerCompletionNotice = (parsedEvent) => {
+    if (parsedEvent?.persona_id !== 'timer_advisor') return;
+    if (!parsedEvent?.timer_due_at || !parsedEvent?.timer_seconds) return;
+
+    const timerKey = parsedEvent.timer_id || `${parsedEvent.timer_due_at}_${parsedEvent.timer_seconds}`;
+    const dueAtMs = new Date(parsedEvent.timer_due_at).getTime();
+    if (!Number.isFinite(dueAtMs)) return;
+
+    if (activeTimerHandlesRef.current[timerKey]) {
+      clearTimeout(activeTimerHandlesRef.current[timerKey]);
+      delete activeTimerHandlesRef.current[timerKey];
+    }
+
+    const remainingMs = dueAtMs - Date.now();
+    if (remainingMs <= 0) {
+      setMessages(prev => [...prev, {
+        id: generateMessageId(),
+        type: 'system',
+        content: '⏰ Timer complete.',
+        timestamp: new Date(),
+      }]);
+      return;
+    }
+
+    const timeoutHandle = setTimeout(() => {
+      setMessages(prev => [...prev, {
+        id: generateMessageId(),
+        type: 'system',
+        content: '⏰ Timer complete.',
+        timestamp: new Date(),
+      }]);
+      delete activeTimerHandlesRef.current[timerKey];
+    }, remainingMs);
+
+    activeTimerHandlesRef.current[timerKey] = timeoutHandle;
   };
 
   const createNewSession = async (firstMessage = null) => {
@@ -612,9 +657,15 @@ const handleNewChat = async (sessionId = null) => {
               advisorName: parsed.persona_name || parsed.persona_id,
               used_documents: parsed.used_documents || false,
               document_chunks_used: parsed.document_chunks_used || 0,
+              timer_id: parsed.timer_id,
+              timer_due_at: parsed.timer_due_at,
+              timer_seconds: parsed.timer_seconds,
+              timer_action: parsed.timer_action,
+              timer_remaining_seconds: parsed.timer_remaining_seconds,
             };
             setMessages(prev => [...prev, msg]);
             setThinkingAdvisors(prev => prev.filter(id => id !== parsed.persona_id && id !== 'system'));
+            scheduleTimerCompletionNotice(parsed);
             dbSavePromises.push(saveMessageToSession(msg, sessionId));
           } else if (eventType === 'progress') {
             // Synthesized mode: an advisor finished but we only show
@@ -1039,7 +1090,7 @@ const handleNewChat = async (sessionId = null) => {
                       <img src="/neon-logo.png" alt="" className="footer-neon-logo" />
                       Neon.ai
                     </a>
-                    , portions copyright University of Colorado Boulder. All rights reserved.{' '}
+                    , white-label demo configuration. All rights reserved.{' '}
                     <a href="https://www.neon.ai/contact" target="_blank" rel="noopener noreferrer" className="footer-patents-link">
                       Patents and licensing.
                     </a>

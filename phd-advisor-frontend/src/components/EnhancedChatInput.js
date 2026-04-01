@@ -309,7 +309,7 @@ const EnhancedChatInput = ({
                   type="button"
                 >
                   <MessageCircle size={16} />
-                  <span>Tell us about yourself</span>
+                  <span>Configure profile context</span>
                 </button>
                 <button
                   onClick={onOpenProfileForm}
@@ -317,7 +317,7 @@ const EnhancedChatInput = ({
                   type="button"
                 >
                   <ClipboardList size={16} />
-                  <span>Fill out profile form</span>
+                  <span>Open profile form</span>
                 </button>
               </>
             )}

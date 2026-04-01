@@ -291,20 +291,40 @@ async def chat_sequential_enhanced(
             }
 
         query_type = chat_orchestrator.classify_query(message.user_input, session_id=session_id)
-        if query_type == "course_db":
-            LOG.info("Routing to Course Advisor sub-agent for database query")
-            course_response = await chat_orchestrator.handle_course_query(
+        if query_type == "weather_api" and "weather_advisor" not in chat_orchestrator.personas:
+            query_type = "general"
+        if query_type == "timer_api" and "timer_advisor" not in chat_orchestrator.personas:
+            query_type = "general"
+        if query_type == "weather_api":
+            LOG.info("Routing to Weather Advisor sub-agent for forecast query")
+            weather_response = await chat_orchestrator.handle_weather_query(
                 user_message=message.user_input,
                 session_id=session_id,
                 response_length=message.response_length or "medium",
             )
             return {
-                "responses": [course_response],
+                "responses": [weather_response],
                 "session_debug": {
                     "session_id": session_id,
-                    "route": "course_db",
+                    "route": "weather_api",
                     "documents_available": rag_stats.get('total_documents', 0),
-                    "selected_personas": ["course_advisor"],
+                    "selected_personas": ["weather_advisor"],
+                    "total_personas_available": len(chat_orchestrator.personas),
+                }
+            }
+        if query_type == "timer_api":
+            LOG.info("Routing to Timer Assistant sub-agent")
+            timer_response = await chat_orchestrator.handle_timer_query(
+                user_message=message.user_input,
+                session_id=session_id,
+            )
+            return {
+                "responses": [timer_response],
+                "session_debug": {
+                    "session_id": session_id,
+                    "route": "timer_api",
+                    "documents_available": rag_stats.get('total_documents', 0),
+                    "selected_personas": ["timer_advisor"],
                     "total_personas_available": len(chat_orchestrator.personas),
                 }
             }
@@ -316,6 +336,26 @@ async def chat_sequential_enhanced(
                            if pid not in _agent_ids]
         if message.active_advisors:
             all_persona_ids = [pid for pid in all_persona_ids if pid in message.active_advisors]
+        if not all_persona_ids:
+            LOG.warning("No advisor personas available after filtering; returning explicit system message")
+            return {
+                "responses": [{
+                    "persona_id": "system",
+                    "persona_name": "System",
+                    "content": "No advisor personas are currently enabled. Please enable at least one advisor and try again.",
+                    "used_documents": False,
+                    "document_chunks_used": 0,
+                }],
+                "session_debug": {
+                    "session_id": session_id,
+                    "documents_available": rag_stats.get('total_documents', 0),
+                    "chunks_available": rag_stats.get('total_chunks', 0),
+                    "valid_responses": 0,
+                    "selected_personas": [],
+                    "total_personas_available": len(chat_orchestrator.personas),
+                    "route": "no_advisors_available",
+                }
+            }
 
         k = min(3, len(all_persona_ids))
         top_personas = await chat_orchestrator.get_top_personas(
@@ -323,6 +363,9 @@ async def chat_sequential_enhanced(
             k=k,
             allowed_ids=all_persona_ids
         )
+        if not top_personas:
+            LOG.warning("Top persona selection returned empty; falling back to first available advisors")
+            top_personas = all_persona_ids[:k] if k > 0 else []
 
         LOG.info(f"Intelligent persona order for session {session_id}: {top_personas}")
 
@@ -445,13 +488,25 @@ async def chat_stream(
                 return
 
             query_type = chat_orchestrator.classify_query(message.user_input, session_id=sid)
-            if query_type == "course_db":
-                cr = await chat_orchestrator.handle_course_query(
+            if query_type == "weather_api" and "weather_advisor" not in chat_orchestrator.personas:
+                query_type = "general"
+            if query_type == "timer_api" and "timer_advisor" not in chat_orchestrator.personas:
+                query_type = "general"
+            if query_type == "weather_api":
+                cr = await chat_orchestrator.handle_weather_query(
                     user_message=message.user_input,
                     session_id=sid,
                     response_length=message.response_length or "medium",
                 )
                 yield f"event: advisor\ndata: {json_mod.dumps(cr)}\n\n"
+                yield "event: done\ndata: {}\n\n"
+                return
+            if query_type == "timer_api":
+                tr = await chat_orchestrator.handle_timer_query(
+                    user_message=message.user_input,
+                    session_id=sid,
+                )
+                yield f"event: advisor\ndata: {json_mod.dumps(tr)}\n\n"
                 yield "event: done\ndata: {}\n\n"
                 return
 
@@ -461,10 +516,16 @@ async def chat_stream(
             all_ids = [pid for pid in chat_orchestrator.personas if pid not in _agent_ids]
             if message.active_advisors:
                 all_ids = [pid for pid in all_ids if pid in message.active_advisors]
+            if not all_ids:
+                yield "event: error\ndata: {\"detail\": \"No advisor personas are currently enabled. Please enable at least one advisor and try again.\"}\n\n"
+                yield "event: done\ndata: {}\n\n"
+                return
             k = min(3, len(all_ids))
             top_personas = await chat_orchestrator.get_top_personas(
                 session_id=sid, k=k, allowed_ids=all_ids,
             )
+            if not top_personas:
+                top_personas = all_ids[:k] if k > 0 else []
 
             doc_ctx = await chat_orchestrator._retrieve_relevant_documents(
                 user_input=message.user_input, session_id=sid, persona_id="",

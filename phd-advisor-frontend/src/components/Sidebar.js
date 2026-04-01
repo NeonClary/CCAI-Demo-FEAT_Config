@@ -15,7 +15,7 @@ import {
   ChevronRight,
   FileText,
   BookOpen,
-  GraduationCap
+  Sparkles
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useAppConfig } from '../contexts/AppConfigContext';
@@ -251,7 +251,7 @@ const Sidebar = ({
                           <span>User Guide</span>
                         </button>
                         <button className="user-menu-item" onClick={() => { setShowUserMenu(false); if (onOpenTutorial) onOpenTutorial(); }}>
-                          <GraduationCap size={16} />
+                          <Sparkles size={16} />
                           <span>Tutorial</span>
                         </button>
                         <button className="user-menu-item sign-out" onClick={onSignOut}>
@@ -398,7 +398,7 @@ const Sidebar = ({
           </a>
           {!isCollapsed && (
             <p className="sidebar-copyright-text">
-              Copyright Neon.ai, portions copyright University of Colorado Boulder. All rights reserved.{' '}
+              Copyright Neon.ai, white-label demo configuration. All rights reserved.{' '}
               <a href="https://www.neon.ai/contact" target="_blank" rel="noopener noreferrer" className="sidebar-patents-link">
                 Patents and licensing.
               </a>

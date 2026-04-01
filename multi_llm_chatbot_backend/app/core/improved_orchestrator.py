@@ -367,10 +367,11 @@ class ImprovedChatOrchestrator:
                         persona_id=persona.id,
                     )
 
-            if persona.id == "course_advisor" and user_message:
-                course_data_context = await self._query_course_database(user_message)
-                if course_data_context:
-                    document_context = (document_context or "") + "\n\n" + course_data_context
+            if persona.id == "weather_advisor" and user_message:
+                weather_result = await self._query_weather_forecast(user_message)
+                weather_data_context = weather_result.get("context", "")
+                if weather_data_context:
+                    document_context = (document_context or "") + "\n\n" + weather_data_context
 
             enhanced_context = await self._build_enhanced_context_for_persona(
                 session, persona, user_message, document_context
@@ -481,80 +482,70 @@ class ImprovedChatOrchestrator:
 
         return responses
 
-    async def _query_course_database(self, user_message: str) -> str:
-        """Query the courses and professor_ratings MongoDB collections.
-
-        Returns a formatted text block that can be injected into the
-        ``course_advisor`` persona's context.
-
-        :param user_message: The user's course-related query.
-        :returns: Formatted course data string, or empty string on failure.
-        """
+    async def _query_weather_forecast(self, user_message: str) -> Dict[str, Any]:
+        """Fetch weather forecast context from Open-Meteo (free API)."""
         try:
-            from app.core.course_query_engine import smart_course_search
-            from app.core.bootstrap import create_llm_client
+            from app.core.weather_query_engine import smart_weather_search
 
-            llm = create_llm_client()
-            result = await smart_course_search(user_message, llm)
-
+            result = await smart_weather_search(user_message)
             lines: List[str] = []
-            lines.append("=== COURSE & PROFESSOR DATABASE RESULTS ===")
+            lines.append("=== WEATHER FORECAST DATA ===")
+            lines.append(result.get("message", "No weather data available."))
 
-            if result.get("message"):
-                lines.append(result["message"])
+            if result.get("location"):
+                lines.append(f"Location: {result['location']}")
 
-            for course in result.get("results", []):
-                sched = course.get("schedule", {})
-                line = (
-                    f"- {course.get('course_code')} sec {course.get('section')}: "
-                    f"{course.get('title')} | Instructor: {course.get('instructor')} "
-                    f"| Schedule: {sched.get('raw', 'TBA')} | Location: {course.get('location', 'TBA')} "
-                    f"| Seats: {course.get('seats_available', '?')} "
-                    f"| Prof Rating: {course.get('professor_rating', 'N/A')}/5 "
-                    f"| Difficulty: {course.get('professor_difficulty', 'N/A')}/5 "
-                    f"| Would Take Again: {course.get('would_take_again_pct', 'N/A')}%"
+            for day in result.get("forecast", []):
+                lines.append(
+                    f"- {day.get('date')}: {day.get('summary')} | "
+                    f"High: {day.get('temp_max_c')}C | Low: {day.get('temp_min_c')}C | "
+                    f"Precipitation chance: {day.get('precip_prob_pct')}%"
                 )
-                lines.append(line)
 
-            if result.get("filters_used"):
-                lines.append(f"Parsed filters: {json.dumps(result['filters_used'])}")
-
-            for alt in result.get("alternatives", []):
-                param = alt.get("relaxed_parameter", "some constraints")
-                lines.append(f"\n--- ALTERNATIVE (with {param} relaxed): ---")
-                if alt.get("relaxation_detail"):
-                    lines.append(f"  Change: {alt['relaxation_detail']}")
-                for course in alt.get("results", []):
-                    sched = course.get("schedule", {})
-                    line = (
-                        f"- {course.get('course_code')} sec {course.get('section')}: "
-                        f"{course.get('title')} | Instructor: {course.get('instructor')} "
-                        f"| Schedule: {sched.get('raw', 'TBA')} "
-                        f"| Prof Rating: {course.get('professor_rating', 'N/A')}/5 "
-                        f"| Difficulty: {course.get('professor_difficulty', 'N/A')}/5 "
-                        f"| Would Take Again: {course.get('would_take_again_pct', 'N/A')}%"
-                    )
-                    lines.append(line)
-
-            lines.append("=== END DATABASE RESULTS ===")
+            lines.append("=== END WEATHER FORECAST DATA ===")
             lines.append(
-                "Use the above real data in your response. Cite specific section numbers, "
-                "professor ratings, and schedules. If no exact matches were found but alternatives "
-                "exist, present the best options from each relaxation path. For example: "
-                "'No classes match exactly, but Section 006 at 8am has a 4.3-star professor, "
-                "and Section 004 at 1pm has a 3.9-star professor.' "
-                "If no results at all, suggest trying different criteria."
+                "Use the forecast details above directly in your response. "
+                "If no location was provided or found, ask for a clear city or region."
             )
-            return "\n".join(lines)
-
+            return {
+                "context": "\n".join(lines),
+                "status": result.get("status", "error"),
+                "location": result.get("location"),
+            }
         except Exception as e:
-            LOG.warning(f"Course database query failed: {e}")
-            return ""
+            LOG.warning(f"Weather forecast query failed: {e}")
+            return {
+                "context": "",
+                "status": "error",
+                "location": None,
+            }
+
+    async def _query_timer_tool(
+        self,
+        user_message: str,
+        session_id: str,
+    ) -> Dict[str, Any]:
+        """Handle timer set/status/cancel requests for a session."""
+        session = self.session_manager.get_session(session_id)
+        existing_timer = getattr(session, "_active_timer", None)
+
+        from app.core.timer_query_engine import build_timer_result
+
+        result = build_timer_result(user_message, existing_timer=existing_timer)
+        action = result.get("action")
+
+        if action == "set" and result.get("timer"):
+            session._active_timer = result["timer"]
+        elif action in {"cancelled", "expired"}:
+            if hasattr(session, "_active_timer"):
+                del session._active_timer
+
+        return result
 
     # ── Orchestrator routing ─────────────────────────────────────────────
 
     def classify_query(self, user_input: str, session_id: Optional[str] = None) -> str:
-        """Classify whether a query should be routed to the course-database
+        """Classify whether a query should be routed to the weather API
         sub-agent instead of the normal multi-persona panel.
 
         Uses conversation history to detect follow-up questions that should
@@ -563,43 +554,48 @@ class ImprovedChatOrchestrator:
 
         :param user_input: The user's raw message.
         :param session_id: Optional session identifier for follow-up detection.
-        :returns: ``"course_db"`` or ``"general"``.
+        :returns: ``"weather_api"``, ``"timer_api"``, or ``"general"``.
         """
         input_lower = user_input.lower()
 
-        has_course_code = bool(
-            re.search(r'\b[A-Z]{2,4}\s*\d{3,4}\b', user_input)
-        )
-
-        db_patterns = [
-            r"professor\s+rat(ed|ing)", r"\d+\s*star",
-            r"star\s*(professor|rating)", r"best\s+professor",
-            r"(which|what)\s+(section|class|option)",
-            r"start(s|ing)?\s+(at|after|before)",
-            r"no\s+\d+\s*am", r"no\s+(morning|8am|8\s*am|early)",
-            r"(schedule|time)\s+(for|preference)",
-            r"take\s+again", r"difficulty\s+rat",
-            r"seats?\s+available", r"(open|available)\s+section",
+        timer_patterns = [
+            r"\bset (?:me )?(?:a )?timer\b",
+            r"\btimer for\b",
+            r"\bcountdown\b",
+            r"\btell me when\b.*\b(minute|second|hour)s?\b",
+            r"\bhow much time (?:is )?left\b",
+            r"\bcancel (?:my )?timer\b",
+            r"\bstop (?:my )?timer\b",
         ]
-        has_db_indicator = any(
-            re.search(p, input_lower) for p in db_patterns
-        )
+        has_timer_indicator = any(re.search(p, input_lower) for p in timer_patterns)
+        if has_timer_indicator:
+            LOG.info(f"Query classified as timer_api (explicit signals): {user_input[:80]!r}")
+            return "timer_api"
 
-        course_words = ["class", "course", "section", "lecture", "lab"]
-        sched_rate_words = [
-            "schedule", "time", "morning", "afternoon", "evening",
-            "rating", "rated", "star", "difficulty",
-            "professor", "instructor", "start", "available",
+        weather_patterns = [
+            r"\bweather\b", r"\bforecast\b", r"\btemperature\b", r"\brain\b",
+            r"\bsnow\b", r"\bhumidity\b", r"\bwind\b", r"\btoday\b",
+            r"\btomorrow\b", r"\bthis weekend\b", r"\bnext week\b",
         ]
-        has_course_word = any(w in input_lower for w in course_words)
-        has_sched_rate = any(w in input_lower for w in sched_rate_words)
+        has_weather_indicator = any(re.search(p, input_lower) for p in weather_patterns)
 
-        if has_course_code or has_db_indicator or (has_course_word and has_sched_rate):
-            LOG.info(f"Query classified as course_db (explicit signals): {user_input[:80]!r}")
-            return "course_db"
+        if has_weather_indicator:
+            LOG.info(f"Query classified as weather_api (explicit signals): {user_input[:80]!r}")
+            return "weather_api"
 
         # ── Context-aware follow-up detection ────────────────────────
         if session_id:
+            session = self.session_manager.get_session(session_id)
+            if (
+                session
+                and getattr(session, "_weather_needs_location", False)
+                and self._looks_like_location_followup(user_input)
+            ):
+                LOG.info(
+                    f"Query classified as weather_api (pending-location follow-up): {user_input[:80]!r}"
+                )
+                return "weather_api"
+
             last_route = self._get_last_agent_route(session_id)
             if last_route and self._is_follow_up(user_input, last_route):
                 LOG.info(
@@ -608,6 +604,25 @@ class ImprovedChatOrchestrator:
                 return last_route
 
         return "general"
+
+    @staticmethod
+    def _looks_like_location_followup(user_input: str) -> bool:
+        """Heuristic for location-only replies like 'Seattle' or 'Austin, TX'."""
+        text = (user_input or "").strip()
+        if not text:
+            return False
+
+        lower = text.lower()
+        if re.search(r"\b(weather|forecast|temperature|rain|snow|wind|humidity)\b", lower):
+            return False
+        if text.endswith("?"):
+            return False
+
+        words = text.split()
+        if len(words) > 6:
+            return False
+
+        return bool(re.fullmatch(r"[A-Za-z][A-Za-z\s,\-']{1,80}", text))
 
     def _get_last_agent_route(self, session_id: str) -> Optional[str]:
         """Check session metadata for the most recent specialist route.
@@ -636,8 +651,14 @@ class ImprovedChatOrchestrator:
         :param session_id: Session identifier to clear.
         """
         session = self.session_manager.get_session(session_id)
-        if session and hasattr(session, "_last_agent_route"):
+        if not session:
+            return
+        if hasattr(session, "_last_agent_route"):
             del session._last_agent_route
+        if hasattr(session, "_weather_needs_location"):
+            del session._weather_needs_location
+        if hasattr(session, "_weather_pending_query"):
+            del session._weather_pending_query
 
     @staticmethod
     def _is_follow_up(user_input: str, last_route: str) -> bool:
@@ -648,7 +669,7 @@ class ImprovedChatOrchestrator:
 
         - Short messages (<15 words) that contain referential language
           (``"what about"``, ``"how about"``, ``"instead"``, ``"also"``, etc.)
-        - Semester / time references when the last route was ``course_db``
+        - Timeframe/weather references when the last route was ``weather_api``
         - Pronoun-heavy starts (``"that"``, ``"those"``, ``"it"``, ``"them"``)
         - Comparative / alternative phrasing
 
@@ -676,57 +697,64 @@ class ImprovedChatOrchestrator:
             if any(re.search(p, lower) for p in follow_up_phrases):
                 return True
 
-        if last_route == "course_db":
-            course_followup_patterns = [
-                r"\b(spring|summer|fall|winter)\b",
-                r"\bsemester\b", r"\bterm\b",
-                r"\b(next|this|last)\s+(year|semester|term)\b",
-                r"\b(earlier|later)\b",
-                r"\bmorning\b", r"\bafternoon\b", r"\bevening\b",
-                r"\b(mon|tue|wed|thu|fri|mwf|tth)\b",
-                r"\b(online|in\s*person|hybrid)\b",
-                r"\b(easier|harder)\b",
-                r"\b(another|different)\s+(section|professor|time)\b",
+        if last_route == "weather_api":
+            weather_followup_patterns = [
+                r"\btoday\b", r"\btomorrow\b", r"\bweekend\b", r"\bnext week\b",
+                r"\bwarmer\b", r"\bcooler\b", r"\bhotter\b", r"\bcolder\b",
+                r"\brain\b", r"\bsnow\b", r"\bwind\b",
             ]
-            if any(re.search(p, lower) for p in course_followup_patterns):
+            if any(re.search(p, lower) for p in weather_followup_patterns):
+                return True
+        if last_route == "timer_api":
+            timer_followup_patterns = [
+                r"\bhow much time\b",
+                r"\btime left\b",
+                r"\bremaining\b",
+                r"\bhas it been\b",
+                r"\bis it done\b",
+                r"\bcancel\b",
+                r"\bstop\b",
+            ]
+            if any(re.search(p, lower) for p in timer_followup_patterns):
                 return True
 
         return False
 
-    async def handle_course_query(
+    async def handle_weather_query(
         self,
         user_message: str,
         session_id: str,
         response_length: str = "medium",
     ) -> Dict[str, Any]:
-        """Specialised sub-agent: queries the course / professor database and
+        """Specialised sub-agent: queries Open-Meteo weather APIs and
         returns a single, data-driven response.
 
         Bypasses the multi-persona panel and compact-markdown formatting so the
         answer can include detailed section-by-section recommendations.
 
-        For follow-up messages the LLM is given the conversation history so it
-        can resolve references like *"What about Fall semester?"* against the
-        previous query's parameters.
-
-        :param user_message: The course-related user query.
+        :param user_message: The weather-related user query.
         :param session_id: Current session identifier.
         :param response_length: Desired response verbosity.
-        :returns: A dict with the course advisor response and metadata.
+        :returns: A dict with the weather advisor response and metadata.
         """
         try:
             session = self.session_manager.get_session(session_id)
+            original_user_message = user_message
+            if (
+                getattr(session, "_weather_needs_location", False)
+                and self._looks_like_location_followup(user_message)
+            ):
+                pending_query = getattr(session, "_weather_pending_query", "weather today")
+                user_message = f"{pending_query} in {user_message.strip()}"
 
-            effective_query = await self._resolve_course_followup(
-                user_message, session
-            )
+            weather_result = await self._query_weather_forecast(user_message)
+            weather_data = weather_result.get("context", "")
+            weather_status = weather_result.get("status", "error")
 
-            course_data = await self._query_course_database(effective_query)
-
-            persona = self.get_persona("course_advisor")
+            persona = self.get_persona("weather_advisor")
             base_prompt = (
                 persona.system_prompt if persona
-                else "You are a CU Boulder course advisor with access to the course database."
+                else "You are a weather advisor with access to live weather forecast data."
             )
 
             profile_block = ""
@@ -735,23 +763,19 @@ class ImprovedChatOrchestrator:
 
             system_prompt = (
                 f"{base_prompt}{profile_block}\n\n"
-                f"{course_data or 'No course data available for this query.'}\n\n"
+                f"{weather_data or 'No weather data available for this query.'}\n\n"
                 "RESPONSE FORMAT — follow this EXACTLY (no other sections):\n"
                 "\n"
-                "### Top Pick\n"
-                "Identify the single best option from the results and present it with\n"
-                "section number, professor name, rating, schedule, and a brief reason\n"
-                "why it is the best match.\n"
+                "### Forecast Summary\n"
+                "Give a concise weather summary for the requested location and timeframe.\n"
                 "\n"
-                "### Search Results\n"
-                "List ALL matching options (including the top pick) with section number,\n"
-                "professor name, rating, schedule, and seat availability. Use a numbered\n"
-                "list. When criteria were relaxed, note what changed.\n"
+                "### Daily Outlook\n"
+                "List the available daily forecast entries with conditions, highs/lows, and rain chance.\n"
                 "\n"
                 "RULES:\n"
-                "- You have REAL data above. NEVER say you cannot access schedules or ratings.\n"
-                "- Do NOT include 'Thought', 'What to do', or 'Next step' sections.\n"
-                "- If no data was found, say so and suggest different criteria.\n"
+                "- Use the real weather data above.\n"
+                "- If no location was provided, ask the user for a city/region.\n"
+                "- Do not invent measurements.\n"
             )
 
             context = []
@@ -771,113 +795,79 @@ class ImprovedChatOrchestrator:
                 max_tokens=token_map.get(response_length, 1024),
             )
 
-            session.append_message("course_advisor", response_text)
+            session.append_message("weather_advisor", response_text)
+            self._set_last_agent_route(session_id, "weather_api")
 
-            self._set_last_agent_route(session_id, "course_db")
+            if weather_status in {"need_location", "location_not_found"}:
+                session._weather_needs_location = True
+                session._weather_pending_query = original_user_message
+            else:
+                if hasattr(session, "_weather_needs_location"):
+                    del session._weather_needs_location
+                if hasattr(session, "_weather_pending_query"):
+                    del session._weather_pending_query
 
             return {
-                "persona_id": "course_advisor",
-                "persona_name": "Course Advisor",
+                "persona_id": "weather_advisor",
+                "persona_name": "Weather Advisor",
                 "content": response_text,
                 "used_documents": True,
                 "document_chunks_used": 0,
-                "route": "course_db",
+                "route": "weather_api",
             }
-
         except Exception as e:
-            LOG.error(f"Course query sub-agent failed: {e}")
+            LOG.error(f"Weather query sub-agent failed: {e}")
             LOG.error(traceback.format_exc())
             return {
-                "persona_id": "course_advisor",
-                "persona_name": "Course Advisor",
-                "content": "I'm having trouble accessing the course database right now. Please try again.",
+                "persona_id": "weather_advisor",
+                "persona_name": "Weather Advisor",
+                "content": "I'm having trouble accessing the weather service right now. Please try again.",
                 "used_documents": False,
                 "document_chunks_used": 0,
-                "route": "course_db",
+                "route": "weather_api",
             }
 
-    async def _resolve_course_followup(
-        self, user_message: str, session: ConversationContext
-    ) -> str:
-        """Turn a short follow-up into a fully-qualified course query by
-        merging it with the previous turn's parameters.
-
-        If the message already looks self-contained (has a course code or is
-        long), return it unchanged.
-
-        :param user_message: The user's latest message.
-        :param session: Current conversation context.
-        :returns: The expanded (or original) query string.
-        """
-        if re.search(r'\b[A-Z]{2,4}\s*\d{3,4}\b', user_message):
-            return user_message
-        if len(user_message.split()) >= 20:
-            return user_message
-
-        recent_turns = []
-        for msg in session.messages[-10:]:
-            role = msg.get("role", "")
-            content = msg.get("content", "")
-            if role in ("user", "course_advisor"):
-                recent_turns.append(f"{role}: {content[:500]}")
-
-        if not recent_turns:
-            return user_message
-
-        conversation_block = "\n".join(recent_turns)
-
-        from app.core.bootstrap import create_llm_client
-        from app.scrapers.course_scraper import KNOWN_TERMS
-        llm = create_llm_client()
-
-        terms_str = ", ".join(KNOWN_TERMS)
-        system = (
-            "You help resolve follow-up questions about CU Boulder courses.\n"
-            "Given the conversation history and the user's latest message, "
-            "produce a SINGLE self-contained course search query that keeps "
-            "all parameters from the previous query but applies the "
-            "modification the user is asking about.\n\n"
-            f"AVAILABLE SEMESTERS IN THE DATABASE: {terms_str}\n"
-            "When the user says a season like 'Fall' without a year, pick the "
-            "matching semester from the available list above.\n\n"
-            "Examples:\n"
-            "  Previous: 'Find CSCI 1300 sections with professors rated 4+'\n"
-            "  Follow-up: 'What about Fall semester?'\n"
-            "  Output: 'Find CSCI 1300 sections for Fall 2025 with professors rated 4+'\n\n"
-            "  Previous: 'ENES 1010 no 8am classes'\n"
-            "  Follow-up: 'What about summer?'\n"
-            "  Output: 'ENES 1010 no 8am classes for Summer 2026'\n\n"
-            "  Previous: 'CSCI 2270 for Spring 2026'\n"
-            "  Follow-up: 'Any sections with higher rated professors?'\n"
-            "  Output: 'CSCI 2270 for Spring 2026 with professors rated 4+'\n\n"
-            "Return ONLY the expanded query, nothing else. No explanation, "
-            "no markdown, just the query string."
-        )
-
+    async def handle_timer_query(
+        self,
+        user_message: str,
+        session_id: str,
+    ) -> Dict[str, Any]:
+        """Specialized sub-agent for setting/checking/cancelling timers."""
         try:
-            expanded = await llm.generate(
-                system_prompt=system,
-                context=[{
-                    "role": "user",
-                    "content": (
-                        f"Conversation so far:\n{conversation_block}\n\n"
-                        f"Latest message: {user_message}\n\n"
-                        "Produce the expanded, self-contained query:"
-                    ),
-                }],
-                temperature=0.1,
-                max_tokens=200,
-            )
-            expanded = expanded.strip().strip('"').strip("'")
-            if expanded and len(expanded) > 5:
-                LOG.info(
-                    f"Resolved follow-up: {user_message!r} -> {expanded!r}"
-                )
-                return expanded
-        except Exception as e:
-            LOG.warning(f"Follow-up resolution failed: {e}")
+            timer_result = await self._query_timer_tool(user_message, session_id)
+            timer = timer_result.get("timer") or {}
+            content = timer_result.get("message", "Timer request processed.")
 
-        return user_message
+            self._set_last_agent_route(session_id, "timer_api")
+
+            response: Dict[str, Any] = {
+                "persona_id": "timer_advisor",
+                "persona_name": "Timer Assistant",
+                "content": content,
+                "used_documents": False,
+                "document_chunks_used": 0,
+                "route": "timer_api",
+                "timer_action": timer_result.get("action", "none"),
+            }
+            if timer:
+                response["timer_id"] = timer.get("timer_id")
+                response["timer_due_at"] = timer.get("due_at")
+                response["timer_seconds"] = timer.get("duration_seconds")
+            if "remaining_seconds" in timer_result:
+                response["timer_remaining_seconds"] = timer_result["remaining_seconds"]
+            return response
+        except Exception as e:
+            LOG.error(f"Timer query sub-agent failed: {e}")
+            LOG.error(traceback.format_exc())
+            return {
+                "persona_id": "timer_advisor",
+                "persona_name": "Timer Assistant",
+                "content": "I couldn't process that timer request. Please try again.",
+                "used_documents": False,
+                "document_chunks_used": 0,
+                "route": "timer_api",
+                "timer_action": "error",
+            }
 
     async def _retrieve_relevant_documents(self, user_input: str, session_id: str, persona_id: str = "") -> str:
         """Enhanced document retrieval with document awareness and better attribution.
@@ -999,7 +989,8 @@ class ImprovedChatOrchestrator:
             "methodologist": "methodology research design experimental approach data collection sampling validity reliability statistical analysis quantitative qualitative mixed-methods procedures protocol IRB ethics",
             "theorist": "theory theoretical framework conceptual model literature review philosophy epistemology ontology paradigm abstract concepts hypothesis proposition postulate axiom",
             "pragmatist": "practical application implementation action steps next steps recommendation solution strategy timeline concrete advice roadmap execution deliverables milestones",
-            "course_advisor": "course schedule class professor rating section enrollment registration prerequisite semester credit GPA degree requirement elective catalog",
+            "weather_advisor": "weather forecast temperature precipitation rain snow wind humidity conditions today tomorrow weekend climate",
+            "timer_advisor": "timer countdown duration minutes seconds hours reminder elapsed remaining time alarm",
         }
         return enhanced_keywords.get(persona_id, "")
 
@@ -1099,13 +1090,19 @@ When analyzing the document context:
 - Reference specific deadlines or milestones mentioned in their documents"""
         }
 
-        instructions["course_advisor"] = """
+        instructions["weather_advisor"] = """
 When analyzing the document context:
-- Search for specific course codes, professor names, and scheduling details
-- Cross-reference professor ratings with available sections
-- Account for time preference buffers (8:15am is functionally the same as 8:00am)
-- When exact matches aren't found, progressively relax constraints and offer alternatives
-- Always include professor rating and schedule details in recommendations"""
+- Prioritize weather forecast and location references when available
+- Include concrete measurements (high/low temperatures and rain chance)
+- Make timeframe explicit (today, tomorrow, or next few days)
+- If location is unclear, ask for a city or region
+- Avoid inventing weather metrics not present in data"""
+        instructions["timer_advisor"] = """
+When analyzing the document context:
+- Ignore document context unless timer details are explicitly provided
+- Focus on duration, elapsed time, remaining time, and cancellation intent
+- Confirm timer details clearly and concisely
+- Do not invent timer values if not provided"""
 
         return instructions.get(persona_id, "Provide helpful guidance based on the document context.")
 

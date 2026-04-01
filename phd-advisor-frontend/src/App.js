@@ -25,10 +25,33 @@ function App() {
     if (token && userData) {
       try {
         const parsedUser = JSON.parse(userData);
-        setAuthToken(token);
-        setUser(parsedUser);
-        setIsAuthenticated(true);
-        setCurrentView('chat');
+        const validateToken = async () => {
+          try {
+            const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8001';
+            const response = await fetch(`${apiBaseUrl}/api/users/me/profile`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (!response.ok) {
+              localStorage.removeItem('authToken');
+              localStorage.removeItem('user');
+              return;
+            }
+
+            setAuthToken(token);
+            setUser(parsedUser);
+            setIsAuthenticated(true);
+            setCurrentView('chat');
+          } catch (error) {
+            // Keep the saved token on transient network failure.
+            setAuthToken(token);
+            setUser(parsedUser);
+            setIsAuthenticated(true);
+            setCurrentView('chat');
+          }
+        };
+
+        validateToken();
       } catch (error) {
         // Clear invalid data
         localStorage.removeItem('authToken');

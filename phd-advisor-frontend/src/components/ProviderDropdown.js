@@ -10,14 +10,14 @@ const ProviderDropdown = ({ currentProvider, onProviderChange, isLoading = false
   const providers = [
     {
       id: 'gemini',
-      name: 'Gemini',
+      name: 'Cloud-hosted LLMs',
       description: "Google's Gemini AI",
       icon: Cloud,
       badge: ''
     },
     {
-      id: 'ollama', 
-      name: 'Ollama',
+      id: 'ollama',
+      name: 'Self-hosted LLMs',
       description: 'Self-hosted vLLM inference',
       icon: Cpu,
       badge: 'Local'
@@ -31,7 +31,7 @@ const ProviderDropdown = ({ currentProvider, onProviderChange, isLoading = false
     }
   ];
 
-  const currentProviderInfo = providers.find(p => p.id === currentProvider);
+  const currentProviderInfo = providers.find(p => p.id === currentProvider) || providers[0];
 
   useEffect(() => {
     const handleClickOutside = (event) => {

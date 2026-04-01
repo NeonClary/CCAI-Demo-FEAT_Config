@@ -3,28 +3,28 @@ import { X, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 
 const STEPS = [
   {
-    title: 'Academic Info',
+    title: 'Organization Context',
     fields: [
-      { key: 'major', label: 'Major', type: 'text', placeholder: 'e.g. Computer Science' },
-      { key: 'minor', label: 'Minor (optional)', type: 'text', placeholder: 'e.g. Mathematics' },
-      { key: 'year', label: 'Year', type: 'select', options: ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate'] },
-      { key: 'gpa_range', label: 'GPA Range', type: 'select', options: ['Below 2.0', '2.0-2.5', '2.5-3.0', '3.0-3.5', '3.5-4.0'] },
+      { key: 'major', label: 'Primary Focus Area', type: 'text', placeholder: 'e.g. Customer support operations' },
+      { key: 'minor', label: 'Secondary Focus Area (optional)', type: 'text', placeholder: 'e.g. Internal HR workflows' },
+      { key: 'year', label: 'Role Level', type: 'select', options: ['Executive / Founder', 'Director / Department Leader', 'Manager / Team Lead', 'Individual Contributor', 'Consultant / Advisor'] },
+      { key: 'gpa_range', label: 'Organization Stage', type: 'select', options: ['Early stage', 'Growth stage', 'Established', 'Enterprise', 'Public / regulated'] },
     ],
   },
   {
-    title: 'Goals & Plans',
+    title: 'Goals & Priorities',
     fields: [
-      { key: 'career_goals', label: 'Career Goals', type: 'textarea', placeholder: 'What do you want to do after graduation?' },
-      { key: 'courses_completed', label: 'Courses Completed (comma-separated)', type: 'text', placeholder: 'e.g. CSCI 1300, MATH 2400' },
-      { key: 'courses_planned', label: 'Planned Courses (comma-separated)', type: 'text', placeholder: 'e.g. CSCI 3104, ENES 1010' },
+      { key: 'career_goals', label: 'Success Goals', type: 'textarea', placeholder: 'What outcomes do you want this advisory panel to improve?' },
+      { key: 'courses_completed', label: 'Existing Initiatives (comma-separated)', type: 'text', placeholder: 'e.g. Knowledge base rollout, Service desk automation' },
+      { key: 'courses_planned', label: 'Planned Initiatives (comma-separated)', type: 'text', placeholder: 'e.g. RAG pilot, Executive dashboard, Team training' },
     ],
   },
   {
-    title: 'Preferences',
+    title: 'Operating Preferences',
     fields: [
-      { key: 'schedule_preferences', label: 'Schedule Preferences', type: 'text', placeholder: 'e.g. No classes before 10am' },
-      { key: 'learning_style', label: 'Learning Style', type: 'text', placeholder: 'e.g. Visual, hands-on' },
-      { key: 'extracurriculars', label: 'Extracurriculars', type: 'textarea', placeholder: 'Clubs, sports, organizations...' },
+      { key: 'schedule_preferences', label: 'Collaboration Preferences', type: 'text', placeholder: 'e.g. Weekly updates, async-first, concise summaries' },
+      { key: 'learning_style', label: 'Preferred Working Style', type: 'text', placeholder: 'e.g. Data-driven, visual, workshop-based' },
+      { key: 'extracurriculars', label: 'Additional Context', type: 'textarea', placeholder: 'Team constraints, compliance notes, stakeholder expectations...' },
     ],
   },
 ];

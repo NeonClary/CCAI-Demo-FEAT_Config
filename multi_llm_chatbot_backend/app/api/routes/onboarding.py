@@ -102,7 +102,7 @@ async def onboarding_start(
     if progress == 0:
         greeting = (
             f"Hey {current_user.firstName}! I'd love to get to know you a bit so "
-            "your advisors can give you more personalized help. "
+            "your personas can give you more personalized help. "
             f"Let's start simple — {next_q.lower() if next_q else 'tell me about yourself!'}"
         )
     else:

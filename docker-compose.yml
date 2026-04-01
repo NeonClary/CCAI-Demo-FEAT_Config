@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
       target: backend
     ports:
-      - "8000:8000"
+      - "8001:8000"
     networks:
       - application
     depends_on:
@@ -15,22 +15,30 @@ services:
       MONGODB_DATABASE: undergrad_advisor
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-CHANGEME-by-overriding-in-dot-env-file}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-?}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001}
       GEMINI_MODEL: gemini-2.5-flash
       VLLM_API_KEY: ${VLLM_API_KEY:-}
+    volumes:
+      - ./multi_llm_chatbot_backend:/ccai/multi_llm_chatbot_backend
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/ccai/multi_llm_chatbot_backend/app"]
   frontend:
     build:
       context: .
       dockerfile: Dockerfile
       target: frontend
     ports:
-      - "3000:3000"
+      - "3001:3000"
     networks:
       - application
     depends_on:
       - backend
     environment:
-      REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:8000}
+      REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:8001}
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./phd-advisor-frontend:/ccai/phd-advisor-frontend
+      - /ccai/phd-advisor-frontend/node_modules
   scheduler:
     build:
       context: .
