@@ -17,10 +17,10 @@ const ProviderDropdown = ({ currentProvider, onProviderChange, isLoading = false
     },
     {
       id: 'ollama',
-      name: 'Self-hosted LLMs',
-      description: 'Self-hosted vLLM inference',
+      name: 'Neon.ai Models',
+      description: 'Neon BrainForge inference with personas',
       icon: Cpu,
-      badge: 'Local'
+      badge: 'Neon'
     },
     {
       id: 'hybrid',

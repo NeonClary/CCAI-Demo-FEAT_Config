@@ -28,7 +28,8 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 """
-Provider switching, vLLM model discovery, and per-persona LLM assignment.
+Provider switching, vLLM model discovery, BrainForge persona discovery,
+and per-persona LLM assignment.
 """
 
 import logging
@@ -40,6 +41,7 @@ from pydantic import BaseModel
 import app.core.bootstrap as bootstrap
 from app.config import get_settings
 from app.llm.vllm_client import discover_all_models
+from app.llm.hana_client import hana_client
 
 LOG = logging.getLogger(__name__)
 
@@ -55,6 +57,8 @@ class ModelAssignment(BaseModel):
     model_id: str
     client_id: str
     api_url: str
+    persona_name: Optional[str] = None
+    system_prompt: Optional[str] = None
 
 
 class OllamaAssignments(BaseModel):
@@ -158,6 +162,39 @@ async def list_ollama_models() -> Dict[str, Any]:
         return {"models": [], "message": "No models available."}
 
     return {"models": models}
+
+
+# ── BrainForge model + persona discovery ─────────────────────────────
+
+@router.get("/neon/models")
+async def list_neon_models() -> Dict[str, Any]:
+    """Return Neon.ai models with personas from HANA BrainForge.
+
+    Falls back to plain vLLM model discovery (no personas) if HANA
+    is not configured or unreachable.
+    """
+    neon_models: List[Dict[str, Any]] = []
+
+    if hana_client.is_configured:
+        try:
+            neon_models = await hana_client.get_models()
+        except Exception as exc:
+            LOG.warning("HANA BrainForge unavailable: %s", exc)
+
+    settings = get_settings()
+    vllm_cfg = settings.llm.vllm
+    vllm_models: List[Dict[str, Any]] = []
+    if vllm_cfg.clients:
+        clients = [
+            {"id": c.id, "name": c.name, "api_url": c.api_url}
+            for c in vllm_cfg.clients
+        ]
+        vllm_models = await discover_all_models(clients, vllm_cfg.api_key)
+
+    return {
+        "neon_models": neon_models,
+        "vllm_models": vllm_models,
+    }
 
 
 # ── Per-persona LLM assignment ───────────────────────────────────────

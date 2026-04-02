@@ -57,17 +57,25 @@ def _is_gemini_assignment(assignment: Optional[Dict]) -> bool:
 
 
 def _client_from_assignment(assignment: Dict) -> LLMClient:
-    """Build the appropriate LLM client from a single assignment dict."""
+    """Build the appropriate LLM client from a single assignment dict.
+
+    When a BrainForge persona is selected, ``persona_name`` and
+    ``system_prompt`` are stored on the client as metadata so the
+    orchestrator can inject the persona's system prompt if desired.
+    """
     if _is_gemini_assignment(assignment):
         return ImprovedGeminiClient(
             model_name=assignment.get("model_id") or settings.llm.gemini.model,
         )
-    return VLLMClient(
+    client = VLLMClient(
         api_url=assignment["api_url"],
         api_key=settings.llm.vllm.api_key,
         model_name=assignment["model_id"],
         client_id=assignment.get("client_id", ""),
     )
+    client.persona_name = assignment.get("persona_name", "")
+    client.persona_system_prompt = assignment.get("system_prompt", "")
+    return client
 
 
 def create_llm_client(provider: Optional[str] = None) -> LLMClient:

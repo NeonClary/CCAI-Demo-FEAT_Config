@@ -276,6 +276,26 @@ class LemonSliceConfig(BaseModel):
         return v or os.getenv("LEMONSLICE_API_KEY", "")
 
 
+class HanaConfig(BaseModel):
+    """HANA BrainForge API settings for Neon.ai model/persona discovery."""
+
+    base_url: str = ""
+    username: str = ""
+    password: str = ""
+
+    @validator("base_url", always=True)
+    def _fallback_base_url(cls, v: str) -> str:  # noqa: N805
+        return v or os.getenv("HANA_BASE_URL", "")
+
+    @validator("username", always=True)
+    def _fallback_username(cls, v: str) -> str:  # noqa: N805
+        return v or os.getenv("HANA_USERNAME", "")
+
+    @validator("password", always=True)
+    def _fallback_password(cls, v: str) -> str:  # noqa: N805
+        return v or os.getenv("HANA_PASSWORD", "")
+
+
 class AppSettings(BaseModel):
     """Top-level container that mirrors the YAML structure."""
 
@@ -291,6 +311,7 @@ class AppSettings(BaseModel):
     rag: RAGConfig = RAGConfig()
     scheduling: SchedulingConfig = SchedulingConfig()
     lemonslice: LemonSliceConfig = LemonSliceConfig()
+    hana: HanaConfig = HanaConfig()
 
     # ------------------------------------------------------------------
     # Convenience helpers

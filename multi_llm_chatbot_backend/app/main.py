@@ -91,12 +91,22 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         LOG.warning(f"Scheduler init skipped: {exc}")
 
+    try:
+        from app.llm.hana_client import hana_client
+        if hana_client.is_configured:
+            await hana_client.authenticate()
+            LOG.info("HANA BrainForge authenticated on startup")
+    except Exception as exc:
+        LOG.warning(f"HANA auth skipped (will retry on first use): {exc}")
+
     yield
 
     from app.llm.improved_gemini_client import close_shared_client as close_gemini
     from app.llm.improved_ollama_client import close_shared_client as close_ollama
+    from app.llm.hana_client import hana_client as _hana
     await close_gemini()
     await close_ollama()
+    await _hana.close()
     await close_mongo_connection()
 
 
