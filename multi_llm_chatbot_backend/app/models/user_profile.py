@@ -55,6 +55,7 @@ class UserProfile(BaseModel):
     schedule_preferences: Optional[str] = None
     learning_style: Optional[str] = None
     extracurriculars: Optional[str] = None
+    timezone: Optional[str] = None
     advisor_notes: Optional[str] = None
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -70,6 +71,7 @@ class UserProfileUpdate(BaseModel):
     schedule_preferences: Optional[str] = None
     learning_style: Optional[str] = None
     extracurriculars: Optional[str] = None
+    timezone: Optional[str] = None
     advisor_notes: Optional[str] = None
 
 
@@ -85,6 +87,7 @@ class UserProfileResponse(BaseModel):
     schedule_preferences: Optional[str] = None
     learning_style: Optional[str] = None
     extracurriculars: Optional[str] = None
+    timezone: Optional[str] = None
     advisor_notes: Optional[str] = None
     updated_at: Optional[datetime] = None
     completion_pct: int = 0

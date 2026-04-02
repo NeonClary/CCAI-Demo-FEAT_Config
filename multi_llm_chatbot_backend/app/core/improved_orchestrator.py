@@ -542,6 +542,47 @@ class ImprovedChatOrchestrator:
 
         return result
 
+    async def _save_user_timezone(self, user_id: Optional[str], timezone_name: str) -> None:
+        """Persist the user's preferred timezone into their profile."""
+        if not user_id:
+            return
+        try:
+            from datetime import datetime
+            from bson import ObjectId
+            from app.core.database import get_database
+
+            db = get_database()
+            await db.user_profiles.update_one(
+                {"user_id": ObjectId(user_id)},
+                {
+                    "$set": {
+                        "timezone": timezone_name,
+                        "updated_at": datetime.utcnow(),
+                    },
+                    "$setOnInsert": {"user_id": ObjectId(user_id)},
+                },
+                upsert=True,
+            )
+        except Exception as exc:
+            LOG.warning(f"Could not save timezone to profile: {exc}")
+
+    async def _get_user_timezone(self, user_id: Optional[str]) -> Optional[str]:
+        """Fetch the user's preferred timezone from profile, if set."""
+        if not user_id:
+            return None
+        try:
+            from bson import ObjectId
+            from app.core.database import get_database
+
+            db = get_database()
+            profile = await db.user_profiles.find_one({"user_id": ObjectId(user_id)})
+            tz = (profile or {}).get("timezone")
+            if isinstance(tz, str) and tz.strip():
+                return tz.strip()
+        except Exception as exc:
+            LOG.warning(f"Could not read timezone from profile: {exc}")
+        return None
+
     # ── Orchestrator routing ─────────────────────────────────────────────
 
     def classify_query(self, user_input: str, session_id: Optional[str] = None) -> str:
@@ -714,6 +755,13 @@ class ImprovedChatOrchestrator:
                 r"\bis it done\b",
                 r"\bcancel\b",
                 r"\bstop\b",
+                r"\btime zone\b",
+                r"\btimezone\b",
+                r"\bmy time\b",
+                r"\blocal time\b",
+                r"\bpacific\b|\beastern\b|\bcentral\b|\bmountain\b",
+                r"\bpst\b|\bpdt\b|\best\b|\bedt\b|\bcst\b|\bcdt\b|\bmst\b|\bmdt\b",
+                r"\bamerica/[a-z_]+(?:/[a-z_]+)?\b",
             ]
             if any(re.search(p, lower) for p in timer_followup_patterns):
                 return True
@@ -831,12 +879,75 @@ class ImprovedChatOrchestrator:
         self,
         user_message: str,
         session_id: str,
+        user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Specialized sub-agent for setting/checking/cancelling timers."""
         try:
+            from app.core.timer_query_engine import (
+                classify_timer_intent,
+                format_due_at_for_timezone,
+                parse_timezone_name,
+            )
+            session = self.session_manager.get_session(session_id)
+            existing_timer = getattr(session, "_active_timer", None)
+            timezone_intent = classify_timer_intent(user_message) == "timezone"
+            profile_timezone = await self._get_user_timezone(user_id)
+            if profile_timezone and not getattr(session, "_timer_timezone", None):
+                session._timer_timezone = profile_timezone
+
+            if existing_timer and timezone_intent:
+                timezone_name = parse_timezone_name(user_message)
+                if not timezone_name:
+                    return {
+                        "persona_id": "timer_advisor",
+                        "persona_name": "Timer Assistant",
+                        "content": (
+                            "I can convert timer completion times to your timezone. "
+                            "Please tell me a timezone such as 'Pacific Time' or "
+                            "'America/Los_Angeles'."
+                        ),
+                        "used_documents": False,
+                        "document_chunks_used": 0,
+                        "route": "timer_api",
+                        "timer_action": "timezone_needed",
+                    }
+
+                session._timer_timezone = timezone_name
+                await self._save_user_timezone(user_id, timezone_name)
+                local_finish = format_due_at_for_timezone(existing_timer["due_at"], timezone_name)
+                self._set_last_agent_route(session_id, "timer_api")
+                return {
+                    "persona_id": "timer_advisor",
+                    "persona_name": "Timer Assistant",
+                    "content": (
+                        f"Got it - I will use {timezone_name}. "
+                        f"Your active timer will finish at {local_finish}."
+                    ),
+                    "used_documents": False,
+                    "document_chunks_used": 0,
+                    "route": "timer_api",
+                    "timer_action": "timezone_set",
+                    "timer_id": existing_timer.get("timer_id"),
+                    "timer_due_at": existing_timer.get("due_at"),
+                    "timer_seconds": existing_timer.get("duration_seconds"),
+                    "timer_timezone": timezone_name,
+                }
+
             timer_result = await self._query_timer_tool(user_message, session_id)
             timer = timer_result.get("timer") or {}
             content = timer_result.get("message", "Timer request processed.")
+
+            if timer and getattr(session, "_timer_timezone", None):
+                try:
+                    timezone_name = session._timer_timezone
+                    local_finish = format_due_at_for_timezone(timer["due_at"], timezone_name)
+                    if timer_result.get("action") == "set":
+                        content = (
+                            f"{content} In your timezone ({timezone_name}), "
+                            f"that is {local_finish}."
+                        )
+                except Exception:
+                    pass
 
             self._set_last_agent_route(session_id, "timer_api")
 

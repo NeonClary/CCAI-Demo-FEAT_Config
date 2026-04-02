@@ -265,7 +265,7 @@ async def chat_sequential_enhanced(
             if user_profile:
                 profile_fields = ["major", "minor", "year", "gpa_range", "career_goals",
                                   "courses_completed", "courses_planned", "schedule_preferences",
-                                  "learning_style", "extracurriculars"]
+                                  "learning_style", "extracurriculars", "timezone"]
                 profile_summary = ", ".join(
                     f"{k}: {user_profile[k]}" for k in profile_fields
                     if user_profile.get(k)
@@ -317,6 +317,7 @@ async def chat_sequential_enhanced(
             timer_response = await chat_orchestrator.handle_timer_query(
                 user_message=message.user_input,
                 session_id=session_id,
+                user_id=str(current_user.id),
             )
             return {
                 "responses": [timer_response],
@@ -474,7 +475,7 @@ async def chat_stream(
                 if user_profile:
                     pf = ["major", "minor", "year", "gpa_range", "career_goals",
                           "courses_completed", "courses_planned", "schedule_preferences",
-                          "learning_style", "extracurriculars"]
+                          "learning_style", "extracurriculars", "timezone"]
                     ps = ", ".join(f"{k}: {user_profile[k]}" for k in pf if user_profile.get(k))
                     if ps:
                         session.user_profile_context = f"USER PROFILE: {ps}"
@@ -505,6 +506,7 @@ async def chat_stream(
                 tr = await chat_orchestrator.handle_timer_query(
                     user_message=message.user_input,
                     session_id=sid,
+                    user_id=str(current_user.id),
                 )
                 yield f"event: advisor\ndata: {json_mod.dumps(tr)}\n\n"
                 yield "event: done\ndata: {}\n\n"

@@ -21,7 +21,7 @@ import ProfileWalkthrough from '../components/ProfileWalkthrough';
 import ClearDataModal from '../components/ClearDataModal';
 import AccountModal from '../components/AccountModal';
 
-const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNavigateToGuide, onSignOut, onOpenTutorial }) => {
+const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNavigateToGuide, onSignOut, onOpenTutorial, onRegisterTimer }) => {
   const { config, advisors, agents, allPersonas, getAdvisorColors, getAgentColors, getAllPersonaColors, orchestratorAvatar } = useAppConfig();
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -42,7 +42,6 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNav
   const [isSavingSession, setIsSavingSession] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const activeTimerHandlesRef = useRef({});
 
   // Phase 1.1: User avatar
   const [userAvatarId, setUserAvatarId] = useState(() => localStorage.getItem('userAvatarId') || (user?.avatarId ?? null));
@@ -172,11 +171,20 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNav
   }, []);
 
   useEffect(() => {
-    return () => {
-      Object.values(activeTimerHandlesRef.current).forEach((h) => clearTimeout(h));
-      activeTimerHandlesRef.current = {};
+    const handleTimerComplete = () => {
+      const timerCompleteMessage = {
+        id: generateMessageId(),
+        type: 'system',
+        content: '⏰ Timer complete.',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, timerCompleteMessage]);
+      saveMessageToSession(timerCompleteMessage, currentSessionId).catch(() => {});
     };
-  }, []);
+
+    window.addEventListener('ccai-timer-complete', handleTimerComplete);
+    return () => window.removeEventListener('ccai-timer-complete', handleTimerComplete);
+  }, [currentSessionId]);
 
   const fetchCurrentProvider = async () => {
     try {
@@ -290,43 +298,6 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNav
 
   const generateMessageId = () => {
     return Date.now().toString() + Math.random().toString(36).substr(2, 9);
-  };
-
-  const scheduleTimerCompletionNotice = (parsedEvent) => {
-    if (parsedEvent?.persona_id !== 'timer_advisor') return;
-    if (!parsedEvent?.timer_due_at || !parsedEvent?.timer_seconds) return;
-
-    const timerKey = parsedEvent.timer_id || `${parsedEvent.timer_due_at}_${parsedEvent.timer_seconds}`;
-    const dueAtMs = new Date(parsedEvent.timer_due_at).getTime();
-    if (!Number.isFinite(dueAtMs)) return;
-
-    if (activeTimerHandlesRef.current[timerKey]) {
-      clearTimeout(activeTimerHandlesRef.current[timerKey]);
-      delete activeTimerHandlesRef.current[timerKey];
-    }
-
-    const remainingMs = dueAtMs - Date.now();
-    if (remainingMs <= 0) {
-      setMessages(prev => [...prev, {
-        id: generateMessageId(),
-        type: 'system',
-        content: '⏰ Timer complete.',
-        timestamp: new Date(),
-      }]);
-      return;
-    }
-
-    const timeoutHandle = setTimeout(() => {
-      setMessages(prev => [...prev, {
-        id: generateMessageId(),
-        type: 'system',
-        content: '⏰ Timer complete.',
-        timestamp: new Date(),
-      }]);
-      delete activeTimerHandlesRef.current[timerKey];
-    }, remainingMs);
-
-    activeTimerHandlesRef.current[timerKey] = timeoutHandle;
   };
 
   const createNewSession = async (firstMessage = null) => {
@@ -665,7 +636,7 @@ const handleNewChat = async (sessionId = null) => {
             };
             setMessages(prev => [...prev, msg]);
             setThinkingAdvisors(prev => prev.filter(id => id !== parsed.persona_id && id !== 'system'));
-            scheduleTimerCompletionNotice(parsed);
+            if (onRegisterTimer) onRegisterTimer(parsed);
             dbSavePromises.push(saveMessageToSession(msg, sessionId));
           } else if (eventType === 'progress') {
             // Synthesized mode: an advisor finished but we only show

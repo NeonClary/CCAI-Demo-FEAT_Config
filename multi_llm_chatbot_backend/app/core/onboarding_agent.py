@@ -64,6 +64,8 @@ PROFILE_FIELDS: List[tuple] = [
      "Preferred style such as executive summary, step-by-step, data-driven, visual"),
     ("extracurriculars", "Any additional context, constraints, or stakeholders we should consider?",
      "Extra organizational context"),
+    ("timezone", "What time zone should we use when giving reminder or timer completion times?",
+     "Preferred time zone, e.g. America/Los_Angeles or Pacific Time"),
 ]
 
 

@@ -24,6 +24,7 @@ const STEPS = [
     fields: [
       { key: 'schedule_preferences', label: 'Collaboration Preferences', type: 'text', placeholder: 'e.g. Weekly updates, async-first, concise summaries' },
       { key: 'learning_style', label: 'Preferred Working Style', type: 'text', placeholder: 'e.g. Data-driven, visual, workshop-based' },
+      { key: 'timezone', label: 'Time Zone', type: 'select', options: ['UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles'] },
       { key: 'extracurriculars', label: 'Additional Context', type: 'textarea', placeholder: 'Team constraints, compliance notes, stakeholder expectations...' },
     ],
   },

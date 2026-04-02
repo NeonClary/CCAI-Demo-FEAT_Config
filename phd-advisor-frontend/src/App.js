@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AppConfigProvider } from './contexts/AppConfigContext';
 import { VoiceStatusProvider } from './contexts/VoiceStatusContext';
@@ -16,6 +16,51 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [authToken, setAuthToken] = useState(null);
+  const activeTimerHandlesRef = useRef({});
+
+  const parseDueAtMs = useCallback((dueAtRaw) => {
+    if (!dueAtRaw || typeof dueAtRaw !== 'string') return NaN;
+    const trimmed = dueAtRaw.trim();
+    // Backend may send naive UTC timestamps; force UTC when no offset is present.
+    const hasOffset = /([zZ]|[+-]\d{2}:\d{2})$/.test(trimmed);
+    const normalized = hasOffset ? trimmed : `${trimmed}Z`;
+    return new Date(normalized).getTime();
+  }, []);
+
+  const notifyTimerComplete = useCallback(() => {
+    if (currentView === 'chat') {
+      window.dispatchEvent(new CustomEvent('ccai-timer-complete'));
+      return;
+    }
+    window.alert('⏰ Timer complete.');
+  }, [currentView]);
+
+  const registerTimer = useCallback((timerEvent) => {
+    if (timerEvent?.persona_id !== 'timer_advisor') return;
+    if (!timerEvent?.timer_due_at || !timerEvent?.timer_seconds) return;
+
+    const timerKey = timerEvent.timer_id || `${timerEvent.timer_due_at}_${timerEvent.timer_seconds}`;
+    const dueAtMs = parseDueAtMs(timerEvent.timer_due_at);
+    if (!Number.isFinite(dueAtMs)) return;
+
+    if (activeTimerHandlesRef.current[timerKey]) {
+      clearTimeout(activeTimerHandlesRef.current[timerKey]);
+      delete activeTimerHandlesRef.current[timerKey];
+    }
+
+    const remainingMs = dueAtMs - Date.now();
+    if (remainingMs <= 0) {
+      notifyTimerComplete();
+      return;
+    }
+
+    const timeoutHandle = setTimeout(() => {
+      notifyTimerComplete();
+      delete activeTimerHandlesRef.current[timerKey];
+    }, remainingMs);
+
+    activeTimerHandlesRef.current[timerKey] = timeoutHandle;
+  }, [notifyTimerComplete, parseDueAtMs]);
 
   // Check for existing authentication on app start
   useEffect(() => {
@@ -109,6 +154,13 @@ function App() {
     setCurrentView('home');
   };
 
+  useEffect(() => {
+    return () => {
+      Object.values(activeTimerHandlesRef.current).forEach((h) => clearTimeout(h));
+      activeTimerHandlesRef.current = {};
+    };
+  }, []);
+
   return (
     <AppConfigProvider>
       <ThemeProvider>
@@ -143,6 +195,7 @@ function App() {
                 onNavigateToGuide={navigateToGuide}
                 onSignOut={handleSignOut}
                 onOpenTutorial={openTutorial}
+                onRegisterTimer={registerTimer}
               />
               <VoiceToast />
             </VoiceStatusProvider>

@@ -12,8 +12,31 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
+from zoneinfo import ZoneInfo
+
+
+TIMEZONE_ALIASES = {
+    "utc": "UTC",
+    "gmt": "UTC",
+    "est": "America/New_York",
+    "edt": "America/New_York",
+    "eastern": "America/New_York",
+    "eastern time": "America/New_York",
+    "cst": "America/Chicago",
+    "cdt": "America/Chicago",
+    "central": "America/Chicago",
+    "central time": "America/Chicago",
+    "mst": "America/Denver",
+    "mdt": "America/Denver",
+    "mountain": "America/Denver",
+    "mountain time": "America/Denver",
+    "pst": "America/Los_Angeles",
+    "pdt": "America/Los_Angeles",
+    "pacific": "America/Los_Angeles",
+    "pacific time": "America/Los_Angeles",
+}
 
 
 def _parse_duration_seconds(text: str) -> Optional[int]:
@@ -66,16 +89,68 @@ def classify_timer_intent(text: str) -> str:
         ]
     ):
         return "status"
+    if any(
+        k in lower
+        for k in [
+            "time zone",
+            "timezone",
+            "my time",
+            "local time",
+            "in pst",
+            "in est",
+            "in cst",
+            "in mst",
+            "in pdt",
+            "in edt",
+            "in cdt",
+            "in mdt",
+        ]
+    ) or parse_timezone_name(text):
+        return "timezone"
     if any(k in lower for k in ["timer", "countdown", "remind me", "tell me when"]):
         return "set"
     return "unknown"
+
+
+def parse_timezone_name(text: str) -> Optional[str]:
+    lower = (text or "").lower().strip()
+    if not lower:
+        return None
+
+    for alias, canonical in TIMEZONE_ALIASES.items():
+        if re.search(rf"\b{re.escape(alias)}\b", lower):
+            return canonical
+
+    # Accept explicit IANA names like America/Los_Angeles
+    m = re.search(r"\b([A-Za-z_]+/[A-Za-z_]+(?:/[A-Za-z_]+)?)\b", text or "")
+    if m:
+        candidate = m.group(1)
+        try:
+            ZoneInfo(candidate)
+            return candidate
+        except Exception:
+            return None
+
+    return None
+
+
+def format_due_at_for_timezone(due_at_iso: str, timezone_name: str) -> str:
+    parsed = datetime.fromisoformat(due_at_iso)
+    due_utc = parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
+    local_dt = due_utc.astimezone(ZoneInfo(timezone_name))
+    return local_dt.strftime("%I:%M:%S %p %Z")
+
+
+def _parse_due_at_utc(due_at_iso: str) -> datetime:
+    parsed = datetime.fromisoformat(due_at_iso)
+    return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
 
 
 def build_timer_result(
     query: str,
     existing_timer: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     intent = classify_timer_intent(query)
 
     if intent == "cancel":
@@ -101,7 +176,7 @@ def build_timer_result(
                 "message": "You do not have an active timer. Ask me to set one, for example: 'Set a timer for 10 minutes.'",
                 "timer": None,
             }
-        due_at = datetime.fromisoformat(existing_timer["due_at"])
+        due_at = _parse_due_at_utc(existing_timer["due_at"])
         remaining_seconds = int((due_at - now).total_seconds())
         if remaining_seconds <= 0:
             return {
@@ -142,7 +217,7 @@ def build_timer_result(
             "action": "set",
             "message": (
                 f"Timer set for {_format_human_duration(duration_seconds)}. "
-                f"It will finish at {due_at.strftime('%H:%M:%S UTC')}."
+                f"It will finish at {due_at.astimezone(timezone.utc).strftime('%H:%M:%S UTC')}."
             ),
             "timer": timer,
         }

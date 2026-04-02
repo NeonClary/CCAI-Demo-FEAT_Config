@@ -48,7 +48,7 @@ router = APIRouter()
 PROFILE_FIELDS = [
     "major", "minor", "year", "gpa_range", "career_goals",
     "courses_completed", "courses_planned", "schedule_preferences",
-    "learning_style", "extracurriculars",
+    "learning_style", "extracurriculars", "timezone",
 ]
 
 
