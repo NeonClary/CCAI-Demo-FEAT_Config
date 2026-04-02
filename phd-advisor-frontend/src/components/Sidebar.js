@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   MessageSquare, 
   Plus, 
@@ -15,7 +15,8 @@ import {
   ChevronRight,
   FileText,
   BookOpen,
-  Sparkles
+  Sparkles,
+  MessageCircle
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useAppConfig } from '../contexts/AppConfigContext';
@@ -39,7 +40,9 @@ const Sidebar = ({
   onOpenAccount,
   onOpenClearData,
   onOpenUserGuide,
-  onOpenTutorial
+  onOpenTutorial,
+  onOpenOnboarding,
+  showOnboardingMenuItem = false,
 }) => {
   const { config } = useAppConfig();
   const canvasLabel = config?.app?.title ? `${config.app.title} Canvas` : 'Canvas';
@@ -167,6 +170,65 @@ const Sidebar = ({
     }
   };
 
+  const closeUserMenu = useCallback(() => setShowUserMenu(false), []);
+
+  useEffect(() => {
+    if (!showUserMenu) return;
+    const onDown = (e) => {
+      if (!e.target.closest('.user-menu-container')) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [showUserMenu]);
+
+  const renderUserMenu = () => (
+    <div className={`user-menu ${isCollapsed ? 'user-menu--collapsed-sidebar' : ''}`}>
+      <button type="button" className="user-menu-item" onClick={() => { closeUserMenu(); setShowAvatarPicker(true); }}>
+        <User size={16} />
+        <span>Change Avatar</span>
+      </button>
+      {showOnboardingMenuItem && onOpenOnboarding && (
+        <button
+          type="button"
+          className="user-menu-item"
+          onClick={() => {
+            closeUserMenu();
+            onOpenOnboarding();
+          }}
+        >
+          <MessageCircle size={16} />
+          <span>Tell us about yourself</span>
+        </button>
+      )}
+      <button type="button" className="user-menu-item" onClick={() => { closeUserMenu(); if (onOpenProfile) onOpenProfile(); }}>
+        <UserCircle size={16} />
+        <span>Profile</span>
+      </button>
+      <button type="button" className="user-menu-item" onClick={() => { closeUserMenu(); if (onOpenAccount) onOpenAccount(); }}>
+        <KeyRound size={16} />
+        <span>Account</span>
+      </button>
+      <button type="button" className="user-menu-item" onClick={() => { closeUserMenu(); if (onOpenClearData) onOpenClearData(); }}>
+        <DatabaseZap size={16} />
+        <span>Clear User Data</span>
+      </button>
+      <button type="button" className="user-menu-item" onClick={() => { closeUserMenu(); if (onOpenUserGuide) onOpenUserGuide(); }}>
+        <BookOpen size={16} />
+        <span>User Guide</span>
+      </button>
+      <button type="button" className="user-menu-item" onClick={() => { closeUserMenu(); if (onOpenTutorial) onOpenTutorial(); }}>
+        <Sparkles size={16} />
+        <span>Tutorial</span>
+      </button>
+      <button type="button" className="user-menu-item sign-out" onClick={onSignOut}>
+        <LogOut size={16} />
+        <span>Sign Out</span>
+      </button>
+    </div>
+  );
+
   const filteredSessions = chatSessions.filter(session =>
     session.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -224,42 +286,14 @@ const Sidebar = ({
                     <button 
                       className="user-menu-button"
                       onClick={() => setShowUserMenu(!showUserMenu)}
+                      aria-expanded={showUserMenu}
+                      aria-haspopup="true"
+                      title="Account and settings"
                     >
                       <MoreVertical size={16} />
                     </button>
                     
-                    {showUserMenu && (
-                      <div className="user-menu">
-                        <button className="user-menu-item" onClick={() => { setShowUserMenu(false); setShowAvatarPicker(true); }}>
-                          <User size={16} />
-                          <span>Change Avatar</span>
-                        </button>
-                        <button className="user-menu-item" onClick={() => { setShowUserMenu(false); if (onOpenProfile) onOpenProfile(); }}>
-                          <UserCircle size={16} />
-                          <span>Profile</span>
-                        </button>
-                        <button className="user-menu-item" onClick={() => { setShowUserMenu(false); if (onOpenAccount) onOpenAccount(); }}>
-                          <KeyRound size={16} />
-                          <span>Account</span>
-                        </button>
-                        <button className="user-menu-item" onClick={() => { setShowUserMenu(false); if (onOpenClearData) onOpenClearData(); }}>
-                          <DatabaseZap size={16} />
-                          <span>Clear User Data</span>
-                        </button>
-                        <button className="user-menu-item" onClick={() => { setShowUserMenu(false); if (onOpenUserGuide) onOpenUserGuide(); }}>
-                          <BookOpen size={16} />
-                          <span>User Guide</span>
-                        </button>
-                        <button className="user-menu-item" onClick={() => { setShowUserMenu(false); if (onOpenTutorial) onOpenTutorial(); }}>
-                          <Sparkles size={16} />
-                          <span>Tutorial</span>
-                        </button>
-                        <button className="user-menu-item sign-out" onClick={onSignOut}>
-                          <LogOut size={16} />
-                          <span>Sign Out</span>
-                        </button>
-                      </div>
-                    )}
+                    {showUserMenu && renderUserMenu()}
                   </div>
                 </div>
               </div>
@@ -294,6 +328,19 @@ const Sidebar = ({
               >
                 <ChevronRight size={20} />
               </button>
+              <div className="user-menu-container user-menu-container--collapsed">
+                <button
+                  type="button"
+                  className="collapsed-user-menu-btn"
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  aria-expanded={showUserMenu}
+                  aria-haspopup="true"
+                  title="Account and settings"
+                >
+                  <MoreVertical size={20} />
+                </button>
+                {showUserMenu && renderUserMenu()}
+              </div>
               <button 
                 className="collapsed-new-chat" 
                 onClick={handleNewChat} 

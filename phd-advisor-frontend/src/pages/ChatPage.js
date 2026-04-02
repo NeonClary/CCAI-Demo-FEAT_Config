@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Home, MessageCircle, Reply, X, Sparkles, Users, Settings2, FileText , LogOut, Menu} from 'lucide-react';
+import { Home, MessageCircle, Reply, X, Sparkles, Users, FileText, Menu, Cog } from 'lucide-react';
 import EnhancedChatInput from '../components/EnhancedChatInput';
 import MessageBubble from '../components/MessageBubble';
 import AdvisorCarousel from '../components/AdvisorCarousel';
@@ -15,14 +15,16 @@ import { useTheme } from '../contexts/ThemeContext';
 import '../styles/ChatPage.css';
 import '../styles/EnhancedChatInput.css';
 import AdvisorStatusDropdown from '../components/AdvisorStatusDropdown';
+import ResponseModeDropdown from '../components/ResponseModeDropdown';
 import AgentStatusDropdown from '../components/AgentStatusDropdown';
+import ToolsMenu from '../components/ToolsMenu';
 import OnboardingChat from '../components/OnboardingChat';
 import ProfileWalkthrough from '../components/ProfileWalkthrough';
 import ClearDataModal from '../components/ClearDataModal';
 import AccountModal from '../components/AccountModal';
 
 const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNavigateToGuide, onSignOut, onOpenTutorial, onRegisterTimer }) => {
-  const { config, advisors, agents, allPersonas, getAdvisorColors, getAgentColors, getAllPersonaColors, orchestratorAvatar } = useAppConfig();
+  const { config, advisors, agents, allPersonas, getAdvisorColors, getAgentColors, getAllPersonaColors, orchestratorAvatar, tools } = useAppConfig();
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [thinkingAdvisors, setThinkingAdvisors] = useState([]);
@@ -42,6 +44,8 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNav
   const [isSavingSession, setIsSavingSession] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [headerSettingsOpen, setHeaderSettingsOpen] = useState(false);
+  const headerSettingsRef = useRef(null);
 
   // Phase 1.1: User avatar
   const [userAvatarId, setUserAvatarId] = useState(() => localStorage.getItem('userAvatarId') || (user?.avatarId ?? null));
@@ -99,13 +103,29 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNav
   };
 
   // Phase 1.3: Synthesized mode
-  const [synthesizedMode, setSynthesizedMode] = useState(() => localStorage.getItem('synthesizedMode') === 'true');
-  const handleToggleSynthesized = () => {
-    setSynthesizedMode(prev => {
-      localStorage.setItem('synthesizedMode', String(!prev));
-      return !prev;
-    });
-  };
+  const [responseMode, setResponseMode] = useState(() => {
+    const r = localStorage.getItem('responseMode');
+    if (r === 'panel' || r === 'aggregate' || r === 'single') return r;
+    return localStorage.getItem('synthesizedMode') === 'true' ? 'aggregate' : 'panel';
+  });
+  const [singleAdvisorId, setSingleAdvisorId] = useState(() => localStorage.getItem('singleAdvisorId') || '');
+
+  useEffect(() => {
+    localStorage.setItem('responseMode', responseMode);
+  }, [responseMode]);
+
+  useEffect(() => {
+    if (singleAdvisorId) localStorage.setItem('singleAdvisorId', singleAdvisorId);
+  }, [singleAdvisorId]);
+
+  useEffect(() => {
+    if (responseMode !== 'single' || !allAdvisorIds.length) return;
+    const active = activeAdvisors && activeAdvisors.length ? activeAdvisors : allAdvisorIds;
+    if (!active.length) return;
+    if (!singleAdvisorId || !active.includes(singleAdvisorId)) {
+      setSingleAdvisorId(active[0]);
+    }
+  }, [responseMode, activeAdvisors, allAdvisorIds.join(','), singleAdvisorId]);
 
   // Phase 3.2/3.3: Onboarding and profile walkthrough
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -165,6 +185,26 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNav
   useEffect(() => {
     scrollToBottom();
   }, [messages, thinkingAdvisors]);
+
+  useEffect(() => {
+    if (!headerSettingsOpen) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setHeaderSettingsOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [headerSettingsOpen]);
+
+  useEffect(() => {
+    if (!headerSettingsOpen) return;
+    const onDown = (e) => {
+      if (headerSettingsRef.current && !headerSettingsRef.current.contains(e.target)) {
+        setHeaderSettingsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [headerSettingsOpen]);
 
   useEffect(() => {
     fetchCurrentProvider();
@@ -583,7 +623,8 @@ const handleNewChat = async (sessionId = null) => {
           response_length: 'medium',
           chat_session_id: currentSessionId,
           active_advisors: activeAdvisors || undefined,
-          synthesized: synthesizedMode,
+          synthesized: responseMode === 'aggregate',
+          single_advisor_id: responseMode === 'single' ? singleAdvisorId : null,
         }),
       });
 
@@ -972,6 +1013,8 @@ const handleNewChat = async (sessionId = null) => {
         onOpenClearData={() => setShowClearData(true)}
         onOpenUserGuide={onNavigateToGuide}
         onOpenTutorial={onOpenTutorial}
+        onOpenOnboarding={() => setShowOnboarding(true)}
+        showOnboardingMenuItem={!userProfile || userProfile.completion_pct < 100}
       />
       
       <div className={`main-chat-area ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
@@ -1011,6 +1054,16 @@ const handleNewChat = async (sessionId = null) => {
                 onReloadModels={handleReloadModels}
                 isReloadingModels={isReloadingModels}
               />
+              <ResponseModeDropdown
+                advisors={advisors}
+                activeAdvisors={activeAdvisors || allAdvisorIds}
+                responseMode={responseMode}
+                onResponseModeChange={setResponseMode}
+                singleAdvisorId={singleAdvisorId}
+                onSingleAdvisorChange={setSingleAdvisorId}
+                getAdvisorColors={getAdvisorColors}
+                isDark={isDark}
+              />
               <AgentStatusDropdown
                 agents={agents}
                 thinkingAdvisors={thinkingAdvisors}
@@ -1019,31 +1072,59 @@ const handleNewChat = async (sessionId = null) => {
               />
               
               <div className="header-controls">
-                {/* Optional: Add header sign out button */}
-                <button 
-                  className="header-signout-btn"
-                  onClick={onSignOut}
-                  title="Sign Out"
-                >
-                  <LogOut size={16} />
-                </button>
-                
-                {/* Export Button */}
-                <ExportButton 
-                  hasMessages={hasConversationMessages} 
-                  currentSessionId={currentSessionId}
-                  authToken={authToken}
-                />
-                
-                {/* Provider Dropdown */}
-                <ProviderDropdown 
-                  currentProvider={currentProvider}
-                  onProviderChange={handleProviderSwitch}
-                  isLoading={isProviderSwitching}
-                  onConfigureModels={() => setShowModelConfig(true)}
-                />
-                
-                {/* Theme Toggle */}
+                <div className="header-settings-wrapper" ref={headerSettingsRef}>
+                  <button
+                    type="button"
+                    className={`header-settings-trigger ${headerSettingsOpen ? 'open' : ''}`}
+                    onClick={() => setHeaderSettingsOpen((o) => !o)}
+                    title="Settings"
+                    aria-expanded={headerSettingsOpen}
+                    aria-haspopup="dialog"
+                    aria-label="Open settings: export, LLM provider, and tools"
+                  >
+                    <Cog size={20} />
+                  </button>
+                  {headerSettingsOpen && (
+                    <div
+                      className="header-settings-panel"
+                      role="dialog"
+                      aria-label="Settings"
+                    >
+                      <div className="header-settings-section">
+                        <span className="header-settings-label">Export</span>
+                        <ExportButton
+                          hasMessages={hasConversationMessages}
+                          currentSessionId={currentSessionId}
+                          authToken={authToken}
+                        />
+                      </div>
+                      <div className="header-settings-section">
+                        <span className="header-settings-label">LLM provider</span>
+                        <ProviderDropdown
+                          currentProvider={currentProvider}
+                          onProviderChange={handleProviderSwitch}
+                          isLoading={isProviderSwitching}
+                          onConfigureModels={() => setShowModelConfig(true)}
+                        />
+                      </div>
+                      {tools && tools.length > 0 && (
+                        <div className="header-settings-section">
+                          <span className="header-settings-label">Tools</span>
+                          <ToolsMenu
+                            onToolSelect={(tool) => {
+                              setHeaderSettingsOpen(false);
+                              const prompts = {
+                                contractor_scheduler: "I need to schedule a contractor — what tasks and dates do you need?",
+                                weather_forecast: "What location would you like a weather forecast for?",
+                              };
+                              handleSendMessage(prompts[tool.id] || `Use the ${tool.name} tool`);
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <ThemeToggle />
               </div>
             </div>
@@ -1274,11 +1355,6 @@ const handleNewChat = async (sessionId = null) => {
                   ? `Reply to ${replyingTo.advisorName}...`
                   : chatPlaceholder
               }
-              showProfileButtons={!userProfile || userProfile.completion_pct < 100}
-              onOpenOnboarding={() => setShowOnboarding(true)}
-              onOpenProfileForm={() => setShowProfileForm(true)}
-              synthesizedMode={synthesizedMode}
-              onToggleSynthesized={handleToggleSynthesized}
               ensureSessionId={async () => {
                 if (currentSessionId) return currentSessionId;
                 return await createNewSession('Document upload');

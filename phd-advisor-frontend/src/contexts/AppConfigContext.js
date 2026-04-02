@@ -122,11 +122,17 @@ export const AppConfigProvider = ({ children }) => {
     ? `/avatars/${config.orchestrator.avatar}`
     : null;
 
+  const tools = (config?.tools || []).map(t => ({
+    ...t,
+    icon: resolveIcon(t.icon),
+  }));
+
   const value = {
     config,
     advisors,        // type === "advisor"
     agents,          // type === "agent"
     allPersonas,     // both combined (for rendering responses)
+    tools,
     getAdvisorColors,
     getAgentColors,
     getAllPersonaColors,

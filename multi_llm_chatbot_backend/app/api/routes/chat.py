@@ -70,6 +70,8 @@ class ChatMessage(BaseModel):
     response_length: str = "medium"
     active_advisors: Optional[List[str]] = None
     synthesized: bool = False
+    #: When set, only this persona answers (panel-style single reply; ``synthesized`` is ignored).
+    single_advisor_id: Optional[str] = None
 
 
 class ReplyToAdvisor(BaseModel):
@@ -358,15 +360,26 @@ async def chat_sequential_enhanced(
                 }
             }
 
-        k = min(3, len(all_persona_ids))
-        top_personas = await chat_orchestrator.get_top_personas(
-            session_id=session_id,
-            k=k,
-            allowed_ids=all_persona_ids
-        )
-        if not top_personas:
-            LOG.warning("Top persona selection returned empty; falling back to first available advisors")
-            top_personas = all_persona_ids[:k] if k > 0 else []
+        single_id = (message.single_advisor_id or "").strip() or None
+        if single_id and single_id not in all_persona_ids:
+            LOG.warning(
+                "single_advisor_id %s not in allowed advisors; using ranked selection",
+                single_id,
+            )
+            single_id = None
+
+        if single_id:
+            top_personas = [single_id]
+        else:
+            k = min(3, len(all_persona_ids))
+            top_personas = await chat_orchestrator.get_top_personas(
+                session_id=session_id,
+                k=k,
+                allowed_ids=all_persona_ids
+            )
+            if not top_personas:
+                LOG.warning("Top persona selection returned empty; falling back to first available advisors")
+                top_personas = all_persona_ids[:k] if k > 0 else []
 
         LOG.info(f"Intelligent persona order for session {session_id}: {top_personas}")
 
@@ -387,7 +400,7 @@ async def chat_sequential_enhanced(
                 "document_chunks_used": r.get("document_chunks_used", 0),
             })
 
-        if message.synthesized and len(responses) > 1:
+        if message.synthesized and len(responses) > 1 and not single_id:
             synthesized = await chat_orchestrator.synthesize_responses(responses)
             return {
                 "responses": [synthesized],
@@ -434,7 +447,7 @@ async def chat_stream(
     Event types:
 
     - ``event: advisor`` -- one advisor's complete response
-    - ``event: synthesized`` -- synthesised single answer (when synthesized=true)
+    - ``event: synthesized`` -- synthesised single answer (when synthesized=true and not single-advisor mode)
     - ``event: done`` -- signals end of stream
     - ``event: error`` -- top-level error
     - ``event: clarification`` -- orchestrator needs clarification
@@ -522,18 +535,30 @@ async def chat_stream(
                 yield "event: error\ndata: {\"detail\": \"No advisor personas are currently enabled. Please enable at least one advisor and try again.\"}\n\n"
                 yield "event: done\ndata: {}\n\n"
                 return
-            k = min(3, len(all_ids))
-            top_personas = await chat_orchestrator.get_top_personas(
-                session_id=sid, k=k, allowed_ids=all_ids,
-            )
-            if not top_personas:
-                top_personas = all_ids[:k] if k > 0 else []
+
+            single_id = (message.single_advisor_id or "").strip() or None
+            if single_id and single_id not in all_ids:
+                LOG.warning(
+                    "single_advisor_id %s not in allowed advisors; using ranked selection",
+                    single_id,
+                )
+                single_id = None
+
+            if single_id:
+                top_personas = [single_id]
+            else:
+                k = min(3, len(all_ids))
+                top_personas = await chat_orchestrator.get_top_personas(
+                    session_id=sid, k=k, allowed_ids=all_ids,
+                )
+                if not top_personas:
+                    top_personas = all_ids[:k] if k > 0 else []
 
             doc_ctx = await chat_orchestrator._retrieve_relevant_documents(
                 user_input=message.user_input, session_id=sid, persona_id="",
             )
 
-            is_synthesized = bool(message.synthesized)
+            is_synthesized = bool(message.synthesized) and not single_id
             done_queue: asyncio.Queue = asyncio.Queue()
 
             async def _run(pid: str) -> None:
