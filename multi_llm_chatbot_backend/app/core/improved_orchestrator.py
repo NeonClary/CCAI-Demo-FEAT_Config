@@ -1422,6 +1422,9 @@ class ImprovedChatOrchestrator:
             "quality_manager": "QC QA density cores mix-design aggregate specification acceptance testing non-conformance documentation",
             "operations_coordinator": "equipment fleet crew haul dispatch plant quarry trucking logistics production paver roller milling",
             "environmental_specialist": "NPDES SWPPP permit emissions erosion RAP warm-mix wetlands SPCC environmental sustainability",
+            "wac_advisor": "WAC RCW Washington regulation prevailing-wage contractor-license L&I public-works bonding insurance compliance state-law",
+            "dunn_employee_assist": "handbook employee policy HR benefits PTO leave training onboarding conduct discipline safety-reporting workplace",
+            "land_use_advisor": "GMA Growth-Management SEPA zoning land-use shoreline critical-areas comprehensive-plan permitting annexation impact-fees",
         }
         return enhanced_keywords.get(persona_id, "")
 

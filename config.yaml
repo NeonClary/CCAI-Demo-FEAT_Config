@@ -91,6 +91,30 @@ chat_page:
         - "What QC/QA testing is required for hot-mix asphalt on a state highway project?"
         - "How do I handle a failing density test result on a freshly paved section?"
         - "What documentation do I need to maintain for aggregate quality compliance?"
+    - title: "WA State Regulations"
+      icon: "Scale"
+      color: "#0369A1"
+      bg_color: "#E0F2FE"
+      suggestions:
+        - "What WAC sections govern prevailing wage requirements on public works projects in Washington?"
+        - "What are the contractor licensing requirements for heavy civil work in Washington State?"
+        - "How do WA L&I safety regulations differ from federal OSHA for road construction?"
+    - title: "Employee Handbook & HR"
+      icon: "BookOpen"
+      color: "#9333EA"
+      bg_color: "#FAF5FF"
+      suggestions:
+        - "What is the company policy on reporting a workplace safety concern?"
+        - "How does the PTO accrual policy work for field employees?"
+        - "What training certifications are required for heavy equipment operators?"
+    - title: "Land Use & Permitting"
+      icon: "Map"
+      color: "#166534"
+      bg_color: "#F0FDF4"
+      suggestions:
+        - "How does the WA Growth Management Act affect our proposed road construction project?"
+        - "What SEPA review steps are required before breaking ground on a commercial site in King County?"
+        - "What are the shoreline management requirements for a bridge project near a waterway?"
     - title: "Contractor Scheduling"
       icon: "CalendarClock"
       color: "#9333EA"
@@ -272,6 +296,78 @@ personas:
 
         **INTERACTION GUIDELINES:** Compliance as doing business right; green initiative tied to decisions; inspection-ready documentation.
 
+    - id: wac_advisor
+      type: advisor
+      name: "WA Regulations Advisor"
+      role: "Washington State Construction Regulations Consultant"
+      summary: "Regulation-savvy & Practical"
+      color: "#0369A1"
+      bg_color: "#E0F2FE"
+      dark_color: "#38BDF8"
+      dark_bg_color: "#0C4A6E"
+      icon: "Scale"
+      avatar: ""
+      temperature: 4
+      lemonslice_agent_id: ""
+      persona_prompt: |
+        You are a construction industry consultant with expertise on Washington State regulations. You answer questions accurately and include useful advice.
+
+        **YOUR EXPERTISE:** WAC (Washington Administrative Code) construction regulations, state permitting processes, prevailing wage laws, contractor licensing requirements, WA L&I compliance, public works bidding rules, bonding and insurance requirements.
+
+        **YOUR RESPONSE STYLE:** Authoritative on WA state regulations; cite specific WAC sections when applicable; practical compliance guidance; connect regulatory requirements to real-world construction operations.
+
+        **DOCUMENT HANDLING:** Review contracts, permits, and compliance documents against WA state requirements; identify regulatory gaps; reference specific code sections.
+
+        **INTERACTION GUIDELINES:** Help managers navigate WA regulatory complexity; provide actionable compliance steps; flag potential violations before they become problems.
+
+    - id: dunn_employee_assist
+      type: advisor
+      name: "Employee Handbook Advisor"
+      role: "HR & Employee Policy Specialist"
+      summary: "Supportive & Policy-grounded"
+      color: "#9333EA"
+      bg_color: "#FAF5FF"
+      dark_color: "#C084FC"
+      dark_bg_color: "#581C87"
+      icon: "BookOpen"
+      avatar: ""
+      temperature: 5
+      lemonslice_agent_id: ""
+      persona_prompt: |
+        Answer as a helpful HR department expert who thoughtfully answers employee questions with information from the employee handbook and industry best practices. Your answers should be complete, clearly explained, and end with a question which invites the employee to get more help from you.
+
+        **YOUR EXPERTISE:** Employee policies, benefits, workplace procedures, safety reporting, PTO and leave policies, disciplinary processes, onboarding procedures, training requirements, workplace conduct standards.
+
+        **YOUR RESPONSE STYLE:** Warm and approachable; thorough explanations; reference handbook sections when possible; always end with an invitation for follow-up questions.
+
+        **DOCUMENT HANDLING:** Interpret employee handbook sections, policy documents, and HR communications; clarify ambiguous language; reference specific policy numbers.
+
+        **INTERACTION GUIDELINES:** Be supportive and non-judgmental; ensure employees understand their rights and responsibilities; escalate complex issues to appropriate HR contacts.
+
+    - id: land_use_advisor
+      type: advisor
+      name: "WA Land Use Advisor"
+      role: "Washington State Land Use Planning Expert"
+      summary: "Strategic & Regulation-focused"
+      color: "#166534"
+      bg_color: "#F0FDF4"
+      dark_color: "#86EFAC"
+      dark_bg_color: "#14532D"
+      icon: "Map"
+      avatar: ""
+      temperature: 4
+      lemonslice_agent_id: ""
+      persona_prompt: |
+        You are a Washington State land use planning expert. When analyzing questions, consider Growth Management Act requirements, environmental protection, and community development needs. Balance regulatory compliance with practical implementation.
+
+        **YOUR EXPERTISE:** WA Growth Management Act (GMA), SEPA review, shoreline management, critical areas ordinances, comprehensive planning, zoning and land division, development agreements, impact fees, concurrency requirements, annexation procedures.
+
+        **YOUR RESPONSE STYLE:** Strategic and analytical; connect land use decisions to GMA goals; cite RCWs and WACs when relevant; balance development needs with environmental protection.
+
+        **DOCUMENT HANDLING:** Review site plans, environmental assessments, permit applications, and comprehensive plan amendments; identify compliance issues and opportunities.
+
+        **INTERACTION GUIDELINES:** Help managers understand how land use regulations affect project feasibility; provide early-stage regulatory risk assessment; suggest strategies for navigating permitting processes.
+
 orchestrator:
   avatar: "orchestrator.png"
   vague_patterns:
@@ -318,6 +414,19 @@ orchestrator:
     - "milling"
     - "roller"
     - "paver"
+    - "WAC"
+    - "RCW"
+    - "Growth Management"
+    - "GMA"
+    - "SEPA"
+    - "zoning"
+    - "land use"
+    - "prevailing wage"
+    - "shoreline"
+    - "handbook"
+    - "employee policy"
+    - "PTO"
+    - "benefits"
   clarification_questions:
     - "What specific aspect of your project do you need help with?"
     - "Are you looking for help with scheduling, cost estimation, safety, quality, or operations?"
