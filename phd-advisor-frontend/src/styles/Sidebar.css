@@ -17,6 +17,8 @@
 /* Collapsed state */
 .sidebar.collapsed {
   width: 70px;
+  overflow: visible;
+  z-index: 110;
 }
 
 /* Dark theme support */
@@ -122,6 +124,69 @@
 .collapsed-new-chat:hover {
   background: var(--primary-color-hover, #2563eb);
   transform: scale(1.1);
+}
+
+/* Collapsed sidebar: user / settings menu (above New Chat) */
+.user-menu-container--collapsed {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.collapsed-user-menu-btn {
+  width: 40px;
+  height: 40px;
+  background: var(--bg-secondary, #f3f4f6);
+  color: var(--text-primary, #111827);
+  border: 1px solid var(--border-light, #e5e7eb);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.collapsed-user-menu-btn:hover {
+  background: var(--bg-tertiary, #e5e7eb);
+  border-color: var(--primary-color, #3b82f6);
+  color: var(--primary-color, #3b82f6);
+}
+
+.collapsed-user-menu-btn[aria-expanded='true'] {
+  background: var(--primary-color, #3b82f6);
+  border-color: var(--primary-color, #3b82f6);
+  color: white;
+}
+
+.dark .collapsed-user-menu-btn {
+  background: var(--bg-secondary-dark, #374151);
+  border-color: var(--border-dark, #4b5563);
+  color: var(--text-primary-dark, #f9fafb);
+}
+
+.dark .collapsed-user-menu-btn:hover {
+  border-color: var(--primary-color, #3b82f6);
+  color: var(--primary-color, #60a5fa);
+}
+
+.dark .collapsed-user-menu-btn[aria-expanded='true'] {
+  background: var(--primary-color, #3b82f6);
+  border-color: var(--primary-color, #3b82f6);
+  color: white;
+}
+
+/* Open to the right of the narrow sidebar so the panel is not clipped */
+.user-menu.user-menu--collapsed-sidebar {
+  position: absolute;
+  left: calc(100% + 10px);
+  right: auto;
+  top: 0;
+  margin-top: 0;
+  min-width: 200px;
+  z-index: 300;
 }
 
 .user-section {

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Paperclip, FileText, X, Trash2, Download, Mic, MicOff, MessageCircle, ClipboardList, Loader2, Columns3, FileOutput } from 'lucide-react';
+import { Send, Paperclip, FileText, X, Trash2, Download, Mic, MicOff, Loader2 } from 'lucide-react';
 import { useVoiceStatus } from '../contexts/VoiceStatusContext';
 import FileUpload from './FileUpload';
 
@@ -11,11 +11,6 @@ const EnhancedChatInput = ({
   currentChatSessionId,
   authToken, 
   placeholder = "Ask your advisors anything...",
-  showProfileButtons = false,
-  onOpenOnboarding,
-  onOpenProfileForm,
-  synthesizedMode = false,
-  onToggleSynthesized,
   ensureSessionId,
 }) => {
   const [inputMessage, setInputMessage] = useState('');
@@ -301,70 +296,10 @@ const EnhancedChatInput = ({
                 <span className="docs-count">{uploadedDocuments.length}</span>
               </button>
             )}
-            {showProfileButtons && (
-              <>
-                <button
-                  onClick={onOpenOnboarding}
-                  className="add-docs-btn"
-                  type="button"
-                >
-                  <MessageCircle size={16} />
-                  <span>Tell us about yourself</span>
-                </button>
-                <button
-                  onClick={onOpenProfileForm}
-                  className="add-docs-btn"
-                  type="button"
-                >
-                  <ClipboardList size={16} />
-                  <span>Fill out profile form</span>
-                </button>
-              </>
-            )}
           </div>
 
-          {/* Right - Mode Toggle + Mic + Send */}
+          {/* Right - Mic + Send */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            {onToggleSynthesized && (
-              <div style={{
-                display: 'flex', borderRadius: '18px', overflow: 'hidden',
-                border: '1px solid #3b82f6', flexShrink: 0,
-              }}>
-                <button
-                  onClick={synthesizedMode ? onToggleSynthesized : undefined}
-                  type="button"
-                  title="Panel Response (3 advisors)"
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '4px',
-                    padding: '5px 10px', fontSize: '12px', fontWeight: 600,
-                    cursor: synthesizedMode ? 'pointer' : 'default',
-                    border: 'none', transition: 'all 0.2s', whiteSpace: 'nowrap',
-                    background: !synthesizedMode ? '#3b82f6' : 'transparent',
-                    color: !synthesizedMode ? '#fff' : '#3b82f6',
-                  }}
-                >
-                  <Columns3 size={13} />
-                  Panel
-                </button>
-                <div style={{ width: 1, background: '#3b82f6', alignSelf: 'stretch' }} />
-                <button
-                  onClick={!synthesizedMode ? onToggleSynthesized : undefined}
-                  type="button"
-                  title="Aggregate synthesized answer"
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '4px',
-                    padding: '5px 10px', fontSize: '12px', fontWeight: 600,
-                    cursor: !synthesizedMode ? 'pointer' : 'default',
-                    border: 'none', transition: 'all 0.2s', whiteSpace: 'nowrap',
-                    background: synthesizedMode ? '#3b82f6' : 'transparent',
-                    color: synthesizedMode ? '#fff' : '#3b82f6',
-                  }}
-                >
-                  <FileOutput size={13} />
-                  Aggregate
-                </button>
-              </div>
-            )}
             <button
               onClick={toggleRecording}
               disabled={isTranscribing}

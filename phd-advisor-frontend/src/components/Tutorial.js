@@ -31,9 +31,9 @@ const STEPS = [
   {
     id: 'panel-toggle',
     type: 'highlight',
-    target: '[title="Aggregate synthesized answer"]',
+    target: '.response-mode-dropdown-trigger',
     title: 'Response Mode',
-    body: 'Your first question got a Panel response \u2014 each advisor answers separately.\n\nClick "Aggregate" to switch to a single merged answer. Try it now!',
+    body: 'Your first question used Panel mode \u2014 each advisor answers separately.\n\nOpen the Response mode menu and choose Aggregate for one merged answer. Try it now!',
     position: 'top-left',
     extraGap: 60,
   },

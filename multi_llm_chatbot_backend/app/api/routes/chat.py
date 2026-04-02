@@ -70,6 +70,8 @@ class ChatMessage(BaseModel):
     response_length: str = "medium"
     active_advisors: Optional[List[str]] = None
     synthesized: bool = False
+    #: When set, only this persona answers (panel-style single reply; ``synthesized`` is ignored).
+    single_advisor_id: Optional[str] = None
 
 
 class ReplyToAdvisor(BaseModel):
@@ -357,12 +359,23 @@ async def chat_sequential_enhanced(
         if message.active_advisors:
             all_persona_ids = [pid for pid in all_persona_ids if pid in message.active_advisors]
 
-        k = min(3, len(all_persona_ids))
-        top_personas = await chat_orchestrator.get_top_personas(
-            session_id=session_id,
-            k=k,
-            allowed_ids=all_persona_ids
-        )
+        single_id = (message.single_advisor_id or "").strip() or None
+        if single_id and single_id not in all_persona_ids:
+            LOG.warning(
+                "single_advisor_id %s not in allowed advisors; using ranked selection",
+                single_id,
+            )
+            single_id = None
+
+        if single_id:
+            top_personas = [single_id]
+        else:
+            k = min(3, len(all_persona_ids))
+            top_personas = await chat_orchestrator.get_top_personas(
+                session_id=session_id,
+                k=k,
+                allowed_ids=all_persona_ids
+            )
 
         LOG.info(f"Intelligent persona order for session {session_id}: {top_personas}")
 
@@ -383,7 +396,7 @@ async def chat_sequential_enhanced(
                 "document_chunks_used": r.get("document_chunks_used", 0),
             })
 
-        if message.synthesized and len(responses) > 1:
+        if message.synthesized and len(responses) > 1 and not single_id:
             synthesized = await chat_orchestrator.synthesize_responses(responses)
             return {
                 "responses": [synthesized],
@@ -430,7 +443,7 @@ async def chat_stream(
     Event types:
 
     - ``event: advisor`` -- one advisor's complete response
-    - ``event: synthesized`` -- synthesised single answer (when synthesized=true)
+    - ``event: synthesized`` -- synthesised single answer (when synthesized=true and not single-advisor mode)
     - ``event: done`` -- signals end of stream
     - ``event: error`` -- top-level error
     - ``event: clarification`` -- orchestrator needs clarification
@@ -525,16 +538,28 @@ async def chat_stream(
             all_ids = [pid for pid in chat_orchestrator.personas if pid not in _agent_ids]
             if message.active_advisors:
                 all_ids = [pid for pid in all_ids if pid in message.active_advisors]
-            k = min(3, len(all_ids))
-            top_personas = await chat_orchestrator.get_top_personas(
-                session_id=sid, k=k, allowed_ids=all_ids,
-            )
+
+            single_id = (message.single_advisor_id or "").strip() or None
+            if single_id and single_id not in all_ids:
+                LOG.warning(
+                    "single_advisor_id %s not in allowed advisors; using ranked selection",
+                    single_id,
+                )
+                single_id = None
+
+            if single_id:
+                top_personas = [single_id]
+            else:
+                k = min(3, len(all_ids))
+                top_personas = await chat_orchestrator.get_top_personas(
+                    session_id=sid, k=k, allowed_ids=all_ids,
+                )
 
             doc_ctx = await chat_orchestrator._retrieve_relevant_documents(
                 user_input=message.user_input, session_id=sid, persona_id="",
             )
 
-            is_synthesized = bool(message.synthesized)
+            is_synthesized = bool(message.synthesized) and not single_id
             done_queue: asyncio.Queue = asyncio.Queue()
 
             async def _run(pid: str) -> None:

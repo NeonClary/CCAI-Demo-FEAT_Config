@@ -42,8 +42,8 @@ const GUIDE_SECTIONS = [
       },
       {
         id: 'panel-vs-aggregate',
-        title: 'Panel Mode vs. Aggregate Answer',
-        content: `You can toggle between two response modes using the button next to the chat input:\n\n- **Panel Mode** (three columns icon) — Three advisors respond independently, each from their own specialty. Their responses appear as a carousel you can swipe through.\n- **Aggregate Answer** (document icon) — All advisors' insights are merged into one synthesized response that combines the best of each perspective.\n\nPanel mode is great for seeing diverse viewpoints. Aggregate mode is faster to read when you just want one consolidated answer.`
+        title: 'Response mode (Panel, Aggregate, Single)',
+        content: `Use the **Response mode** dropdown in the header (to the right of the advisor selector) to choose how answers are produced:\n\n- **Panel** — Up to three relevant advisors each answer separately; responses appear as a carousel you can swipe through.\n- **Aggregate** — Multiple advisors contribute, then their insights are merged into one synthesized answer.\n- **Single advisor** — Open the submenu and pick one advisor; only that advisor answers.\n\nPanel mode shows diverse viewpoints. Aggregate is best for one consolidated answer. Single is best when you want a specific specialist only.`
       },
       {
         id: 'replying-to-advisors',
