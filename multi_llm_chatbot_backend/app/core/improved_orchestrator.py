@@ -377,6 +377,7 @@ class ImprovedChatOrchestrator:
             )
 
             response = await persona.respond(enhanced_context, response_length)
+            response = self._repair_citations_from_cite_keys(response, document_context or "")
 
             if not self._is_valid_response(response, persona.id):
                 LOG.warning(f"Invalid response from {persona.id}, using fallback")
@@ -1383,6 +1384,20 @@ class ImprovedChatOrchestrator:
         }
         return enhanced_keywords.get(persona_id, "")
 
+    def _repair_citations_from_cite_keys(self, response: str, document_context: str) -> str:
+        """If cite_key lines include [Title](URL) but the model echoed [Title] only, expand to full markdown links."""
+        if not response or not document_context or "cite_key:" not in document_context:
+            return response
+        out = response
+        for m in re.finditer(r"cite_key:\s*\[([^\]]+)\]\(([^)]+)\)", document_context):
+            title, url = m.group(1).strip(), m.group(2).strip()
+            if not title or not url:
+                continue
+            linked = f"[{title}]({url})"
+            plain_only = re.compile(rf"\[{re.escape(title)}\](?!\()")
+            out = plain_only.sub(linked, out)
+        return out
+
     def _format_document_context_with_attribution(self, chunks: List[Dict], persona_id: str) -> str:
         """Format document context with clear attribution and source information.
 
@@ -1514,7 +1529,14 @@ When analyzing the document context:
 - Identify environmental risks, deadlines, and documentation gaps
 - Reference specific permit numbers, regulations, and compliance dates
 - Flag potential violations and suggest corrective measures
-- Evaluate sustainability practices and RAP/recycling opportunities"""
+- Evaluate sustainability practices and RAP/recycling opportunities""",
+
+            "dunn_employee_assist": """
+When analyzing the document context:
+- This advisor uses the Dunn Construction Employee Handbook and HR/policy references in context
+- When you cite the handbook or a policy source, use the markdown link from cite_key exactly (title and URL)
+- Distinguish company policy from general OSHA or industry guidance; label each clearly
+- For injuries or safety concerns, cover both first-aid / reporting steps in policy and when to escalate to HR or supervision""",
         }
 
         return instructions.get(persona_id, "Provide helpful guidance based on the document context.")
@@ -1831,6 +1853,89 @@ When analyzing the document context:
                     break
         return "\n".join(identity_lines) if identity_lines else persona.name
 
+    def _user_message_targets_employee_handbook(self, conversation_text: str) -> bool:
+        """Heuristic: user is asking about company/HR policy or handbook-grounded topics.
+
+        Persona-scoped RAG for the Dunn handbook is stored under ``dunn_employee_assist`` only.
+        Without this, safety-style questions were routed to ``safety_advisor``, which never
+        retrieves those chunks—so no handbook citation appeared.
+        """
+        if not conversation_text:
+            return False
+        t = conversation_text.lower()
+
+        phrase_hits = (
+            "company policy",
+            "employee handbook",
+            "the handbook",
+            "workplace safety concern",
+            "report a safety",
+            "reporting a safety",
+            "report a concern",
+            "human resources",
+            " hr ",
+            "pto",
+            "paid time off",
+            "benefits eligibility",
+            "grievance",
+            "at-will",
+            "anti-harassment",
+            "code of conduct",
+            "drug and alcohol policy",
+        )
+        if any(p in t for p in phrase_hits):
+            return True
+
+        if "report" in t and any(
+            w in t for w in ("concern", "incident", "hazard", "safety", "near-miss", "near miss")
+        ):
+            return True
+
+        injury = any(
+            w in t
+            for w in (
+                "cut my finger",
+                "cut your finger",
+                "injured",
+                "injury",
+                "hurt my",
+                "hurt yourself",
+                "first aid",
+                "blood",
+                "bandage",
+            )
+        )
+        work_ctx = any(w in t for w in ("work", "working", "job", "site", "employer", "company"))
+        if injury and work_ctx:
+            return True
+
+        return False
+
+    def _prioritize_advisor_first(
+        self,
+        ordered_ids: List[str],
+        priority_id: str,
+        pool: Dict[str, Persona],
+        k: int,
+    ) -> List[str]:
+        """Place *priority_id* first if it exists in *pool*, then fill from *ordered_ids* without duplicates."""
+        if priority_id not in pool:
+            return ordered_ids[:k]
+        rest = [pid for pid in ordered_ids if pid != priority_id and pid in pool]
+        out: List[str] = [priority_id]
+        for pid in rest:
+            if pid not in out:
+                out.append(pid)
+            if len(out) >= k:
+                break
+        if len(out) < k:
+            for pid in pool:
+                if pid not in out:
+                    out.append(pid)
+                if len(out) >= k:
+                    break
+        return out[:k]
+
     async def get_top_personas(self, session_id: str, k: int = 3, allowed_ids: Optional[List[str]] = None) -> List[str]:
         """Select advisors using a diversity-aware strategy.
 
@@ -1869,24 +1974,29 @@ When analyzing the document context:
             app_title = get_settings().app.title
 
             prompt = (
-                f"A student is using {app_title}. Based on the conversation, "
+                f"A user is using {app_title}. Based on the conversation, "
                 "select 3 advisors to respond.\n\n"
                 "SELECTION RULES:\n"
                 "1. Pick the 1 advisor whose expertise is MOST directly relevant "
-                "to what the student is asking about. Place them first.\n"
-                "2. Then pick 2 MORE advisors whose expertise is DIFFERENT from "
+                "to what the user is asking about. Place them first.\n"
+                "2. If the question is about **company employment policy**, the **employee handbook**, "
+                "**internal HR reporting**, **reporting a workplace safety concern to the employer**, "
+                "**benefits/PTO**, or **what to do after a minor on-the-job injury** (first aid / reporting), "
+                "and the advisor list includes **dunn_employee_assist**, that advisor MUST be first—"
+                "they hold the company handbook RAG. Do not substitute only a general safety/OSHA advisor "
+                "for those topics.\n"
+                "3. Then pick 2 MORE advisors whose expertise is DIFFERENT from "
                 "the first and from each other, but who could offer a useful "
-                "alternative angle the student might not have considered.\n"
-                "   - Prefer advisors whose perspective CONTRASTS with the top pick "
-                "(e.g. if #1 is academic, pick a wellness or career voice).\n\n"
+                "alternative angle.\n"
+                "   - Prefer advisors whose perspective CONTRASTS with the top pick when appropriate.\n\n"
                 "Respond ONLY with a JSON list of exactly 3 advisor IDs.\n"
-                'Example: ["academic_planner", "wellness_advisor", "career_coach"]\n\n'
+                'Example: ["dunn_employee_assist", "safety_advisor", "cost_estimator"]\n\n'
                 f"--- Conversation ---\n{recent_context}\n\n"
                 f"--- Available Advisors ---\n{persona_descriptions}"
             )
 
             llm_response = await llm.generate(
-                system_prompt="You select advisors for a student advising app. Return only JSON.",
+                system_prompt="You select construction/project advisors. Return only JSON.",
                 context=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 max_tokens=150,
@@ -1904,6 +2014,17 @@ When analyzing the document context:
                 LOG.warning(f"LLM returned insufficient or invalid IDs ({valid_ids}), padding with remaining")
                 remaining = [pid for pid in pool if pid not in valid_ids]
                 valid_ids.extend(remaining[: k - len(valid_ids)])
+
+            if "dunn_employee_assist" in pool and self._user_message_targets_employee_handbook(
+                recent_context
+            ):
+                valid_ids = self._prioritize_advisor_first(
+                    valid_ids, "dunn_employee_assist", pool, k
+                )
+                LOG.info(
+                    "Handbook/HR heuristic: prioritized dunn_employee_assist -> %s",
+                    valid_ids,
+                )
 
             return valid_ids[:k]
 

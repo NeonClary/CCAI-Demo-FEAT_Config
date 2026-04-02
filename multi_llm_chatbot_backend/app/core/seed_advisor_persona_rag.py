@@ -125,9 +125,34 @@ document for employment terms. It typically covers: employment relationship and 
 and code of ethics; anti-harassment and equal opportunity; attendance and timekeeping; paid time off (PTO)
 and leave; benefits eligibility and enrollment; workplace safety reporting; drug and alcohol policy;
 discipline and grievance procedures; use of company equipment and vehicles; and confidentiality.
+
+Workplace safety concerns: Employees should report hazards, unsafe conditions, or safety concerns to their
+supervisor or project manager as soon as practical. The handbook describes how to escalate concerns to HR
+or safety leadership and may reference anonymous or non-retaliation reporting options where applicable.
+For emergencies, follow site emergency procedures and 911 when life or health is at risk.
+
+Injuries and first aid: For minor cuts, scrapes, or injuries on the job, workers should notify their
+supervisor, obtain first aid per site procedures, and complete any required incident or near-miss
+reporting. Serious injuries require immediate medical attention and documentation per company policy.
+
 Policies may change; direct employees to HR for the authoritative PDF and for matters requiring individual
 interpretation. When answering, distinguish general industry practice from company-specific policy and
 encourage verification against the current handbook posted by the employer.
+""",
+    },
+    {
+        "filename": "seed_hr_dunn_handbook_reporting_injury_supplement.txt",
+        "persona_id": "dunn_employee_assist",
+        "citation_title": "Dunn Construction Employee Handbook (Effective January 1, 2023)",
+        "source_url": "https://www.dunnconstruction.com/wp-content/uploads/2023/01/Dunn-Construction-Handbook-Effective-Jan.-1-2023-.pdf",
+        "body": """
+Reporting workplace safety concerns: Tell your supervisor or project manager about hazards, unsafe acts,
+or near-misses promptly. Escalate to HR or corporate safety per the handbook’s chain of reporting.
+Company policy may include non-retaliation protections for good-faith reporting.
+
+On-the-job injuries (e.g., cuts, scrapes): Notify your supervisor, use site first-aid supplies and
+procedures, and complete incident reporting as required. Seek medical care when appropriate; serious
+injuries require emergency response and documentation under company and OSHA expectations.
 """,
     },
     {

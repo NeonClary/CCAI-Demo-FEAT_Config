@@ -555,9 +555,9 @@ async def chat_stream(
                     session_id=sid, k=k, allowed_ids=all_ids,
                 )
 
-            doc_ctx = await chat_orchestrator._retrieve_relevant_documents(
-                user_input=message.user_input, session_id=sid, persona_id="",
-            )
+            # Do not prefetch RAG with persona_id="": unified retrieval skips
+            # persona-scoped libraries (e.g. Employee Handbook). Each advisor
+            # must retrieve with its own persona id inside _generate_single_persona_response.
 
             is_synthesized = bool(message.synthesized) and not single_id
             done_queue: asyncio.Queue = asyncio.Queue()
@@ -569,7 +569,6 @@ async def chat_stream(
                 result = await chat_orchestrator._generate_single_persona_response(
                     session, persona,
                     message.response_length or "medium",
-                    prefetched_document_context=doc_ctx,
                 )
                 session.append_message(pid, result["response"])
                 await done_queue.put(result)

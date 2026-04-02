@@ -50,6 +50,37 @@ from app.core.rag_scopes import (
 
 LOG = logging.getLogger(__name__)
 
+# Older Chroma chunks may lack source_url even when seeded with a citation URL.
+# Map seed filenames (and known titles) to canonical URLs so cite_key lines use [Title](URL), including PDFs.
+_DUNN_HANDBOOK_2023_PDF = (
+    "https://www.dunnconstruction.com/wp-content/uploads/2023/01/"
+    "Dunn-Construction-Handbook-Effective-Jan.-1-2023-.pdf"
+)
+_PERSONA_SEED_FILENAME_SOURCE_URL_FALLBACK: Dict[str, str] = {
+    "seed_hr_dunn_handbook_2023.txt": _DUNN_HANDBOOK_2023_PDF,
+    "seed_hr_dunn_handbook_reporting_injury_supplement.txt": _DUNN_HANDBOOK_2023_PDF,
+}
+_DUNN_HANDBOOK_CITATION_TITLE = "Dunn Construction Employee Handbook (Effective January 1, 2023)"
+
+
+def _resolved_source_url_from_metadata(metadata: Dict[str, Any]) -> str:
+    """Return stored source_url, or a canonical fallback for known persona seed documents."""
+    raw = metadata.get("source_url")
+    if raw is None:
+        stored = ""
+    else:
+        stored = str(raw).strip()
+    if stored:
+        return stored
+    fn = (metadata.get("filename") or "").strip()
+    if fn in _PERSONA_SEED_FILENAME_SOURCE_URL_FALLBACK:
+        return _PERSONA_SEED_FILENAME_SOURCE_URL_FALLBACK[fn]
+    cite = (metadata.get("citation_title") or "").strip()
+    if cite == _DUNN_HANDBOOK_CITATION_TITLE:
+        return _DUNN_HANDBOOK_2023_PDF
+    return ""
+
+
 try:
     nltk.data.find('tokenizers/punkt')
 except LookupError:
@@ -863,7 +894,7 @@ class EnhancedRAGManager:
                     "document_title": metadata.get("document_title", metadata.get("filename", "unknown")),
                     "section": metadata.get("document_section", "unknown"),
                     "chunk_position": f"{metadata.get('chunk_index', 0) + 1} of {metadata.get('total_chunks', 1)}",
-                    "source_url": metadata.get("source_url") or "",
+                    "source_url": _resolved_source_url_from_metadata(metadata),
                     "citation_title": metadata.get("citation_title") or metadata.get("document_title", "unknown"),
                     "rag_scope": metadata.get("rag_scope") or RAG_SCOPE_SESSION,
                 },

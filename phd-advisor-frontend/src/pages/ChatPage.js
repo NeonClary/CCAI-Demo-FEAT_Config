@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Home, MessageCircle, Reply, X, Users, FileText, Menu, Cog } from 'lucide-react';
+import { Home, MessageCircle, Reply, X, Users, FileText, Menu, Cog, BookMarked } from 'lucide-react';
 import EnhancedChatInput from '../components/EnhancedChatInput';
 import MessageBubble from '../components/MessageBubble';
 import AdvisorCarousel from '../components/AdvisorCarousel';
@@ -984,7 +984,6 @@ const handleNewChat = async (sessionId = null) => {
         isMobileOpen={isMobileMenuOpen}
         onMobileToggle={setIsMobileMenuOpen}
         onNavigateToCanvas={onNavigateToCanvas}
-        onNavigateToAdminRag={onNavigateToAdminRag}
         userAvatarId={userAvatarId}
         onAvatarChange={handleAvatarChange}
         onOpenProfile={() => setShowProfileForm(true)}
@@ -1058,7 +1057,7 @@ const handleNewChat = async (sessionId = null) => {
                     title="Settings"
                     aria-expanded={headerSettingsOpen}
                     aria-haspopup="dialog"
-                    aria-label="Open settings: export, LLM provider, and tools"
+                    aria-label="Open settings: export, LLM provider, tools, and admin options"
                   >
                     <Cog size={20} />
                   </button>
@@ -1098,6 +1097,23 @@ const handleNewChat = async (sessionId = null) => {
                           }}
                         />
                       </div>
+                      {user?.isAdmin && onNavigateToAdminRag && (
+                        <div className="header-settings-section">
+                          <span className="header-settings-label">Admin Persona Knowledge</span>
+                          <button
+                            type="button"
+                            className="header-settings-admin-rag-btn"
+                            title="Upload advisor-specific reference documents"
+                            onClick={() => {
+                              setHeaderSettingsOpen(false);
+                              onNavigateToAdminRag();
+                            }}
+                          >
+                            <BookMarked size={18} aria-hidden />
+                            <span>Open admin knowledge</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
