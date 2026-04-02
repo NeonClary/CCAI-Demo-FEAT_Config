@@ -428,14 +428,8 @@ class ImprovedChatOrchestrator:
         """
         session = self.session_manager.get_session(session_id)
 
-        document_context = await self._retrieve_relevant_documents(
-            user_input=user_input,
-            session_id=session_id,
-            persona_id="",
-        )
-        LOG.info(
-            f"Shared RAG retrieval complete ({len(document_context or '')} chars) for {len(persona_ids)} personas"
-        )
+        # Per-persona retrieval (session + general KB + persona-specific admin docs).
+        # A single shared prefetch with persona_id="" would skip persona-scoped RAG.
 
         async def _run_one(pid: str) -> Dict[str, Any]:
             persona = self.get_persona(pid)
@@ -453,7 +447,7 @@ class ImprovedChatOrchestrator:
                 session,
                 persona,
                 response_length,
-                prefetched_document_context=document_context,
+                prefetched_document_context=None,
             )
 
         results = await asyncio.gather(
@@ -1302,6 +1296,8 @@ class ImprovedChatOrchestrator:
     async def _retrieve_relevant_documents(self, user_input: str, session_id: str, persona_id: str = "") -> str:
         """Enhanced document retrieval with document awareness and better attribution.
 
+        Combines: chat session uploads, general background RAG, legacy global seed, and persona-specific admin docs.
+
         :param user_input: The user's query text.
         :param session_id: Current session identifier.
         :param persona_id: Optional persona identifier for retrieval tuning.
@@ -1313,63 +1309,22 @@ class ImprovedChatOrchestrator:
 
             rag_manager = get_rag_manager()
 
-            doc_stats = rag_manager.get_document_stats(session_id)
-            LOG.info(f"Available documents for {session_id}: {doc_stats.get('total_documents', 0)} documents, {doc_stats.get('total_chunks', 0)} chunks")
-
-            if doc_stats.get('documents'):
-                for doc in doc_stats['documents']:
-                    LOG.info(f"  - Document: {doc.get('filename', 'unknown')} ({doc.get('chunks', 0)} chunks)")
-
-            if doc_stats.get('total_documents', 0) == 0:
-                if session_id.startswith('chat_'):
-                    LOG.warning(f"No documents found for chat session {session_id} - this may indicate session ID mismatch during upload")
-
-                    alternative_formats = [
-                        session_id.replace('chat_', ''),
-                        session_id,
-                    ]
-
-                    for alt_session_id in alternative_formats:
-                        if alt_session_id != session_id:
-                            alt_stats = rag_manager.get_document_stats(alt_session_id)
-                            if alt_stats.get('total_documents', 0) > 0:
-                                LOG.warning(f"Found documents under alternative session ID {alt_session_id}: {alt_stats}")
-                else:
-                    LOG.info(f"No documents found for new session {session_id} - this is normal for new chats")
-
-                return ""
-
             document_hint = self._extract_document_hint_from_query(user_input)
-            LOG.info(f"Document hint extracted from query: {document_hint}")
-
             persona_context = self._get_enhanced_persona_context_keywords(persona_id)
 
-            LOG.info(f"Searching with persona context: {persona_context[:100]}...")
-            relevant_chunks = rag_manager.search_documents_with_context(
+            relevant_chunks = rag_manager.search_unified_retrieval(
                 query=user_input,
-                session_id=session_id,
+                chat_session_id=session_id,
+                persona_id=persona_id,
                 persona_context=persona_context,
-                n_results=6,
-                document_hint=document_hint
+                n_session=4,
+                n_general=4,
+                n_legacy=2,
+                n_persona=4,
+                document_hint=document_hint,
             )
 
-            LOG.info(f"Retrieved {len(relevant_chunks)} chunks for {persona_id}")
-
-            if relevant_chunks:
-                for i, chunk in enumerate(relevant_chunks):
-                    relevance = chunk.get("relevance_score", 0)
-                    doc_source = chunk.get("document_source", {})
-                    filename = doc_source.get("filename", "unknown")
-                    LOG.info(f"  Chunk {i+1}: {filename} (relevance: {relevance:.3f})")
-
-            try:
-                from app.core.global_rag import query_global_documents
-                global_chunks = query_global_documents(user_input, n_results=3)
-                if global_chunks:
-                    relevant_chunks = (relevant_chunks or []) + global_chunks
-                    LOG.info(f"Added {len(global_chunks)} global doc chunks")
-            except Exception as ge:
-                LOG.debug(f"Global RAG query skipped: {ge}")
+            LOG.info(f"Unified RAG retrieved {len(relevant_chunks)} chunks for persona {persona_id}")
 
             if not relevant_chunks:
                 LOG.info(f"No relevant document chunks found for query: {user_input[:50]}...")
@@ -1455,8 +1410,9 @@ class ImprovedChatOrchestrator:
 
             if filename not in documents:
                 documents[filename] = {
-                    "title": doc_source.get("document_title", filename),
-                    "chunks": []
+                    "title": doc_source.get("citation_title")
+                    or doc_source.get("document_title", filename),
+                    "chunks": [],
                 }
             documents[filename]["chunks"].append(chunk)
 
@@ -1471,8 +1427,16 @@ class ImprovedChatOrchestrator:
                 section = doc_source.get("section", "unknown section")
                 position = doc_source.get("chunk_position", "unknown position")
                 relevance = chunk.get("relevance_score", 0)
+                cite_title = doc_source.get("citation_title") or doc_title
+                source_url = (doc_source.get("source_url") or "").strip()
+                rag_scope = doc_source.get("rag_scope", "session")
 
-                chunk_intro = f"[Source: {section}, Part {position}, Relevance: {relevance:.2f}]"
+                if source_url:
+                    cite_line = f"cite_key: [{cite_title}]({source_url})  [scope: {rag_scope}]"
+                else:
+                    cite_line = f"cite_key: [{cite_title}]  [scope: {rag_scope}]"
+
+                chunk_intro = f"[Source: {section}, Part {position}, Relevance: {relevance:.2f}]\n{cite_line}"
                 formatted_sections.append(f"{chunk_intro}\n{chunk['text']}\n")
 
         total_docs = len(documents)
@@ -1481,7 +1445,12 @@ class ImprovedChatOrchestrator:
         context_header = f"""
 DOCUMENT CONTEXT FOR {persona_id.upper()} ANALYSIS:
 Found {total_chunks} relevant passages from {total_docs} document(s).
-Use this context to inform your response, and cite specific documents when referencing information.
+
+CITATION RULES (required when using this context):
+- When you state a fact from a passage below, cite it with the same markdown link shown in cite_key:
+  use [Title](URL) when a URL is present; otherwise [Title] only.
+- Place citations inline after the sentence or bullet, or group at the end of a short paragraph.
+- Do not invent URLs; only use URLs from cite_key lines.
 
 """
 
@@ -1580,19 +1549,27 @@ When analyzing the document context:
 
         if has_documents:
             uploaded_docs = session.uploaded_files if hasattr(session, 'uploaded_files') else []
-            doc_list = ", ".join(uploaded_docs) if uploaded_docs else "uploaded documents"
+            if uploaded_docs:
+                doc_list = ", ".join(uploaded_docs)
+                upload_note = f"The user has uploaded these files in this chat: {doc_list}."
+            else:
+                doc_list = "no chat uploads"
+                upload_note = (
+                    "The user has not uploaded files in this chat; the context below is from the "
+                    "reference knowledge base (general and/or advisor-specific)."
+                )
 
             system_message = f"""{persona.system_prompt}{user_profile_block}
 
     CURRENT SESSION CONTEXT:
-    The user has uploaded the following documents: {doc_list}
+    {upload_note}
 
-    DOCUMENT CONTENT:
+    DOCUMENT / REFERENCE CONTENT:
     {document_context}
 
-    IMPORTANT: When the user refers to "my document," "my plan," "my report," etc., they are referring to one of their uploaded documents. Use the document context above to understand which specific document they mean and reference it by name in your response.
+    When the user refers to "my document," "my plan," or "my report," they may mean chat uploads or a prior project file—use context above when it clearly matches.
 
-    Always cite your sources when referencing information from their documents using the format: "According to your [document_name]..." or "In your [section_name] from [document_name]..."
+    CITATIONS: When you use information from the reference content, cite it in markdown using [Title](URL) when a URL appears in cite_key lines, or [Title] when no URL is given. Open links are for external regulations and resources—include them verbatim from the cite_key lines.
     """
 
             enhanced_context.append({

@@ -233,6 +233,22 @@ const MessageBubble = ({
         {children}
       </li>
     ),
+
+    // External citation links (RAG sources) — open in new tab
+    a: ({ href, children }) => (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          color: isDark ? '#93c5fd' : '#2563eb',
+          textDecoration: 'underline',
+          fontWeight: 500,
+        }}
+      >
+        {children}
+      </a>
+    ),
     
     // Inline code styling
     code: ({ inline, children }) => (

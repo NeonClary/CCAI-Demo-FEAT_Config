@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, RefreshCw, Cpu, ChevronDown, Check, AlertCircle, Loader2, Settings2, Users, User2 } from 'lucide-react';
+import { X, RefreshCw, Cpu, Cloud, ChevronDown, Check, AlertCircle, Loader2, Settings2, Users, User2 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 
 const OllamaModelConfig = ({ isOpen, onClose, advisors, currentAssignments, onSaveAssignments, currentProvider }) => {
@@ -68,7 +68,7 @@ const OllamaModelConfig = ({ isOpen, onClose, advisors, currentAssignments, onSa
   if (!isOpen) return null;
 
   const advisorEntries = advisors ? Object.entries(advisors) : [];
-  const totalModels = neonModels.length + vllmModels.length;
+  const totalModels = neonModels.length + 1;
 
   return (
     <div className="ollama-config-overlay" onClick={onClose}>
@@ -224,6 +224,15 @@ const OllamaModelConfig = ({ isOpen, onClose, advisors, currentAssignments, onSa
 };
 
 
+const GEMINI_OPTION = {
+  model_id: 'gemini-2.5-flash',
+  client_id: 'gemini',
+  client_name: 'Google Gemini',
+  api_url: '',
+  persona_name: '',
+  system_prompt: '',
+};
+
 const NeonModelSelect = ({ neonModels, vllmModels, value, onChange, placeholder, isDark, compact }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(null);
@@ -244,15 +253,8 @@ const NeonModelSelect = ({ neonModels, vllmModels, value, onChange, placeholder,
     setPersonaOpen(null);
   };
 
-  const handleSelectVllmModel = (model) => {
-    onChange({
-      model_id: model.model_id,
-      client_id: model.client_id,
-      client_name: model.client_name,
-      api_url: model.api_url,
-      persona_name: '',
-      system_prompt: '',
-    });
+  const handleSelectGemini = () => {
+    onChange({ ...GEMINI_OPTION });
     setIsOpen(false);
   };
 
@@ -263,10 +265,13 @@ const NeonModelSelect = ({ neonModels, vllmModels, value, onChange, placeholder,
 
   const displayName = () => {
     if (!value) return placeholder;
+    if (value.client_id === 'gemini') return `Gemini (${value.model_id})`;
     const short = (value.model_id || '').split('/').pop();
     if (value.persona_name) return `${short} · ${value.persona_name}`;
     return `${short} (${value.client_name || value.client_id})`;
   };
+
+  const isGeminiSelected = value?.client_id === 'gemini';
 
   return (
     <div style={{ position: 'relative' }}>
@@ -300,6 +305,39 @@ const NeonModelSelect = ({ neonModels, vllmModels, value, onChange, placeholder,
           boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 50,
           maxHeight: '320px', overflowY: 'auto',
         }}>
+          {/* Cloud models (Gemini) */}
+          <div>
+            <div style={{
+              padding: '8px 14px', fontSize: '11px', fontWeight: 700,
+              textTransform: 'uppercase', letterSpacing: '0.5px',
+              color: isDark ? '#3b82f6' : '#2563eb',
+              borderBottom: `1px solid ${isDark ? '#2a2a3a' : '#f3f4f6'}`,
+            }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                <Cloud size={11} /> Cloud
+              </span>
+            </div>
+            <button
+              onClick={handleSelectGemini}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                width: '100%', padding: '10px 14px', border: 'none',
+                background: isGeminiSelected ? (isDark ? '#333' : '#f3f4f6') : 'transparent',
+                color: isDark ? '#e0e0e0' : '#111', fontSize: '13px',
+                cursor: 'pointer', textAlign: 'left',
+                borderBottom: `1px solid ${isDark ? '#2a2a3a' : '#f3f4f6'}`,
+              }}
+              onMouseOver={e => { if (!isGeminiSelected) e.currentTarget.style.background = isDark ? '#2a2a3a' : '#f9fafb'; }}
+              onMouseOut={e => { if (!isGeminiSelected) e.currentTarget.style.background = isGeminiSelected ? (isDark ? '#333' : '#f3f4f6') : 'transparent'; }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, flex: 1 }}>
+                <span style={{ fontWeight: 500 }}>Gemini 2.5 Flash</span>
+                <span style={{ fontSize: '11px', color: isDark ? '#666' : '#9ca3af' }}>Google Cloud AI</span>
+              </div>
+              {isGeminiSelected && <Check size={14} style={{ color: '#3b82f6', flexShrink: 0 }} />}
+            </button>
+          </div>
+
           {/* Neon BrainForge models with personas */}
           {neonModels.length > 0 && (
             <div>
@@ -308,6 +346,7 @@ const NeonModelSelect = ({ neonModels, vllmModels, value, onChange, placeholder,
                 textTransform: 'uppercase', letterSpacing: '0.5px',
                 color: isDark ? '#7c3aed' : '#6d28d9',
                 borderBottom: `1px solid ${isDark ? '#2a2a3a' : '#f3f4f6'}`,
+                borderTop: `1px solid ${isDark ? '#333' : '#e5e7eb'}`,
               }}>
                 Neon.ai BrainForge
               </div>
@@ -381,53 +420,9 @@ const NeonModelSelect = ({ neonModels, vllmModels, value, onChange, placeholder,
             </div>
           )}
 
-          {/* Plain vLLM models */}
-          {vllmModels.length > 0 && (
-            <div>
-              <div style={{
-                padding: '8px 14px', fontSize: '11px', fontWeight: 700,
-                textTransform: 'uppercase', letterSpacing: '0.5px',
-                color: isDark ? '#888' : '#6b7280',
-                borderBottom: `1px solid ${isDark ? '#2a2a3a' : '#f3f4f6'}`,
-                borderTop: neonModels.length > 0 ? `1px solid ${isDark ? '#333' : '#e5e7eb'}` : 'none',
-              }}>
-                vLLM Endpoints
-              </div>
-              {vllmModels.map(m => {
-                const isSelected = value && value.client_id === m.client_id && value.model_id === m.model_id && !value.persona_name;
-                return (
-                  <button
-                    key={`${m.client_id}::${m.model_id}`}
-                    onClick={() => handleSelectVllmModel(m)}
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      width: '100%', padding: '10px 14px', border: 'none',
-                      background: isSelected ? (isDark ? '#333' : '#f3f4f6') : 'transparent',
-                      color: isDark ? '#e0e0e0' : '#111', fontSize: '13px',
-                      cursor: 'pointer', textAlign: 'left',
-                      borderBottom: `1px solid ${isDark ? '#2a2a3a' : '#f3f4f6'}`,
-                    }}
-                    onMouseOver={e => { if (!isSelected) e.currentTarget.style.background = isDark ? '#2a2a3a' : '#f9fafb'; }}
-                    onMouseOut={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
-                  >
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, flex: 1 }}>
-                      <span style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {m.model_id.split('/').pop()}
-                      </span>
-                      <span style={{ fontSize: '11px', color: isDark ? '#666' : '#9ca3af' }}>
-                        {m.client_name} &middot; {m.client_id}
-                      </span>
-                    </div>
-                    {isSelected && <Check size={14} style={{ color: '#7c3aed', flexShrink: 0 }} />}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {neonModels.length === 0 && vllmModels.length === 0 && (
+          {neonModels.length === 0 && (
             <div style={{ padding: '16px', textAlign: 'center', color: isDark ? '#666' : '#9ca3af', fontSize: '13px' }}>
-              No models available
+              No Neon.ai models available
             </div>
           )}
         </div>

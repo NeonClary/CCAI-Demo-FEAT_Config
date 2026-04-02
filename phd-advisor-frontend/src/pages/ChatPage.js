@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Home, MessageCircle, Reply, X, Sparkles, Users, Settings2, FileText, Menu} from 'lucide-react';
+import { Home, MessageCircle, Reply, X, Users, FileText, Menu, Cog } from 'lucide-react';
 import EnhancedChatInput from '../components/EnhancedChatInput';
 import MessageBubble from '../components/MessageBubble';
 import AdvisorCarousel from '../components/AdvisorCarousel';
@@ -22,7 +22,7 @@ import ProfileWalkthrough from '../components/ProfileWalkthrough';
 import ClearDataModal from '../components/ClearDataModal';
 import AccountModal from '../components/AccountModal';
 
-const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNavigateToGuide, onSignOut, onOpenTutorial }) => {
+const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNavigateToGuide, onNavigateToAdminRag, onSignOut, onOpenTutorial }) => {
   const { config, advisors, agents, allPersonas, getAdvisorColors, getAgentColors, getAllPersonaColors, orchestratorAvatar } = useAppConfig();
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -43,6 +43,8 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNav
   const [isSavingSession, setIsSavingSession] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [headerSettingsOpen, setHeaderSettingsOpen] = useState(false);
+  const headerSettingsRef = useRef(null);
 
   // Phase 1.1: User avatar
   const [userAvatarId, setUserAvatarId] = useState(() => localStorage.getItem('userAvatarId') || (user?.avatarId ?? null));
@@ -166,6 +168,26 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onNav
   useEffect(() => {
     scrollToBottom();
   }, [messages, thinkingAdvisors]);
+
+  useEffect(() => {
+    if (!headerSettingsOpen) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setHeaderSettingsOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [headerSettingsOpen]);
+
+  useEffect(() => {
+    if (!headerSettingsOpen) return;
+    const onDown = (e) => {
+      if (headerSettingsRef.current && !headerSettingsRef.current.contains(e.target)) {
+        setHeaderSettingsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [headerSettingsOpen]);
 
   useEffect(() => {
     fetchCurrentProvider();
@@ -893,7 +915,7 @@ const handleNewChat = async (sessionId = null) => {
     setReplyingTo(null);
   };
 
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
 
   const handleSidebarToggle = (isCollapsed) => {
     setIsSidebarCollapsed(isCollapsed);
@@ -944,6 +966,7 @@ const handleNewChat = async (sessionId = null) => {
         isMobileOpen={isMobileMenuOpen}
         onMobileToggle={setIsMobileMenuOpen}
         onNavigateToCanvas={onNavigateToCanvas}
+        onNavigateToAdminRag={onNavigateToAdminRag}
         userAvatarId={userAvatarId}
         onAvatarChange={handleAvatarChange}
         onOpenProfile={() => setShowProfileForm(true)}
@@ -996,31 +1019,58 @@ const handleNewChat = async (sessionId = null) => {
                 getAgentColors={getAgentColors}
                 isDark={isDark}
               />
-              <ToolsMenu onToolSelect={(tool) => {
-                const prompts = {
-                  contractor_scheduler: "I need to schedule a contractor — what tasks and dates do you need?",
-                  weather_forecast: "What location would you like a weather forecast for?",
-                };
-                handleSendMessage(prompts[tool.id] || `Use the ${tool.name} tool`);
-              }} />
-              
               <div className="header-controls">
-                {/* Export Button */}
-                <ExportButton 
-                  hasMessages={hasConversationMessages} 
-                  currentSessionId={currentSessionId}
-                  authToken={authToken}
-                />
-                
-                {/* Provider Dropdown */}
-                <ProviderDropdown 
-                  currentProvider={currentProvider}
-                  onProviderChange={handleProviderSwitch}
-                  isLoading={isProviderSwitching}
-                  onConfigureModels={() => setShowModelConfig(true)}
-                />
-                
-                {/* Theme Toggle */}
+                <div className="header-settings-wrapper" ref={headerSettingsRef}>
+                  <button
+                    type="button"
+                    className={`header-settings-trigger ${headerSettingsOpen ? 'open' : ''}`}
+                    onClick={() => setHeaderSettingsOpen((o) => !o)}
+                    title="Settings"
+                    aria-expanded={headerSettingsOpen}
+                    aria-haspopup="dialog"
+                    aria-label="Open settings: tools, export, and LLM provider"
+                  >
+                    <Cog size={20} />
+                  </button>
+                  {headerSettingsOpen && (
+                    <div
+                      className="header-settings-panel"
+                      role="dialog"
+                      aria-label="Settings"
+                    >
+                      <div className="header-settings-section">
+                        <span className="header-settings-label">Tools</span>
+                        <ToolsMenu
+                          onToolSelect={(tool) => {
+                            setHeaderSettingsOpen(false);
+                            const prompts = {
+                              contractor_scheduler: "I need to schedule a contractor — what tasks and dates do you need?",
+                              weather_forecast: "What location would you like a weather forecast for?",
+                            };
+                            handleSendMessage(prompts[tool.id] || `Use the ${tool.name} tool`);
+                          }}
+                        />
+                      </div>
+                      <div className="header-settings-section">
+                        <span className="header-settings-label">Export</span>
+                        <ExportButton
+                          hasMessages={hasConversationMessages}
+                          currentSessionId={currentSessionId}
+                          authToken={authToken}
+                        />
+                      </div>
+                      <div className="header-settings-section">
+                        <span className="header-settings-label">LLM provider</span>
+                        <ProviderDropdown
+                          currentProvider={currentProvider}
+                          onProviderChange={handleProviderSwitch}
+                          isLoading={isProviderSwitching}
+                          onConfigureModels={() => setShowModelConfig(true)}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <ThemeToggle />
               </div>
             </div>

@@ -36,7 +36,7 @@ from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.core.auth import get_current_active_user
+from app.core.auth import get_current_active_user, is_user_admin
 from app.core.database import get_database
 from app.models.user import User
 from app.models.user_profile import UserProfileResponse, UserProfileUpdate
@@ -118,10 +118,14 @@ async def get_my_profile(
     db = get_database()
     doc = await db.user_profiles.find_one({"user_id": current_user.id})
     if not doc:
-        return UserProfileResponse(user_id=str(current_user.id))
+        return UserProfileResponse(
+            user_id=str(current_user.id),
+            is_admin=is_user_admin(current_user.email),
+        )
     fields = {k: _normalize_field(k, doc.get(k)) for k in PROFILE_FIELDS}
     return UserProfileResponse(
         user_id=str(doc["user_id"]),
+        is_admin=is_user_admin(current_user.email),
         **fields,
         advisor_notes=doc.get("advisor_notes"),
         updated_at=doc.get("updated_at"),
@@ -146,6 +150,7 @@ async def update_my_profile(
     fields = {k: _normalize_field(k, doc.get(k)) for k in PROFILE_FIELDS}
     return UserProfileResponse(
         user_id=str(doc["user_id"]),
+        is_admin=is_user_admin(current_user.email),
         **fields,
         advisor_notes=doc.get("advisor_notes"),
         updated_at=doc.get("updated_at"),

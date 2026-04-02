@@ -41,6 +41,12 @@ from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
 
 from app.config import get_settings
+from app.core.rag_scopes import (
+    RAG_SCOPE_SESSION,
+    SESSION_ADMIN_PERSONA,
+    SESSION_GENERAL_BACKGROUND,
+    SESSION_GLOBAL_LEGACY,
+)
 
 LOG = logging.getLogger(__name__)
 
@@ -514,10 +520,24 @@ class EnhancedRAGManager:
         
         LOG.info(f"Enhanced RAG Manager initialized with collection: {self.collection.name}")
     
-    def add_document(self, content: str, filename: str, session_id: str, 
-                    file_type: str = "unknown") -> Dict[str, Any]:
+    def add_document(
+        self,
+        content: str,
+        filename: str,
+        session_id: str,
+        file_type: str = "unknown",
+        *,
+        rag_scope: str = RAG_SCOPE_SESSION,
+        source_url: str = "",
+        citation_title: str = "",
+        persona_id: str = "",
+    ) -> Dict[str, Any]:
         """
-        Enhanced document addition with better metadata and document awareness
+        Enhanced document addition with better metadata and document awareness.
+
+        *rag_scope*: ``session`` (chat uploads), ``general_background`` (org-wide reference),
+        or ``persona`` (admin persona library). *persona_id* is required for persona scope.
+        *source_url* / *citation_title* support markdown citations in LLM output.
         """
         try:
             # Preprocess the content
@@ -531,6 +551,8 @@ class EnhancedRAGManager:
             
             # Extract document metadata
             doc_metadata = self._extract_document_metadata(cleaned_content, filename, file_type)
+            cite_title = (citation_title or doc_metadata.get("title") or filename)[:2000]
+            safe_url = (source_url or "")[:2000]
             
             # Create intelligent chunks with overlap and context preservation
             chunks = self._create_enhanced_chunks(cleaned_content, filename, doc_metadata)
@@ -541,7 +563,7 @@ class EnhancedRAGManager:
             chunk_ids = []
             
             for i, chunk_data in enumerate(chunks):
-                chunk_id = f"{session_id}_{filename}_{i}_{uuid.uuid4().hex[:8]}"
+                chunk_id = f"{session_id}_{filename}_{i}_{persona_id or 'na'}_{uuid.uuid4().hex[:10]}"
                 
                 # Enhanced metadata with document awareness
                 metadata = {
@@ -558,7 +580,11 @@ class EnhancedRAGManager:
                     "has_references": "references" in chunk_data["text"].lower(),
                     "has_methodology": "method" in chunk_data["text"].lower(),
                     "has_theory": any(word in chunk_data["text"].lower() 
-                                    for word in ["theory", "theoretical", "framework", "concept"])
+                                    for word in ["theory", "theoretical", "framework", "concept"]),
+                    "rag_scope": rag_scope,
+                    "source_url": safe_url,
+                    "citation_title": cite_title,
+                    "persona_id": ((persona_id or "").strip() or "_none")[:200],
                 }
                 
                 chunk_texts.append(chunk_data["text"])
@@ -591,6 +617,112 @@ class EnhancedRAGManager:
                 "filename": filename,
                 "error": str(e)
             }
+
+    def search_unified_retrieval(
+        self,
+        query: str,
+        chat_session_id: str,
+        persona_id: str,
+        persona_context: str = "",
+        n_session: int = 4,
+        n_general: int = 4,
+        n_legacy: int = 2,
+        n_persona: int = 4,
+        document_hint: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Merge retrieval from chat uploads, general background, legacy global seed, and persona library."""
+        merged: List[Dict[str, Any]] = []
+        seen_text: set = set()
+
+        def _dedup_add(results: List[Dict[str, Any]]) -> None:
+            for r in results:
+                key = (r.get("text", "")[:120], r.get("metadata", {}).get("filename"))
+                if key in seen_text:
+                    continue
+                seen_text.add(key)
+                merged.append(r)
+
+        _dedup_add(
+            self.search_documents_with_context(
+                query,
+                chat_session_id,
+                persona_context,
+                n_results=n_session,
+                document_hint=document_hint,
+            )
+        )
+        _dedup_add(
+            self.search_documents_with_context(
+                query,
+                SESSION_GENERAL_BACKGROUND,
+                persona_context,
+                n_results=n_general,
+                document_hint=None,
+            )
+        )
+        _dedup_add(
+            self.search_documents_with_context(
+                query,
+                SESSION_GLOBAL_LEGACY,
+                persona_context,
+                n_results=n_legacy,
+                document_hint=None,
+            )
+        )
+        if persona_id and persona_id != "_none":
+            _dedup_add(
+                self._search_persona_documents(
+                    query, persona_id, persona_context, n_results=n_persona
+                )
+            )
+
+        merged.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+        return merged[: n_session + n_general + n_legacy + n_persona]
+
+    def _search_persona_documents(
+        self,
+        query: str,
+        persona_id: str,
+        persona_context: str,
+        n_results: int,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve admin-uploaded chunks for a single persona."""
+        try:
+            document_references = self._extract_document_references(query)
+            enhanced_query = self._build_enhanced_query(query, persona_context, document_references)
+            results = self.collection.query(
+                query_texts=[enhanced_query],
+                n_results=n_results,
+                where={
+                    "$and": [
+                        {"session_id": SESSION_ADMIN_PERSONA},
+                        {"persona_id": persona_id},
+                    ]
+                },
+            )
+            formatted_results: List[Dict[str, Any]] = []
+            if results["documents"] and results["documents"][0]:
+                for i, (doc, metadata, distance) in enumerate(
+                    zip(
+                        results["documents"][0],
+                        results["metadatas"][0],
+                        results["distances"][0],
+                    )
+                ):
+                    similarity_score = 1 / (1 + abs(distance)) if distance is not None else 0.5
+                    formatted_results.append(
+                        {
+                            "text": doc,
+                            "metadata": metadata,
+                            "relevance_score": similarity_score,
+                            "distance": distance,
+                            "rank": i + 1,
+                        }
+                    )
+            return self._enhance_search_results(formatted_results, query)
+        except Exception as e:
+            LOG.warning("Persona RAG search failed: %s", e)
+            return []
     
     def search_documents_with_context(self, query: str, session_id: str, 
                                     persona_context: str = "", n_results: int = 5,
@@ -730,7 +862,10 @@ class EnhancedRAGManager:
                     "filename": metadata.get("filename", "unknown"),
                     "document_title": metadata.get("document_title", metadata.get("filename", "unknown")),
                     "section": metadata.get("document_section", "unknown"),
-                    "chunk_position": f"{metadata.get('chunk_index', 0) + 1} of {metadata.get('total_chunks', 1)}"
+                    "chunk_position": f"{metadata.get('chunk_index', 0) + 1} of {metadata.get('total_chunks', 1)}",
+                    "source_url": metadata.get("source_url") or "",
+                    "citation_title": metadata.get("citation_title") or metadata.get("document_title", "unknown"),
+                    "rag_scope": metadata.get("rag_scope") or RAG_SCOPE_SESSION,
                 },
                 "content_type": metadata.get("chunk_type", "content"),
                 "context_indicators": {

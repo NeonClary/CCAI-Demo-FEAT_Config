@@ -28,6 +28,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+import os
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -130,6 +131,25 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
     """Get current active user"""
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+    return current_user
+
+
+def is_user_admin(email: str) -> bool:
+    """True if *email* is listed in ADMIN_EMAILS (comma-separated)."""
+    raw = os.getenv("ADMIN_EMAILS", "").strip()
+    if not raw:
+        return False
+    allowed = {e.strip().lower() for e in raw.split(",") if e.strip()}
+    return email.lower() in allowed
+
+
+async def require_admin_user(current_user: User = Depends(get_current_active_user)) -> User:
+    """Reject non-admin users (403)."""
+    if not is_user_admin(current_user.email):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
     return current_user
 
 def create_user_response(user: User) -> UserResponse:

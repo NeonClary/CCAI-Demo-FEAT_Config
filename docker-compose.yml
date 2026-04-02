@@ -25,6 +25,11 @@ services:
       HANA_BASE_URL: ${HANA_BASE_URL:-}
       HANA_USERNAME: ${HANA_USERNAME:-}
       HANA_PASSWORD: ${HANA_PASSWORD:-}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+    volumes:
+      - ./multi_llm_chatbot_backend:/ccai/multi_llm_chatbot_backend
+      - ./config.yaml:/ccai/config.yaml
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/ccai/multi_llm_chatbot_backend/app", "--reload-include", "../config.yaml"]
   frontend:
     build:
       context: .
@@ -38,6 +43,12 @@ services:
       - backend
     environment:
       REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:8005}
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      WDS_SOCKET_PORT: "0"
+    volumes:
+      - ./phd-advisor-frontend:/ccai/phd-advisor-frontend
+      - /ccai/phd-advisor-frontend/node_modules
   scheduler:
     build:
       context: .
@@ -51,6 +62,9 @@ services:
       MONGODB_CONNECTION_STRING: "mongodb://database:27017"
       MONGODB_DATABASE: construction_planner
       GEMINI_API_KEY: ${GEMINI_API_KEY:-?}
+    volumes:
+      - ./multi_llm_chatbot_backend:/ccai/multi_llm_chatbot_backend
+      - ./config.yaml:/ccai/config.yaml
     command: ["python3", "scheduler_main.py"]
   database:
     image: mongo:8.0

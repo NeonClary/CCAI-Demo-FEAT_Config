@@ -25,7 +25,7 @@ const ProviderDropdown = ({ currentProvider, onProviderChange, isLoading = false
     {
       id: 'hybrid',
       name: 'Hybrid',
-      description: 'Mix Gemini + self-hosted models',
+      description: 'Mix cloud and self-hosted models',
       icon: Blend,
       badge: 'Mix'
     }

@@ -75,6 +75,7 @@ class UserProfileUpdate(BaseModel):
 
 class UserProfileResponse(BaseModel):
     user_id: str
+    is_admin: bool = False
     major: Optional[str] = None
     minor: Optional[str] = None
     year: Optional[str] = None

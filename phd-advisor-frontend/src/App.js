@@ -7,6 +7,7 @@ import ChatPage from './pages/ChatPage';
 import AuthPage from './pages/AuthPage';
 import CanvasPage from './pages/CanvasPage';
 import UserGuidePage from './pages/UserGuidePage';
+import AdminRagPage from './pages/AdminRagPage';
 import Tutorial, { TutorialButton } from './components/Tutorial';
 import VoiceToast from './components/VoiceToast';
 import './styles/components.css';
@@ -28,10 +29,11 @@ function App() {
         // Validate the token with the backend before trusting it
         fetch(`${process.env.REACT_APP_API_URL}/api/users/me/profile`, {
           headers: { 'Authorization': `Bearer ${token}` },
-        }).then(resp => {
+        }).then(async (resp) => {
           if (resp.ok) {
+            const profile = await resp.json().catch(() => ({}));
             setAuthToken(token);
-            setUser(parsedUser);
+            setUser({ ...parsedUser, isAdmin: !!profile.is_admin });
             setIsAuthenticated(true);
             setCurrentView('chat');
           } else {
@@ -68,6 +70,10 @@ function App() {
     setCurrentView('guide');
   };
 
+  const navigateToAdminRag = () => {
+    setCurrentView('admin-rag');
+  };
+
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialDismissed, setTutorialDismissed] = useState(
     () => localStorage.getItem('tutorialDismissed') === 'true'
@@ -85,8 +91,21 @@ function App() {
     setCurrentView('home');
   };
 
-  const handleAuthSuccess = (userData, token) => {
-    setUser(userData);
+  const handleAuthSuccess = async (userData, token) => {
+    let merged = userData;
+    try {
+      const resp = await fetch(`${process.env.REACT_APP_API_URL}/api/users/me/profile`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (resp.ok) {
+        const profile = await resp.json();
+        merged = { ...userData, isAdmin: !!profile.is_admin };
+      }
+    } catch (_) {
+      /* keep userData */
+    }
+    setUser(merged);
+    localStorage.setItem('user', JSON.stringify(merged));
     setAuthToken(token);
     setIsAuthenticated(true);
     setCurrentView('chat');
@@ -125,6 +144,12 @@ function App() {
           {currentView === 'guide' && isAuthenticated && (
             <UserGuidePage onNavigateToChat={navigateToChat} />
           )}
+          {currentView === 'admin-rag' && isAuthenticated && (
+            <AdminRagPage
+              authToken={authToken}
+              onNavigateToChat={navigateToChat}
+            />
+          )}
           {currentView === 'chat' && isAuthenticated && (
             <VoiceStatusProvider authToken={authToken}>
               <ChatPage 
@@ -133,6 +158,7 @@ function App() {
                 onNavigateToHome={navigateToHome}
                 onNavigateToCanvas={navigateToCanvas}
                 onNavigateToGuide={navigateToGuide}
+                onNavigateToAdminRag={navigateToAdminRag}
                 onSignOut={handleSignOut}
                 onOpenTutorial={openTutorial}
               />

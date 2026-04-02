@@ -15,7 +15,8 @@ import {
   ChevronRight,
   FileText,
   BookOpen,
-  HardHat
+  HardHat,
+  BookMarked
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useAppConfig } from '../contexts/AppConfigContext';
@@ -33,6 +34,7 @@ const Sidebar = ({
   isMobileOpen = false,
   onMobileToggle,
   onNavigateToCanvas,
+  onNavigateToAdminRag,
   userAvatarId,
   onAvatarChange,
   onOpenProfile,
@@ -51,7 +53,7 @@ const Sidebar = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [isCreatingNewChat, setIsCreatingNewChat] = useState(false);
 
   useEffect(() => {
@@ -281,6 +283,17 @@ const Sidebar = ({
                 <FileText size={20} />
                 {!isCollapsed && <span>{canvasLabel}</span>}
               </button>
+              {user?.isAdmin && onNavigateToAdminRag && (
+                <button
+                  type="button"
+                  className="sidebar-canvas-btn"
+                  onClick={onNavigateToAdminRag}
+                  title="Upload advisor-specific reference documents"
+                >
+                  <BookMarked size={20} />
+                  {!isCollapsed && <span>Admin knowledge</span>}
+                </button>
+              )}
             </>
           )}
 
@@ -310,6 +323,16 @@ const Sidebar = ({
                 <FileText size={20} />
                 {!isCollapsed && <span>{canvasLabel}</span>}
               </button>
+              {user?.isAdmin && onNavigateToAdminRag && (
+                <button
+                  type="button"
+                  className="sidebar-canvas-btn"
+                  onClick={onNavigateToAdminRag}
+                  title="Admin persona knowledge"
+                >
+                  <BookMarked size={20} />
+                </button>
+              )}
             </div>
           )}
         </div>

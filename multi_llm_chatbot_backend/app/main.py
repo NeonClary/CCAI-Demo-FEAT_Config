@@ -53,6 +53,7 @@ from app.api.routes.user_profile import router as user_profile_router
 from app.api.routes.onboarding import router as onboarding_router
 from app.api.routes.search_references import router as search_ref_router
 from app.api.routes.admin import router as admin_router
+from app.api.routes.admin_rag import router as admin_rag_router
 from app.api.routes.courses import router as courses_router
 from app.api.routes.transcribe import router as transcribe_router
 from app.api.routes.tts import router as tts_router
@@ -78,6 +79,18 @@ async def lifespan(app: FastAPI):
         seed_global_documents()
     except Exception as exc:
         LOG.warning(f"Global RAG seed skipped: {exc}")
+
+    try:
+        from app.core.seed_general_background import seed_general_background_publications
+        seed_general_background_publications()
+    except Exception as exc:
+        LOG.warning(f"General background RAG seed skipped: {exc}")
+
+    try:
+        from app.core.seed_advisor_persona_rag import seed_advisor_persona_rag_documents
+        seed_advisor_persona_rag_documents()
+    except Exception as exc:
+        LOG.warning(f"Advisor persona RAG seed skipped: {exc}")
 
     try:
         from app.llm.hana_client import hana_client
@@ -123,6 +136,7 @@ app.include_router(user_profile_router, prefix="/api", tags=["user-profile"])
 app.include_router(onboarding_router, prefix="/api", tags=["onboarding"])
 app.include_router(search_ref_router, prefix="/api", tags=["search-references"])
 app.include_router(admin_router, prefix="/api", tags=["admin"])
+app.include_router(admin_rag_router, prefix="/api", tags=["admin-rag"])
 app.include_router(courses_router, prefix="/api", tags=["courses"])
 app.include_router(transcribe_router, prefix="/api", tags=["transcribe"])
 app.include_router(tts_router, prefix="/api", tags=["tts"])
