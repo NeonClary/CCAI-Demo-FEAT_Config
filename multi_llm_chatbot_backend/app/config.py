@@ -282,6 +282,8 @@ class HanaConfig(BaseModel):
     base_url: str = ""
     username: str = ""
     password: str = ""
+    username_klatchat: str = ""
+    password_klatchat: str = ""
 
     @validator("base_url", always=True)
     def _fallback_base_url(cls, v: str) -> str:  # noqa: N805
@@ -294,6 +296,14 @@ class HanaConfig(BaseModel):
     @validator("password", always=True)
     def _fallback_password(cls, v: str) -> str:  # noqa: N805
         return v or os.getenv("HANA_PASSWORD", "")
+
+    @validator("username_klatchat", always=True)
+    def _fallback_username_klatchat(cls, v: str) -> str:  # noqa: N805
+        return v or os.getenv("HANA_USERNAME_KLATCHAT", "")
+
+    @validator("password_klatchat", always=True)
+    def _fallback_password_klatchat(cls, v: str) -> str:  # noqa: N805
+        return v or os.getenv("HANA_KLATCHAT_PASSWORD", "")
 
 
 class AppSettings(BaseModel):

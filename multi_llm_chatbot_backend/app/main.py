@@ -96,6 +96,12 @@ async def lifespan(app: FastAPI):
         if hana_client.is_configured:
             await hana_client.authenticate()
             LOG.info("HANA BrainForge authenticated on startup")
+            if (settings.hana.password_klatchat or "").strip():
+                try:
+                    await hana_client.authenticate_klatchat()
+                    LOG.info("HANA BrainForge klatchat (4090 Security) authenticated on startup")
+                except Exception as exc_k:
+                    LOG.warning("HANA klatchat auth skipped (will retry on first use): %s", exc_k)
     except Exception as exc:
         LOG.warning(f"HANA auth skipped (will retry on first use): {exc}")
 
