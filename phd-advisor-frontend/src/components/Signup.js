@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Mail, Lock, User, ArrowRight, BookOpen, Phone, GraduationCap } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, ArrowRight, BookOpen, Phone, HardHat } from 'lucide-react';
 import { useAppConfig } from '../contexts/AppConfigContext';
 import '../styles/Signup.css';
 
@@ -13,8 +13,7 @@ const Signup = ({ onNavigateToLogin, onNavigateToHome }) => {
     email: '',
     password: '',
     confirmPassword: '',
-    academicStage: '',
-    researchArea: ''
+    academicStage: ''
   });
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
@@ -22,7 +21,7 @@ const Signup = ({ onNavigateToLogin, onNavigateToHome }) => {
   const academicStages = config?.login?.academic_stages?.length
     ? config.login.academic_stages
     : [
-        { value: '', label: 'Select your stage' },
+        { value: '', label: 'Select your role' },
         { value: 'beginner', label: 'Beginner' },
         { value: 'intermediate', label: 'Intermediate' },
         { value: 'advanced', label: 'Advanced' },
@@ -75,7 +74,7 @@ const Signup = ({ onNavigateToLogin, onNavigateToHome }) => {
     }
     
     if (!formData.academicStage) {
-      newErrors.academicStage = 'Please select your academic stage';
+      newErrors.academicStage = 'Please select your role';
     }
     
     setErrors(newErrors);
@@ -100,8 +99,7 @@ const Signup = ({ onNavigateToLogin, onNavigateToHome }) => {
           lastName: formData.lastName,
           email: formData.email,
           password: formData.password,
-          academicStage: formData.academicStage,
-          researchArea: formData.researchArea
+          academicStage: formData.academicStage
         }),
       });
 
@@ -113,7 +111,11 @@ const Signup = ({ onNavigateToLogin, onNavigateToHome }) => {
         localStorage.setItem('user', JSON.stringify(data.user));
         onNavigateToHome?.(data.user, data.access_token);
       } else {
-        setErrors({ submit: data.detail || 'Signup failed. Please try again.' });
+        const detail = data.detail;
+        const msg = Array.isArray(detail)
+          ? detail.map(e => e.msg || JSON.stringify(e)).join('; ')
+          : (typeof detail === 'string' ? detail : 'Signup failed. Please try again.');
+        setErrors({ submit: msg });
       }
       
     } catch (error) {
@@ -285,13 +287,13 @@ const Signup = ({ onNavigateToLogin, onNavigateToHome }) => {
               </div>
             </div>
 
-            {/* Academic Stage */}
+            {/* Role */}
             <div className="form-group">
               <label htmlFor="academicStage" className="form-label">
-                Academic Stage
+                Role
               </label>
               <div className="input-container">
-                <GraduationCap className="input-icon" />
+                <HardHat className="input-icon" />
                 <select
                   id="academicStage"
                   name="academicStage"
@@ -310,26 +312,6 @@ const Signup = ({ onNavigateToLogin, onNavigateToHome }) => {
               {errors.academicStage && (
                 <span className="error-message">{errors.academicStage}</span>
               )}
-            </div>
-
-            {/* Research Area (Optional) */}
-            <div className="form-group">
-              <label htmlFor="researchArea" className="form-label">
-                Research Area <span className="optional">(Optional)</span>
-              </label>
-              <div className="input-container">
-                <BookOpen className="input-icon" />
-                <input
-                  type="text"
-                  id="researchArea"
-                  name="researchArea"
-                  value={formData.researchArea}
-                  onChange={handleInputChange}
-                  className="form-input"
-                  placeholder="e.g., Computer Science, Biology, Psychology..."
-                  disabled={isLoading}
-                />
-              </div>
             </div>
 
             {/* Terms and Privacy */}

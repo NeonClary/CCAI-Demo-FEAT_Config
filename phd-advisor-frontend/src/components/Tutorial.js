@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { X, ChevronRight, ChevronLeft, GraduationCap, Sparkles, Volume2, VolumeX, Loader2 } from 'lucide-react';
+import { X, ChevronRight, ChevronLeft, HardHat, Sparkles, Volume2, VolumeX, Loader2 } from 'lucide-react';
 import '../styles/Tutorial.css';
 
 const STEPS = [
   {
     id: 'welcome',
     type: 'modal',
-    title: 'Welcome to CU Undergraduate Advisor!',
-    body: "Let\u2019s take a quick tour of the key features. We\u2019ll start by asking a question, search for courses, and explore the different response modes.",
+    title: 'Welcome to the Construction Advisor Panel!',
+    body: "Let\u2019s take a quick tour of the key features. We\u2019ll ask a question, schedule a contractor, and explore the different response modes.",
     buttonText: "Let\u2019s Go!",
   },
   {
@@ -19,14 +19,14 @@ const STEPS = [
     position: 'top',
   },
   {
-    id: 'course-search',
+    id: 'schedule-search',
     type: 'highlight',
     target: '.main-textarea',
-    title: 'Search for Courses',
-    body: "We\u2019ve pre-filled a course search for you. Edit it if you like, then press Enter or click Send.\n\nThe Course Advisor searches the real CU Boulder catalog \u2014 sections, schedules, and professor ratings.",
+    title: 'Schedule a Contractor',
+    body: "We\u2019ve pre-filled a scheduling request for you. Edit it if you like, then press Enter or click Send.\n\nThe Contractor Scheduler checks availability, preferences, and weather advisories.",
     position: 'top',
     extraGap: 60,
-    prefill: 'Find CSCI 1300 sections for Spring 2026 with professors rated 4+',
+    prefill: 'I need to schedule a cement pour for Thursday, April 30, 2026 in Nashville, TN',
   },
   {
     id: 'panel-toggle',
@@ -42,9 +42,9 @@ const STEPS = [
     type: 'highlight',
     target: '.main-textarea',
     title: 'Try Aggregate Mode',
-    body: "Here\u2019s another query to try in Aggregate mode. Send it to see how an aggregate synthesized answer looks compared to the panel view.",
+    body: "Here\u2019s another query to try in Aggregate mode. Send it to see how a synthesized answer compares to individual panel responses.",
     position: 'top',
-    prefill: 'What are the best electives for a Computer Science major?',
+    prefill: 'What OSHA requirements apply to asphalt paving operations near active traffic?',
   },
   {
     id: 'advisor-selection',
@@ -59,7 +59,7 @@ const STEPS = [
     type: 'highlight',
     target: '.add-docs-btn',
     title: 'Upload Documents',
-    body: 'Upload PDFs, Word docs, or text files. Advisors will reference your actual document content \u2014 perfect for resume reviews, essay feedback, or syllabus analysis.',
+    body: 'Upload PDFs, Word docs, or text files. Advisors will reference your actual document content \u2014 great for reviewing bid documents, safety plans, or project schedules.',
     position: 'top',
     extraGap: 60,
   },
@@ -83,8 +83,8 @@ const STEPS = [
     id: 'canvas-btn',
     type: 'highlight',
     target: '.sidebar-canvas-btn',
-    title: 'Advisor Canvas',
-    body: 'The Canvas organizes insights from your chats into a structured summary \u2014 action items, academic plans, and more. Click to take a look!',
+    title: 'AI Notes & Planning',
+    body: 'This page organizes insights from your chats into structured notes \u2014 action items, project plans, and key decisions. Click to take a look!',
     position: 'right',
   },
   {
@@ -99,7 +99,7 @@ const STEPS = [
     id: 'complete',
     type: 'modal',
     title: "You\u2019re All Set!",
-    body: "You now know the essentials. Here are some things to try:\n\n\u2022 Search for courses: \u201cMATH 2400 MWF sections\u201d\n\u2022 Ask for advice: \u201cHow do I choose a minor?\u201d\n\u2022 Upload a resume for career feedback\n\u2022 Toggle Aggregate mode for quick answers\n\nThe tutorial is always available from the Settings menu. Enjoy!",
+    body: "You now know the essentials. Here are some things to try:\n\n\u2022 Schedule contractors: \u201cSchedule roofing for next Monday\u201d\n\u2022 Check weather: \u201cWhat\u2019s the forecast in Dallas, TX?\u201d\n\u2022 Upload bid docs or safety plans for advisor review\n\u2022 Toggle Aggregate mode for quick answers\n\nThe tutorial is always available from the Settings menu. Enjoy!",
     buttonText: 'Done',
     isFinal: true,
   },
@@ -557,7 +557,7 @@ export default function Tutorial({ active, onClose }) {
             </button>
           </div>
           <div className="tutorial-modal-icon">
-            {current.isFinal ? <Sparkles size={32} /> : <GraduationCap size={32} />}
+            {current.isFinal ? <Sparkles size={32} /> : <HardHat size={32} />}
           </div>
           <h2 className="tutorial-modal-title">{current.title}</h2>
           <p className="tutorial-modal-body">{current.body}</p>
@@ -703,7 +703,7 @@ export default function Tutorial({ active, onClose }) {
 export function TutorialButton({ onClick }) {
   return (
     <button className="tutorial-fab" onClick={onClick} title="Start Tutorial">
-      <GraduationCap size={20} />
+      <HardHat size={20} />
       <span>Start Tutorial</span>
     </button>
   );

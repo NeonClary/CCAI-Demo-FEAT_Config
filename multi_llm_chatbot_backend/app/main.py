@@ -74,29 +74,27 @@ async def lifespan(app: FastAPI):
     await connect_to_mongo()
 
     try:
-        from app.scrapers.cu_info_scraper import run_cu_info_scrape
-        await run_cu_info_scrape()
-    except Exception as exc:
-        LOG.warning(f"CU info scrape skipped: {exc}")
-
-    try:
         from app.core.global_rag import seed_global_documents
         seed_global_documents()
     except Exception as exc:
         LOG.warning(f"Global RAG seed skipped: {exc}")
 
     try:
-        from app.core.scheduler import init_scheduler
-        init_scheduler()
+        from app.llm.hana_client import hana_client
+        if hana_client.is_configured:
+            await hana_client.authenticate()
+            LOG.info("HANA BrainForge authenticated on startup")
     except Exception as exc:
-        LOG.warning(f"Scheduler init skipped: {exc}")
+        LOG.warning(f"HANA auth skipped (will retry on first use): {exc}")
 
     yield
 
     from app.llm.improved_gemini_client import close_shared_client as close_gemini
     from app.llm.improved_ollama_client import close_shared_client as close_ollama
+    from app.llm.hana_client import hana_client as _hana
     await close_gemini()
     await close_ollama()
+    await _hana.close()
     await close_mongo_connection()
 
 

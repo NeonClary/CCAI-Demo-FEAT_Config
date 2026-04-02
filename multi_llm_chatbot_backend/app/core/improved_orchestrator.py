@@ -178,8 +178,8 @@ class ImprovedChatOrchestrator:
 
         patterns = [
             r"(?:my|the|in)\s+([a-zA-Z_\-]+\.(?:pdf|docx|txt))",
-            r"(?:my|the)\s+(dissertation|thesis|proposal|chapter|manuscript)",
-            r"(?:in|from)\s+(?:my\s+)?([a-zA-Z_\-\s]+(?:chapter|section))",
+            r"(?:my|the)\s+(bid|schedule|plan|report|safety\s*plan|scope|estimate|contract|specification|submittal)",
+            r"(?:in|from)\s+(?:my\s+)?([a-zA-Z_\-\s]+(?:section|page|attachment))",
         ]
 
         for pattern in patterns:
@@ -634,6 +634,17 @@ class ImprovedChatOrchestrator:
 
         # ── Context-aware follow-up detection ────────────────────────
         if session_id:
+            session = self.session_manager.get_session(session_id)
+            if (
+                session
+                and getattr(session, "_weather_needs_location", False)
+                and self._looks_like_location_followup(user_input)
+            ):
+                LOG.info(
+                    f"Query classified as weather (pending-location follow-up): {user_input[:80]!r}"
+                )
+                return "weather"
+
             last_route = self._get_last_agent_route(session_id)
             if last_route and self._is_follow_up(user_input, last_route):
                 LOG.info(
@@ -670,8 +681,14 @@ class ImprovedChatOrchestrator:
         :param session_id: Session identifier to clear.
         """
         session = self.session_manager.get_session(session_id)
-        if session and hasattr(session, "_last_agent_route"):
+        if not session:
+            return
+        if hasattr(session, "_last_agent_route"):
             del session._last_agent_route
+        if hasattr(session, "_weather_needs_location"):
+            del session._weather_needs_location
+        if hasattr(session, "_weather_pending_query"):
+            del session._weather_pending_query
 
     @staticmethod
     def _is_follow_up(user_input: str, last_route: str) -> bool:
@@ -739,14 +756,36 @@ class ImprovedChatOrchestrator:
         if last_route == "weather":
             weather_followup = [
                 r"\b(rain|snow|storm|thunder|wind|temperature|forecast|weather)\b",
-                r"\b(tomorrow|today|this week|next week)\b",
+                r"\b(tomorrow|today|this week|next week|weekend)\b",
                 r"\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
                 r"\b(safe|advisable|suitable)\b",
+                r"\b(warmer|cooler|hotter|colder)\b",
             ]
             if any(re.search(p, lower) for p in weather_followup):
                 return True
 
         return False
+
+    @staticmethod
+    def _looks_like_location_followup(user_input: str) -> bool:
+        """Heuristic for location-only replies like 'Seattle' or 'Austin, TX'.
+
+        Returns ``True`` when the message is short, contains no weather
+        keywords, and looks like a proper-noun place name — indicating the
+        user is answering a "which location?" follow-up.
+        """
+        text = (user_input or "").strip()
+        if not text:
+            return False
+        lower = text.lower()
+        if re.search(r"\b(weather|forecast|temperature|rain|snow|wind|humidity)\b", lower):
+            return False
+        if text.endswith("?"):
+            return False
+        words = text.split()
+        if len(words) > 6:
+            return False
+        return bool(re.fullmatch(r"[A-Za-z][A-Za-z\s,\-']{1,80}", text))
 
     async def handle_course_query(
         self,
@@ -1003,7 +1042,7 @@ class ImprovedChatOrchestrator:
                 try:
                     geo = await geocode_location(location_name)
                     if geo:
-                        forecast = await get_forecast(geo["latitude"], geo["longitude"])
+                        forecast = await get_forecast(geo["latitude"], geo["longitude"], timezone=geo.get("timezone", "auto"))
                         task_dates = dates_used if is_multi else [start_date] * len(sensitive)
                         if is_multi:
                             aligned_tasks = []
@@ -1051,17 +1090,21 @@ class ImprovedChatOrchestrator:
             if msg.get("role") != "system":
                 recent.append({"role": msg["role"], "content": msg["content"][:500]})
 
+        from datetime import date as _date
+        today = _date.today().isoformat()
         system = (
             "You extract structured scheduling parameters from a construction "
             "manager's message. Return ONLY valid JSON with these keys:\n"
             '  "tasks": ["cement_pouring", "roofing", ...],\n'
             '  "start_date": "YYYY-MM-DD" or null,\n'
             '  "location": "City, State" or null\n\n'
+            f"Today's date is {today}. Resolve relative dates like 'this Thursday', "
+            "'next Monday', 'April 3', or 'starting April 28' into YYYY-MM-DD "
+            "using the current year unless another year is specified.\n\n"
             "Known task types: cement_pouring, roofing, window_installation, "
             "asphalt_paving, excavation, electrical_work, plumbing, framing, "
             "painting_exterior, site_inspection.\n"
             "Map synonyms (e.g. 'concrete pour' → 'cement_pouring', 'windows' → 'window_installation').\n"
-            "If the user says 'Thursday, April 30, 2026' convert to '2026-04-30'.\n"
             "Return ONLY the JSON object — no markdown, no explanation."
         )
 
@@ -1071,13 +1114,14 @@ class ImprovedChatOrchestrator:
                 system_prompt=system,
                 context=recent + [{"role": "user", "content": user_message}],
                 temperature=0.1,
-                max_tokens=300,
+                max_tokens=2048,
             )
             cleaned = raw.strip()
             cleaned = re.sub(r"```(?:json)?", "", cleaned).strip()
             match = re.search(r"\{.*\}", cleaned, re.DOTALL)
             if match:
                 return json.loads(match.group(0))
+            LOG.warning("No JSON object found in schedule-param LLM output")
         except Exception as e:
             LOG.warning(f"Schedule param extraction failed: {e}")
         return {"tasks": [], "start_date": None, "location": None}
@@ -1090,10 +1134,26 @@ class ImprovedChatOrchestrator:
         session_id: str,
         response_length: str = "medium",
     ) -> Dict[str, Any]:
-        """Agentic handler: fetch a 10-day weather forecast for a location
-        extracted from the user's message."""
+        """Agentic handler: fetch a weather forecast for a location extracted
+        from the user's message (or from a pending-location follow-up).
+
+        Uses conversation history so the LLM can produce a contextual
+        weather-advisor response and correctly handle follow-ups like a
+        bare city name after being asked for a location.
+        """
         try:
             session = self.session_manager.get_session(session_id)
+            original_user_message = user_message
+
+            # If we previously asked for a location and this looks like one,
+            # merge the pending query with the location the user just gave.
+            if (
+                getattr(session, "_weather_needs_location", False)
+                and self._looks_like_location_followup(user_message)
+            ):
+                pending_query = getattr(session, "_weather_pending_query", "weather today")
+                user_message = f"{pending_query} in {user_message.strip()}"
+
             location_name = self._extract_location(user_message)
 
             if not location_name:
@@ -1109,8 +1169,10 @@ class ImprovedChatOrchestrator:
                         "specify a location? For example: *\"What's the weather "
                         "in Nashville, TN?\"*"
                     )
+                    session._weather_needs_location = True
+                    session._weather_pending_query = original_user_message
                 else:
-                    return None  # signal to caller: fall through to general panel
+                    return None
 
                 session.append_message("weather_forecast", content)
                 self._set_last_agent_route(session_id, "weather")
@@ -1125,13 +1187,64 @@ class ImprovedChatOrchestrator:
             geo = await geocode_location(location_name)
             if not geo:
                 content = f"I couldn't find a location matching \"{location_name}\". Please try a more specific city or region name."
+                session._weather_needs_location = True
+                session._weather_pending_query = original_user_message
                 session.append_message("weather_forecast", content)
                 self._set_last_agent_route(session_id, "weather")
                 return self._tool_response("weather_forecast", "Weather Forecast", content, "weather")
 
-            forecast = await get_forecast(geo["latitude"], geo["longitude"])
+            forecast = await get_forecast(
+                geo["latitude"], geo["longitude"],
+                timezone=geo.get("timezone", "auto"),
+            )
             label = f"{geo['name']}, {geo['admin1']}" if geo.get("admin1") else geo["name"]
-            content = format_forecast_table(forecast, label)
+            weather_data = format_forecast_table(forecast, label)
+
+            # Build an LLM-backed contextual response using recent conversation
+            persona = self.get_persona("weather_forecast") or self.get_persona("weather_advisor")
+            base_prompt = (
+                persona.system_prompt if persona
+                else "You are a weather advisor with access to live weather forecast data."
+            )
+
+            system_prompt = (
+                f"{base_prompt}\n\n"
+                f"{weather_data}\n\n"
+                "RESPONSE FORMAT — follow this EXACTLY:\n\n"
+                "### Forecast Summary\n"
+                "Give a concise weather summary for the requested location and timeframe.\n\n"
+                "### Daily Outlook\n"
+                "List the available daily forecast entries with conditions, highs/lows, "
+                "and precipitation chance.\n\n"
+                "RULES:\n"
+                "- Use the real weather data above.\n"
+                "- Do not invent measurements.\n"
+                "- For construction contexts, note any days that may be problematic "
+                "for outdoor work.\n"
+            )
+
+            context = []
+            recent = session.messages[-8:] if len(session.messages) > 8 else session.messages
+            for msg in recent:
+                if msg.get("role") != "system":
+                    context.append({"role": msg["role"], "content": msg["content"]})
+
+            from app.core.bootstrap import create_llm_client
+            llm = create_llm_client()
+            token_map = {"short": 800, "medium": 1500, "long": 2000}
+
+            content = await llm.generate(
+                system_prompt=system_prompt,
+                context=context,
+                temperature=0.4,
+                max_tokens=token_map.get(response_length, 1024),
+            )
+
+            # Location resolved successfully — clear pending flags
+            if hasattr(session, "_weather_needs_location"):
+                del session._weather_needs_location
+            if hasattr(session, "_weather_pending_query"):
+                del session._weather_pending_query
 
             session.append_message("weather_forecast", content)
             self._set_last_agent_route(session_id, "weather")
@@ -1284,8 +1397,8 @@ class ImprovedChatOrchestrator:
 
         document_indicators = [
             r"(?:my|the|in|from)\s+([a-zA-Z_\-]+\.(?:pdf|docx|txt|doc))",
-            r"(?:my|the)\s+(dissertation|thesis|proposal|chapter|manuscript|paper)",
-            r"(?:in|from)\s+(?:my\s+)?([a-zA-Z_\-\s]+(?:chapter|section|proposal))",
+            r"(?:my|the)\s+(bid|schedule|plan|report|safety\s*plan|scope|estimate|contract|specification|submittal|paper)",
+            r"(?:in|from)\s+(?:my\s+)?([a-zA-Z_\-\s]+(?:section|page|attachment))",
             r"(?:the|my)\s+([a-zA-Z_\-\s]+(?:document|file))",
         ]
 
@@ -1303,10 +1416,12 @@ class ImprovedChatOrchestrator:
         :returns: A space-separated keyword string, or empty string.
         """
         enhanced_keywords = {
-            "methodologist": "methodology research design experimental approach data collection sampling validity reliability statistical analysis quantitative qualitative mixed-methods procedures protocol IRB ethics",
-            "theorist": "theory theoretical framework conceptual model literature review philosophy epistemology ontology paradigm abstract concepts hypothesis proposition postulate axiom",
-            "pragmatist": "practical application implementation action steps next steps recommendation solution strategy timeline concrete advice roadmap execution deliverables milestones",
-            "course_advisor": "course schedule class professor rating section enrollment registration prerequisite semester credit GPA degree requirement elective catalog",
+            "project_scheduler": "schedule timeline CPM crew equipment allocation phasing look-ahead sequencing weather contingency coordination",
+            "safety_advisor": "OSHA safety PPE hazard compliance inspection incident work-zone traffic-control heat-illness toolbox-talk JHA",
+            "cost_estimator": "bid estimate budget takeoff unit-cost material fuel change-order margin production-rate overhead",
+            "quality_manager": "QC QA density cores mix-design aggregate specification acceptance testing non-conformance documentation",
+            "operations_coordinator": "equipment fleet crew haul dispatch plant quarry trucking logistics production paver roller milling",
+            "environmental_specialist": "NPDES SWPPP permit emissions erosion RAP warm-mix wetlands SPCC environmental sustainability",
         }
         return enhanced_keywords.get(persona_id, "")
 
@@ -1381,38 +1496,54 @@ Use this context to inform your response, and cite specific documents when refer
         :returns: Instruction text for the given persona.
         """
         instructions = {
-            "methodologist": """
+            "project_scheduler": """
 When analyzing the document context:
-- Focus on methodological rigor and research design elements
-- Identify potential validity threats or methodological gaps
-- Suggest specific improvements to research procedures
-- Reference exact methodological frameworks mentioned in their documents
-- Connect their approach to established research standards""",
+- Identify scheduling milestones, dependencies, and critical-path items
+- Look for weather contingencies, crew allocation, and equipment sequencing
+- Flag scheduling conflicts or unrealistic timelines
+- Reference specific dates, phases, and work items from the document
+- Suggest schedule recovery options when delays are apparent""",
 
-            "theorist": """
+            "safety_advisor": """
 When analyzing the document context:
-- Examine theoretical positioning and conceptual clarity
-- Identify theoretical gaps or inconsistencies
-- Suggest theoretical frameworks that align with their work
-- Evaluate the coherence between theory and research questions
-- Reference specific theoretical concepts mentioned in their documents""",
+- Identify safety hazards, OSHA compliance gaps, and missing protocols
+- Look for JHA completeness, PPE requirements, and work-zone plans
+- Flag items that could lead to incidents or regulatory citations
+- Reference specific safety procedures and standards from the document
+- Suggest corrective actions prioritized by risk severity""",
 
-            "pragmatist": """
+            "cost_estimator": """
 When analyzing the document context:
-- Extract actionable next steps from their current progress
-- Identify immediate bottlenecks or decision points
-- Prioritize tasks based on their timeline and constraints
-- Translate theoretical concepts into practical implementation steps
-- Reference specific deadlines or milestones mentioned in their documents"""
+- Analyze line items, unit costs, and production rate assumptions
+- Identify cost risks, missing items, and margin concerns
+- Compare quantities and pricing against industry benchmarks
+- Reference specific bid items and cost categories from the document
+- Flag volatile cost drivers and suggest risk mitigation strategies""",
+
+            "quality_manager": """
+When analyzing the document context:
+- Review test results, mix designs, and specification compliance
+- Identify non-conformances, trending issues, and documentation gaps
+- Reference specific test methods, acceptance criteria, and spec sections
+- Suggest corrective actions for failing or borderline results
+- Evaluate QC documentation completeness""",
+
+            "operations_coordinator": """
+When analyzing the document context:
+- Identify equipment utilization, crew efficiency, and logistics bottlenecks
+- Look for production rate data, haul distances, and plant coordination
+- Flag resource conflicts between projects or phases
+- Reference specific equipment lists, crew rosters, and production reports
+- Suggest optimization strategies for fleet and crew scheduling""",
+
+            "environmental_specialist": """
+When analyzing the document context:
+- Review permit conditions, SWPPP compliance, and inspection findings
+- Identify environmental risks, deadlines, and documentation gaps
+- Reference specific permit numbers, regulations, and compliance dates
+- Flag potential violations and suggest corrective measures
+- Evaluate sustainability practices and RAP/recycling opportunities"""
         }
-
-        instructions["course_advisor"] = """
-When analyzing the document context:
-- Search for specific course codes, professor names, and scheduling details
-- Cross-reference professor ratings with available sections
-- Account for time preference buffers (8:15am is functionally the same as 8:00am)
-- When exact matches aren't found, progressively relax constraints and offer alternatives
-- Always include professor rating and schedule details in recommendations"""
 
         return instructions.get(persona_id, "Provide helpful guidance based on the document context.")
 
@@ -1451,12 +1582,12 @@ When analyzing the document context:
             system_message = f"""{persona.system_prompt}{user_profile_block}
 
     CURRENT SESSION CONTEXT:
-    The student has uploaded the following documents: {doc_list}
+    The user has uploaded the following documents: {doc_list}
 
     DOCUMENT CONTENT:
     {document_context}
 
-    IMPORTANT: When the student refers to "my document," "my dissertation," "my proposal," etc., they are referring to one of their uploaded documents. Use the document context above to understand which specific document they mean and reference it by name in your response.
+    IMPORTANT: When the user refers to "my document," "my plan," "my report," etc., they are referring to one of their uploaded documents. Use the document context above to understand which specific document they mean and reference it by name in your response.
 
     Always cite your sources when referencing information from their documents using the format: "According to your [document_name]..." or "In your [section_name] from [document_name]..."
     """
@@ -1468,9 +1599,9 @@ When analyzing the document context:
         else:
             system_message = f"""{persona.system_prompt}{user_profile_block}
 
-    IMPORTANT: The student has NOT uploaded any documents yet. Do not reference any specific documents, files, or assume you have access to their research materials.
+    IMPORTANT: The user has NOT uploaded any documents yet. Do not reference any specific documents, files, or assume you have access to their project materials.
 
-    If they mention "my document," "my dissertation," "my proposal," etc., you should:
+    If they mention "my document," "my plan," "my report," etc., you should:
     1. Acknowledge that you don't have access to their specific documents
     2. Ask them to upload the relevant files for more targeted advice
     3. Provide general guidance based on best practices in your area of expertise
@@ -1650,7 +1781,7 @@ When analyzing the document context:
             )
             system_prompt = (
                 "You are a synthesis assistant. You receive multiple advisor responses to "
-                "the same student question. Your job is to merge them into ONE comprehensive "
+                "the same user question. Your job is to merge them into ONE comprehensive "
                 "answer using exactly this structure:\n\n"
                 "### Thought\n"
                 "A single paragraph (2-4 sentences) that weaves together the key insights "

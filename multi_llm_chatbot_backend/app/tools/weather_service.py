@@ -83,6 +83,7 @@ async def geocode_location(location_name: str) -> Optional[Dict[str, Any]]:
                     "name": r.get("name", location_name),
                     "admin1": r.get("admin1", ""),
                     "country": r.get("country", ""),
+                    "timezone": r.get("timezone", "auto"),
                 }
     return None
 
@@ -91,9 +92,12 @@ async def get_forecast(
     latitude: float,
     longitude: float,
     days: int = 10,
+    timezone: str = "auto",
 ) -> Dict[str, Any]:
     """Fetch a daily weather forecast from Open-Meteo.
 
+    :param timezone: IANA timezone ID from geocoding (e.g. ``"America/Denver"``),
+        or ``"auto"`` to let the API choose based on coordinates.
     :returns: ``{location: {...}, days: [{date, weather_code, description,
               temp_max_f, temp_min_f, precip_in, rain_in, snow_in,
               wind_max_mph, gust_max_mph, precip_prob_pct}]}``
@@ -110,7 +114,7 @@ async def get_forecast(
         "longitude": longitude,
         "daily": daily_vars,
         "forecast_days": days,
-        "timezone": "auto",
+        "timezone": timezone or "auto",
         "temperature_unit": "fahrenheit",
         "wind_speed_unit": "mph",
         "precipitation_unit": "inch",

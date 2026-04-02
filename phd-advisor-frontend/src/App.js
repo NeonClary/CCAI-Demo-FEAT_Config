@@ -17,7 +17,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [authToken, setAuthToken] = useState(null);
 
-  // Check for existing authentication on app start
+  // Check for existing authentication on app start and validate the token
   useEffect(() => {
     const token = localStorage.getItem('authToken');
     const userData = localStorage.getItem('user');
@@ -25,12 +25,27 @@ function App() {
     if (token && userData) {
       try {
         const parsedUser = JSON.parse(userData);
-        setAuthToken(token);
-        setUser(parsedUser);
-        setIsAuthenticated(true);
-        setCurrentView('chat');
+        // Validate the token with the backend before trusting it
+        fetch(`${process.env.REACT_APP_API_URL}/api/users/me/profile`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }).then(resp => {
+          if (resp.ok) {
+            setAuthToken(token);
+            setUser(parsedUser);
+            setIsAuthenticated(true);
+            setCurrentView('chat');
+          } else {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('user');
+          }
+        }).catch(() => {
+          // Network error — keep stored credentials optimistically
+          setAuthToken(token);
+          setUser(parsedUser);
+          setIsAuthenticated(true);
+          setCurrentView('chat');
+        });
       } catch (error) {
-        // Clear invalid data
         localStorage.removeItem('authToken');
         localStorage.removeItem('user');
       }

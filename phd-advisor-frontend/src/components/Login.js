@@ -74,7 +74,11 @@ const Login = ({ onNavigateToSignup, onNavigateToHome }) => {
         localStorage.setItem('user', JSON.stringify(data.user));
         onNavigateToHome?.(data.user, data.access_token);
       } else {
-        setErrors({ submit: data.detail || 'Login failed. Please try again.' });
+        const detail = data.detail;
+        const msg = Array.isArray(detail)
+          ? detail.map(e => e.msg || JSON.stringify(e)).join('; ')
+          : (typeof detail === 'string' ? detail : 'Login failed. Please try again.');
+        setErrors({ submit: msg });
       }
       
     } catch (error) {

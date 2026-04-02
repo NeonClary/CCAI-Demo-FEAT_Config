@@ -7,7 +7,7 @@
  *
  * This file is kept only for reference / backward-compatibility of any
  * third-party code that may still import it.  The static data below is
- * a snapshot of the PhD Advisory Panel defaults and will NOT be updated
+ * a snapshot of the Construction Advisor Panel defaults and will NOT be updated
  * when config.yaml changes.
  */
 

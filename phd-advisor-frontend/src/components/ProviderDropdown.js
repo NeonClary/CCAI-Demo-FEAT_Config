@@ -10,17 +10,17 @@ const ProviderDropdown = ({ currentProvider, onProviderChange, isLoading = false
   const providers = [
     {
       id: 'gemini',
-      name: 'Gemini',
+      name: 'Cloud-hosted LLMs',
       description: "Google's Gemini AI",
       icon: Cloud,
       badge: ''
     },
     {
       id: 'ollama', 
-      name: 'Ollama',
-      description: 'Self-hosted vLLM inference',
+      name: 'Neon.ai Models',
+      description: 'Neon BrainForge inference with personas',
       icon: Cpu,
-      badge: 'Local'
+      badge: 'Neon'
     },
     {
       id: 'hybrid',

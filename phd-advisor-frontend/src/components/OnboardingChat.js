@@ -29,7 +29,7 @@ const OnboardingChat = ({ authToken, onClose, userName }) => {
         setComplete(data.complete || false);
       }
     } catch (e) {
-      setMessages([{ role: 'agent', text: "Hi! Let's get to know each other. What are you studying?" }]);
+      setMessages([{ role: 'agent', text: "Hi! Let's get to know each other. What kind of construction work do you manage?" }]);
     }
   };
 

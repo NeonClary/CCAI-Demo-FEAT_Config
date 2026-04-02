@@ -1,13 +1,12 @@
 # ============================================================================
-# Construction Project Planner — Application Configuration
-# (Merged with FEAT_UndergraduateAdvisor_v2 feature set: vLLM, LemonSlice, etc.)
+# Construction Advisor Panel — Application Configuration
 # ============================================================================
 
 app:
-  title: "Construction Project Planner"
+  title: "Construction Advisor Panel"
   subtitle: "AI-Powered Planning for Construction Professionals"
   primary_color: "#D97706"
-  footer_text: "© 2026 Construction Project Planner. All rights reserved."
+  footer_text: "© 2026 Construction Advisor Panel. All rights reserved."
   user_avatars:
     - { id: "hardhat-amber", icon: "HardHat", color: "#D97706", bg: "#FFFBEB" }
     - { id: "shield-red", icon: "ShieldCheck", color: "#DC2626", bg: "#FEF2F2" }
@@ -27,7 +26,7 @@ homepage:
     Get AI-powered guidance on project scheduling, cost estimation, safety
     compliance, quality assurance, and operations from a team of specialized
     advisors — each built to help mid-level managers deliver quality road and site work.
-  features_title: "Why Use Construction Project Planner?"
+  features_title: "Why Use Construction Advisor Panel?"
   features:
     - title: "Comprehensive Project Support"
       description: "Get expert guidance on scheduling, budgeting, safety, quality, and operations from specialized AI advisors"
@@ -385,7 +384,6 @@ tools:
     description: "10-day weather forecast for any location with construction task advisories"
     icon: "CloudSun"
 
-# Course scraper scheduler reads semesters; leave empty when not using CU course pipeline.
 scheduling:
   cu_semesters: []
 

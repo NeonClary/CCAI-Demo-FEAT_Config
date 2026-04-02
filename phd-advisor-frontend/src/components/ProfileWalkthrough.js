@@ -3,28 +3,28 @@ import { X, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 
 const STEPS = [
   {
-    title: 'Academic Info',
+    title: 'Your Role',
     fields: [
-      { key: 'major', label: 'Major', type: 'text', placeholder: 'e.g. Computer Science' },
-      { key: 'minor', label: 'Minor (optional)', type: 'text', placeholder: 'e.g. Mathematics' },
-      { key: 'year', label: 'Year', type: 'select', options: ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate'] },
-      { key: 'gpa_range', label: 'GPA Range', type: 'select', options: ['Below 2.0', '2.0-2.5', '2.5-3.0', '3.0-3.5', '3.5-4.0'] },
+      { key: 'major', label: 'Primary Specialty', type: 'text', placeholder: 'e.g. Asphalt Paving, Heavy Civil, Road Work' },
+      { key: 'minor', label: 'Secondary Specialty (optional)', type: 'text', placeholder: 'e.g. Bridge Work, Grading, Utilities' },
+      { key: 'year', label: 'Experience Level', type: 'select', options: ['0-2 Years', '3-5 Years', '6-10 Years', '11-20 Years', '20+ Years'] },
+      { key: 'gpa_range', label: 'Team Size', type: 'select', options: ['1-5 crew', '6-15 crew', '16-30 crew', '31-50 crew', '50+ crew'] },
     ],
   },
   {
-    title: 'Goals & Plans',
+    title: 'Goals & Projects',
     fields: [
-      { key: 'career_goals', label: 'Career Goals', type: 'textarea', placeholder: 'What do you want to do after graduation?' },
-      { key: 'courses_completed', label: 'Courses Completed (comma-separated)', type: 'text', placeholder: 'e.g. CSCI 1300, MATH 2400' },
-      { key: 'courses_planned', label: 'Planned Courses (comma-separated)', type: 'text', placeholder: 'e.g. CSCI 3104, ENES 1010' },
+      { key: 'career_goals', label: 'Professional Goals', type: 'textarea', placeholder: 'What are you working toward in your career?' },
+      { key: 'courses_completed', label: 'Certifications Held (comma-separated)', type: 'text', placeholder: 'e.g. OSHA 30, PMP, CDL' },
+      { key: 'courses_planned', label: 'Current Projects (comma-separated)', type: 'text', placeholder: 'e.g. I-65 Resurfacing, Main St Bridge Repair' },
     ],
   },
   {
     title: 'Preferences',
     fields: [
-      { key: 'schedule_preferences', label: 'Schedule Preferences', type: 'text', placeholder: 'e.g. No classes before 10am' },
-      { key: 'learning_style', label: 'Learning Style', type: 'text', placeholder: 'e.g. Visual, hands-on' },
-      { key: 'extracurriculars', label: 'Extracurriculars', type: 'textarea', placeholder: 'Clubs, sports, organizations...' },
+      { key: 'schedule_preferences', label: 'Work Preferences', type: 'text', placeholder: 'e.g. Day shift only, regional projects' },
+      { key: 'learning_style', label: 'Communication Style', type: 'text', placeholder: 'e.g. Brief and direct, detailed reports' },
+      { key: 'extracurriculars', label: 'Industry Involvement', type: 'textarea', placeholder: 'Associations, training programs, mentoring...' },
     ],
   },
 ];

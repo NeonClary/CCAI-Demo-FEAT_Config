@@ -44,26 +44,26 @@ from app.core.database import get_database
 LOG = logging.getLogger(__name__)
 
 PROFILE_FIELDS: List[tuple] = [
-    ("major", "What is your major / area of study?",
-     "The student's declared or intended major (e.g. 'Computer Science', 'Biology')"),
-    ("minor", "Do you have a minor or secondary focus?",
-     "The student's minor or secondary area of study"),
-    ("year", "What year are you (freshman, sophomore, junior, senior)?",
-     "Academic year: freshman, sophomore, junior, senior, or graduate"),
-    ("gpa_range", "What GPA range are you in (e.g. 3.0-3.5)?",
-     "Approximate GPA range like '3.0-3.5' or 'around 3.5'"),
-    ("career_goals", "What career or goals are you working toward after graduation?",
-     "Post-graduation career goals, job aspirations, or grad school plans"),
-    ("courses_completed", "What key courses have you already completed?",
-     "List of courses already taken (course names or codes)"),
-    ("courses_planned", "Are there courses you're planning to take next?",
-     "Courses the student plans to take next semester or in the future"),
-    ("schedule_preferences", "Do you have schedule preferences (morning/afternoon, no Fridays, etc.)?",
-     "Time-of-day preferences, day-of-week preferences, or constraints like 'no 8am classes', 'prefer afternoons', 'MWF only', 'mornings', 'no Fridays'"),
-    ("learning_style", "How would you describe your learning style?",
-     "How the student learns best: visual, hands-on, reading, lectures, group work, etc."),
-    ("extracurriculars", "Are you involved in any clubs, sports, or extracurriculars?",
-     "Clubs, sports, organizations, volunteer work, or other activities"),
+    ("major", "What's your primary construction specialty?",
+     "Primary specialty (e.g. 'Asphalt Paving', 'Heavy Civil', 'Road Work')"),
+    ("minor", "Do you have a secondary specialty or focus area?",
+     "Secondary specialty or focus (e.g. 'Bridge Work', 'Grading', 'Utilities')"),
+    ("year", "How many years of experience do you have?",
+     "Experience level: 0-2 Years, 3-5 Years, 6-10 Years, 11-20 Years, or 20+ Years"),
+    ("gpa_range", "How large is the crew you typically manage?",
+     "Team size: '1-5 crew', '6-15 crew', '16-30 crew', '31-50 crew', or '50+ crew'"),
+    ("career_goals", "What professional goals are you working toward?",
+     "Career goals, advancement plans, or skills being developed"),
+    ("courses_completed", "What certifications do you hold?",
+     "List of certifications (e.g. OSHA 30, PMP, CDL)"),
+    ("courses_planned", "What projects are you currently working on?",
+     "Current projects or upcoming assignments"),
+    ("schedule_preferences", "Do you have work preferences (shift, region, etc.)?",
+     "Work preferences like 'day shift only', 'regional projects', 'travel OK'"),
+    ("learning_style", "How do you prefer to receive information?",
+     "Communication style: brief and direct, detailed reports, visual aids, etc."),
+    ("extracurriculars", "Are you involved in industry associations or training programs?",
+     "Professional associations, training, mentoring, or industry involvement"),
 ]
 
 
@@ -190,23 +190,23 @@ class OnboardingAgent:
         filled_summary = ", ".join(filled_parts) or "nothing yet"
         next_field_key, next_field_q, _ = missing[0]
         system = (
-            "You are a friendly onboarding assistant helping a university student "
-            "fill out their profile. You chat like a friendly advisor — warm, curious, natural.\n"
+            "You are a friendly onboarding assistant helping a construction professional "
+            "fill out their profile. You chat like a friendly colleague — warm, curious, natural.\n"
             "RULES:\n"
             "- Respond in exactly ONE short paragraph (2-3 sentences).\n"
-            "- First, briefly acknowledge what the student just said.\n"
+            "- First, briefly acknowledge what they just said.\n"
             "- Then IMMEDIATELY ask one clear question about the NEXT topic.\n"
             "- Your response MUST end with a question mark.\n"
-            "- NEVER use labels or headings like 'Question:', 'Student:', 'Answer:', or 'Next:'.\n"
+            "- NEVER use labels or headings like 'Question:', 'Answer:', or 'Next:'.\n"
             "- NEVER list multiple questions. Ask about ONE topic only.\n"
-            "- If the student declined or skipped, say 'No problem!' and move to the next topic.\n"
+            "- If the user declined or skipped, say 'No problem!' and move to the next topic.\n"
             "- NEVER repeat a topic already gathered or declined."
         )
         user_prompt = (
-            f"Student just said: \"{user_input}\"\n"
+            f"User just said: \"{user_input}\"\n"
             f"Already gathered: {filled_summary}\n"
             f"Next topic to ask about: {next_field_key} — {next_field_q}\n"
-            "Write your short, friendly response that acknowledges the student "
+            "Write your short, friendly response that acknowledges them "
             "and then asks about the next topic. End with a question mark."
         )
         try:

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Home, MessageCircle, Reply, X, Sparkles, Users, Settings2, FileText , LogOut, Menu} from 'lucide-react';
+import { Home, MessageCircle, Reply, X, Sparkles, Users, Settings2, FileText, Menu} from 'lucide-react';
 import EnhancedChatInput from '../components/EnhancedChatInput';
 import MessageBubble from '../components/MessageBubble';
 import AdvisorCarousel from '../components/AdvisorCarousel';
@@ -1005,15 +1005,6 @@ const handleNewChat = async (sessionId = null) => {
               }} />
               
               <div className="header-controls">
-                {/* Optional: Add header sign out button */}
-                <button 
-                  className="header-signout-btn"
-                  onClick={onSignOut}
-                  title="Sign Out"
-                >
-                  <LogOut size={16} />
-                </button>
-                
                 {/* Export Button */}
                 <ExportButton 
                   hasMessages={hasConversationMessages} 
@@ -1047,7 +1038,7 @@ const handleNewChat = async (sessionId = null) => {
                       <img src="/neon-logo.png" alt="" className="footer-neon-logo" />
                       Neon.ai
                     </a>
-                    , portions copyright University of Colorado Boulder. All rights reserved.{' '}
+                    . All rights reserved.{' '}
                     <a href="https://www.neon.ai/contact" target="_blank" rel="noopener noreferrer" className="footer-patents-link">
                       Patents and licensing.
                     </a>

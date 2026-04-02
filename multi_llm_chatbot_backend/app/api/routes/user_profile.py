@@ -71,8 +71,8 @@ def _calc_completion(doc: Dict[str, Any]) -> int:
 LIST_FIELDS = {"courses_completed", "courses_planned"}
 
 _SELECT_OPTIONS: Dict[str, List[str]] = {
-    "year": ["Freshman", "Sophomore", "Junior", "Senior", "Graduate"],
-    "gpa_range": ["Below 2.0", "2.0-2.5", "2.5-3.0", "3.0-3.5", "3.5-4.0"],
+    "year": ["0-2 Years", "3-5 Years", "6-10 Years", "11-20 Years", "20+ Years"],
+    "gpa_range": ["1-5 crew", "6-15 crew", "16-30 crew", "31-50 crew", "50+ crew"],
 }
 
 _SELECT_LOOKUP: Dict[str, Dict[str, str]] = {

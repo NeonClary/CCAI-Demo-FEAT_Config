@@ -123,7 +123,7 @@ const ClearDataModal = ({ authToken, onClose, onDataCleared }) => {
           <div>
             <div style={{ fontWeight: 600, fontSize: 14 }}>Profile Information</div>
             <div style={{ fontSize: 12, color: isDark ? '#9ca3af' : '#6b7280', marginTop: 2 }}>
-              Major, GPA, career goals, learning style, etc. Resets "Tell us about yourself."
+              Specialty, experience, goals, work preferences, etc. Resets "Tell us about yourself."
             </div>
           </div>
         </div>
@@ -143,7 +143,7 @@ const ClearDataModal = ({ authToken, onClose, onDataCleared }) => {
           <div>
             <div style={{ fontWeight: 600, fontSize: 14 }}>Canvas</div>
             <div style={{ fontSize: 12, color: isDark ? '#9ca3af' : '#6b7280', marginTop: 2 }}>
-              All collected insights and research notes.
+              All collected insights and project notes.
             </div>
           </div>
         </div>

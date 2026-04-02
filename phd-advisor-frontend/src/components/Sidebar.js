@@ -15,7 +15,7 @@ import {
   ChevronRight,
   FileText,
   BookOpen,
-  GraduationCap
+  HardHat
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useAppConfig } from '../contexts/AppConfigContext';
@@ -42,7 +42,7 @@ const Sidebar = ({
   onOpenTutorial
 }) => {
   const { config } = useAppConfig();
-  const canvasLabel = config?.app?.title ? `${config.app.title} Canvas` : 'Canvas';
+  const canvasLabel = 'AI Notes & Planning';
   const [chatSessions, setChatSessions] = useState([]);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const avatarOptions = config?.app?.user_avatars || [];
@@ -251,7 +251,7 @@ const Sidebar = ({
                           <span>User Guide</span>
                         </button>
                         <button className="user-menu-item" onClick={() => { setShowUserMenu(false); if (onOpenTutorial) onOpenTutorial(); }}>
-                          <GraduationCap size={16} />
+                          <HardHat size={16} />
                           <span>Tutorial</span>
                         </button>
                         <button className="user-menu-item sign-out" onClick={onSignOut}>
@@ -398,7 +398,7 @@ const Sidebar = ({
           </a>
           {!isCollapsed && (
             <p className="sidebar-copyright-text">
-              Copyright Neon.ai, portions copyright University of Colorado Boulder. All rights reserved.{' '}
+              Copyright Neon.ai. All rights reserved.{' '}
               <a href="https://www.neon.ai/contact" target="_blank" rel="noopener noreferrer" className="sidebar-patents-link">
                 Patents and licensing.
               </a>

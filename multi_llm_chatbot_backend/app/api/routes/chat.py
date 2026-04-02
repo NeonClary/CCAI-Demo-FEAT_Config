@@ -275,7 +275,9 @@ async def chat_sequential_enhanced(
         except Exception as prof_err:
             LOG.warning(f"Could not load user profile: {prof_err}")
 
-        if chat_orchestrator._needs_clarification(session, message.user_input):
+        query_type = chat_orchestrator.classify_query(message.user_input, session_id=session_id)
+
+        if query_type == "general" and chat_orchestrator._needs_clarification(session, message.user_input):
             clarification = await chat_orchestrator.generate_contextual_clarification(
                 message.user_input
             )
@@ -290,7 +292,6 @@ async def chat_sequential_enhanced(
                 }
             }
 
-        query_type = chat_orchestrator.classify_query(message.user_input, session_id=session_id)
         if query_type == "course_db":
             LOG.info("Routing to Course Advisor sub-agent for database query")
             course_response = await chat_orchestrator.handle_course_query(
@@ -477,13 +478,14 @@ async def chat_stream(
             except Exception:
                 pass
 
-            if chat_orchestrator._needs_clarification(session, message.user_input):
+            query_type = chat_orchestrator.classify_query(message.user_input, session_id=sid)
+
+            if query_type == "general" and chat_orchestrator._needs_clarification(session, message.user_input):
                 clar = await chat_orchestrator.generate_contextual_clarification(message.user_input)
                 yield f"event: clarification\ndata: {json_mod.dumps({'message': clar['question'], 'suggestions': clar['suggestions']})}\n\n"
                 yield "event: done\ndata: {}\n\n"
                 return
 
-            query_type = chat_orchestrator.classify_query(message.user_input, session_id=sid)
             if query_type == "course_db":
                 cr = await chat_orchestrator.handle_course_query(
                     user_message=message.user_input,
