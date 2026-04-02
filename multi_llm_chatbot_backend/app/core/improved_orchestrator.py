@@ -1102,6 +1102,11 @@ class ImprovedChatOrchestrator:
             "pragmatist": "practical application implementation action steps next steps recommendation solution strategy timeline concrete advice roadmap execution deliverables milestones",
             "weather_advisor": "weather forecast temperature precipitation rain snow wind humidity conditions today tomorrow weekend climate",
             "timer_advisor": "timer countdown duration minutes seconds hours reminder elapsed remaining time alarm",
+            "wac_advisor": "WAC RCW Washington regulation prevailing-wage contractor-license L&I public-works bonding insurance compliance state-law",
+            "dunn_employee_assist": "handbook employee policy HR benefits PTO leave training onboarding conduct discipline safety-reporting workplace",
+            "land_use_advisor": "GMA Growth-Management SEPA zoning land-use shoreline critical-areas comprehensive-plan permitting annexation impact-fees",
+            "shakespeare_historian": "Shakespeare Elizabethan Globe-Theatre literary-analysis plays sonnets Tudor Stuart Early-Modern history performance",
+            "shakespeare_voice": "Shakespeare Bard Early-Modern-English thee thou hath doth wherefore prithee Globe plays sonnets",
         }
         return enhanced_keywords.get(persona_id, "")
 
