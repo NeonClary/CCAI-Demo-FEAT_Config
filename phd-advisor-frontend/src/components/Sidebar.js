@@ -13,15 +13,14 @@ import {
   PanelLeft,
   FileText
 } from 'lucide-react';
-import { useAppConfig } from '../contexts/AppConfigContext';
 import CopyrightNotice from './CopyrightNotice';
 import '../styles/Sidebar.css';
 
-const Sidebar = ({ 
-  user, 
-  currentSessionId, 
-  onSelectSession, 
-  onNewChat, 
+const Sidebar = ({
+  user,
+  currentSessionId,
+  onSelectSession,
+  onNewChat,
   onSignOut,
   authToken,
   onSidebarToggle,
@@ -29,10 +28,11 @@ const Sidebar = ({
   onMobileToggle,
   onNavigateToCanvas,
   refreshTrigger,
-  onCurrentSessionDeleted
+  onCurrentSessionDeleted,
+  pageContext = 'chat',
+  canvasItems = []
 }) => {
-  const { config } = useAppConfig();
-  const canvasLabel = config?.app?.title ? `${config.app.title} Canvas` : 'Canvas';
+  const isOnCanvas = pageContext === 'canvas';
   const [chatSessions, setChatSessions] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -228,14 +228,6 @@ const Sidebar = ({
                 </div>
               </div>
 
-              <button
-                className="sidebar-canvas-btn"
-                onClick={onNavigateToCanvas}
-                title={canvasLabel}
-              >
-                <FileText size={18} />
-                {!isCollapsed && <span>{canvasLabel}</span>}
-              </button>
             </>
           )}
 
@@ -257,14 +249,6 @@ const Sidebar = ({
               >
                 <SquarePen size={20} />
               </button>
-              <button 
-                className="sidebar-canvas-btn"
-                onClick={onNavigateToCanvas}
-                title={canvasLabel}
-              >
-                <FileText size={20} />
-                {!isCollapsed && <span>{canvasLabel}</span>}
-              </button>
             </div>
           )}
         </div>
@@ -276,24 +260,67 @@ const Sidebar = ({
               <Search size={16} className="search-icon" />
               <input
                 type="text"
-                placeholder="Search chats..."
+                placeholder={isOnCanvas ? 'Search widgets...' : 'Search chats...'}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="search-input"
               />
             </div>
-            <button
-              className="new-chat-icon-btn"
-              onClick={handleNewChat}
-              disabled={isCreatingNewChat}
-              title={isCreatingNewChat ? 'Creating...' : 'New Chat'}
-            >
-              <SquarePen size={18} />
-            </button>
+            {!isOnCanvas && (
+              <button
+                className="new-chat-icon-btn"
+                onClick={handleNewChat}
+                disabled={isCreatingNewChat}
+                title={isCreatingNewChat ? 'Creating...' : 'New Chat'}
+              >
+                <SquarePen size={18} />
+              </button>
+            )}
           </div>
         )}
 
-        {/* Chat Sessions */}
+        {/* Canvas widgets list (when on canvas) */}
+        {isOnCanvas ? (
+          <div className="chat-sessions">
+            {(() => {
+              const filtered = canvasItems.filter(it =>
+                !searchTerm || it.label.toLowerCase().includes(searchTerm.toLowerCase())
+              );
+              if (filtered.length === 0) {
+                return (
+                  <div className="no-sessions">
+                    {!isCollapsed && (searchTerm ? 'No widgets match' : 'No widgets yet')}
+                  </div>
+                );
+              }
+              return (
+                <div className="sessions-list">
+                  {filtered.map((it) => (
+                    <div
+                      key={it.id}
+                      className={`session-item ${isCollapsed ? 'collapsed' : ''}`}
+                      onClick={it.onClick}
+                      title={isCollapsed ? it.label : ''}
+                    >
+                      <div className="session-content">
+                        <div className="session-icon">
+                          <FileText size={16} />
+                        </div>
+                        {!isCollapsed && (
+                          <div className="session-details">
+                            <div className="session-title">{it.label}</div>
+                            {it.sub && <div className="session-meta"><span>{it.sub}</span></div>}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+        ) : (
+        /* Chat Sessions */
         <div className="chat-sessions">
           {isLoading ? (
             <div className="loading-sessions">
@@ -346,6 +373,7 @@ const Sidebar = ({
             </div>
           )}
         </div>
+        )}
 
         {/* Footer */}
         <div className={`sidebar-footer ${isCollapsed ? 'collapsed' : ''}`}>

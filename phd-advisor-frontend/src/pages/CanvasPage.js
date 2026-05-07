@@ -1,529 +1,434 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  FileText, 
-  RefreshCw, 
-  Download, 
-  Calendar,
-  TrendingUp,
-  Target,
-  BookOpen,
-  Lightbulb,
-  AlertTriangle,
-  Users,
-  BarChart3,
-  Heart,
-  ArrowLeft,
-  Printer
-} from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { HelpCircle } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
 import { useAppConfig } from '../contexts/AppConfigContext';
-import CopyrightNotice from '../components/CopyrightNotice';
+import Sidebar from '../components/Sidebar';
+import AppHeader from '../components/AppHeader';
+import Icon from '../components/canvas/CanvasIcon';
+import {
+  INSIGHTS, WIDGET_CATALOG, DEFAULT_LAYOUT, EMPTY_STATE,
+} from '../components/canvas/canvasData';
+import {
+  BibliographyWidget, KanbanWidget, PomodoroWidget, WritingWidget,
+  DeadlinesWidget, BudgetWidget, ReadingQueueWidget, NotesWidget,
+  HabitsWidget, GoalsWidget, MeetingsWidget,
+  OutlineWidget, HighlightsWidget, LatexWidget,
+  StubWidget,
+} from '../components/canvas/CanvasWidgets';
+import {
+  Reviewer2Widget, DevilsAdvocateWidget, ScopeRealismWidget,
+  ReviewerModal, DevilsModal, ScopeModal,
+} from '../components/canvas/CanvasCriticWidgets';
+import {
+  AddCitationModal, AddTaskModal, AddDeadlineModal, LogWordsModal,
+  ConfirmRemoveModal, ReadingPaperModal, BudgetItemModal,
+  NoteModal, HabitModal, GoalModal, MeetingModal,
+  PaletteModal, CommandPaletteModal,
+} from '../components/canvas/CanvasModals';
+import CanvasWelcomeTour from '../components/canvas/CanvasWelcomeTour';
 import '../styles/CanvasPage.css';
 
-// Section icons mapping
-const sectionIcons = {
-  research_progress: TrendingUp,
-  methodology: BarChart3,
-  theoretical_framework: BookOpen,
-  challenges_obstacles: AlertTriangle,
-  next_steps: Target,
-  writing_communication: FileText,
-  career_development: Users,
-  literature_review: BookOpen,
-  data_analysis: BarChart3,
-  motivation_mindset: Heart
-};
+const LAYOUT_KEY = 'canvas-layout-v2';
+const STATES_KEY = 'canvas-states-v2';
+const VIEW_KEY = 'canvas-view-v2';
 
-const CanvasSection = ({ section, sectionKey, isExpanded, onToggle }) => {
-  const IconComponent = sectionIcons[sectionKey] || Lightbulb;
-  
+function renderWidget(type, state, setState, openModal) {
+  const props = { state, setState, openModal };
+  switch (type) {
+    case 'bibliography': return <BibliographyWidget {...props}/>;
+    case 'kanban': return <KanbanWidget {...props}/>;
+    case 'pomodoro': return <PomodoroWidget {...props}/>;
+    case 'writing': return <WritingWidget {...props}/>;
+    case 'deadlines': return <DeadlinesWidget {...props}/>;
+    case 'budget': return <BudgetWidget {...props}/>;
+    case 'reading-queue': return <ReadingQueueWidget {...props}/>;
+    case 'notes': return <NotesWidget {...props}/>;
+    case 'habits': return <HabitsWidget {...props}/>;
+    case 'goals': return <GoalsWidget {...props}/>;
+    case 'meeting-log': return <MeetingsWidget {...props}/>;
+    case 'reviewer-2': return <Reviewer2Widget {...props}/>;
+    case 'devils-advocate': return <DevilsAdvocateWidget {...props}/>;
+    case 'scope-realism': return <ScopeRealismWidget {...props}/>;
+    case 'outline': return <OutlineWidget {...props}/>;
+    case 'highlights': return <HighlightsWidget {...props}/>;
+    case 'latex': return <LatexWidget {...props}/>;
+    default: {
+      const meta = WIDGET_CATALOG.find(w => w.type === type);
+      return <StubWidget meta={meta}/>;
+    }
+  }
+}
+
+function CanvasWidget({ widget, isDragging, isDragOver, onDragStart, onDragOver, onDragEnd, onDrop, state, setState, onRemove, onResize, openModal }) {
+  const meta = WIDGET_CATALOG.find(w => w.type === widget.type);
+  if (!meta) return null;
+  const sizes = ['S', 'M', 'L'];
+  const cycleSize = () => onResize(widget.id, sizes[(sizes.indexOf(widget.size) + 1) % sizes.length]);
+
   return (
-    <div className="canvas-section">
-      <div 
-        className="section-header" 
-        onClick={() => onToggle(sectionKey)}
+    <div
+      className={`widget size-${widget.size} ${meta.critic ? 'critic' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+      data-widget-id={widget.id}
+      onDragOver={(e) => { e.preventDefault(); onDragOver(widget.id); }}
+      onDrop={(e) => { e.preventDefault(); onDrop(widget.id); }}
+    >
+      <div
+        className="widget-head"
+        draggable
+        onDragStart={(e) => { onDragStart(widget.id); e.dataTransfer.effectAllowed = 'move'; }}
+        onDragEnd={onDragEnd}
       >
-        <div className="section-header-content">
-          <IconComponent className="section-icon" />
-          <div className="section-titles">
-            <h3 className="section-title">{section.title}</h3>
-            <p className="section-description">{section.description}</p>
-          </div>
-        </div>
-        <div className="section-meta">
-          <span className="insight-count">{section.insights.length} insights</span>
-          <div className={`expand-arrow ${isExpanded ? 'expanded' : ''}`}>
-            ▼
-          </div>
+        <span className="drag-grip"><Icon name="grip" size={14}/></span>
+        <div className="widget-icon"><Icon name={meta.icon} size={14}/></div>
+        <div className="widget-title">{meta.name}</div>
+        {meta.critic && <span className="widget-tag">wedge</span>}
+        <span className="size-pill" onClick={cycleSize} title="Cycle size S → M → L">{widget.size}</span>
+        <div className="widget-actions">
+          <button className="icon-btn" onClick={() => onRemove(widget.id, meta.name)} title="Remove"><Icon name="trash" size={13}/></button>
         </div>
       </div>
-      
-      {isExpanded && (
-        <div className="section-content">
-          {section.insights.length === 0 ? (
-            <div className="empty-section">
-              <Lightbulb className="empty-icon" />
-              <p>No insights yet. Keep chatting with your advisors to build this section!</p>
-            </div>
-          ) : (
-            <div className="insights-grid">
-              {section.insights.map((insight, index) => (
-                <div key={index} className="insight-card">
-                  <div className="insight-content">
-                    {insight.content}
-                  </div>
-                  <div className="insight-footer">
-                    <span className="insight-source">{insight.source_persona}</span>
-                    <span className="insight-confidence">
-                      {Math.round(insight.confidence_score * 100)}% confidence
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      <div className="widget-body">
+        {renderWidget(widget.type, state, setState, openModal)}
+      </div>
     </div>
   );
-};
+}
 
-const CanvasPage = ({ user, authToken, onNavigateToChat, onSignOut }) => {
-  const { config } = useAppConfig();
-  const appName = config?.app_settings?.app_name || 'Advisory Panel';
-  const [canvasData, setCanvasData] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [expandedSections, setExpandedSections] = useState({});
-  const [stats, setStats] = useState({});
-  const [isPrintView, setIsPrintView] = useState(false);
-  const [isProcessingFirstTime, setIsProcessingFirstTime] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  useEffect(() => {
-    let pollInterval = null;
-    
-    const initializeCanvas = async () => {
-      await fetchCanvas();
-      await fetchStats();
-      await triggerAutoUpdate();
-      
-      setTimeout(() => {
-        checkForEmptyCanvasWithChats();
-      }, 2000);
-    };
-    
-    initializeCanvas();
-    
-    // Cleanup on unmount
-    return () => {
-      if (pollInterval) {
-        clearInterval(pollInterval);
-      }
-    };
-  }, []);
-
-  const fetchCanvas = async () => {
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/phd-canvas`, {
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setCanvasData(data);
-        
-        // Auto-expand sections with insights
-        const sectionsToExpand = {};
-        Object.entries(data.sections).forEach(([key, section]) => {
-          if (section.insights.length > 0) {
-            sectionsToExpand[key] = true;
-          }
-        });
-        setExpandedSections(sectionsToExpand);
-      } else {
-        console.error('Failed to fetch canvas');
-      }
-    } catch (error) {
-      console.error('Error fetching canvas:', error);
-    } finally {
-      setIsLoading(false);
-    }
+function InsightsView() {
+  const [pinned, setPinned] = useState(new Set(INSIGHTS.filter(i => i.pinned).map(i => i.id)));
+  const togglePin = (id) => {
+    const n = new Set(pinned);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    setPinned(n);
   };
-
-  const fetchStats = async () => {
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/phd-canvas/stats`, {
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
-      }
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-    }
-  };
-
-  // Check if user has chats but empty canvas
-  const checkForEmptyCanvasWithChats = async () => {
-    try {
-      const isEmpty = !canvasData || canvasData.total_insights === 0;
-      
-      if (isEmpty) {
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/api/chat-sessions/count`, {
-          headers: {
-            'Authorization': `Bearer ${authToken}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (response.ok) {
-          const { count } = await response.json();
-          if (count > 0) {
-            console.log(`User has ${count} chats but empty canvas. Triggering full refresh.`);
-            await handleFullRefresh();
-          }
-        } else {
-          console.error('Failed to fetch chat sessions count:', response.status);
-          // Don't trigger refresh if count fails
-          return;
-        }
-      }
-    } catch (error) {
-      console.error('Error checking for empty canvas with chats:', error);
-      // Stop the polling if there's an error
-      return;
-    }
-  };
-
-  const triggerAutoUpdate = async () => {
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/phd-canvas/auto-update`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        
-        // If this is a first-time canvas update, show appropriate message
-        if (result.type === 'full_update') {
-          console.log('First-time canvas detected. Processing all your chats...');
-          
-          // Show loading state
-          setIsProcessingFirstTime(true);
-          setIsUpdating(true);
-          
-          // Poll for updates every 10 seconds for up to 3 minutes
-          let attempts = 0;
-          const maxAttempts = 18; // 3 minutes / 10 seconds
-          
-          const pollForUpdates = setInterval(async () => {
-            attempts++;
-            
-            try {
-              await fetchCanvas();
-              
-              // If canvas now has insights, stop polling
-              if (canvasData && canvasData.total_insights > 0) {
-                clearInterval(pollForUpdates);
-                setIsUpdating(false);
-                setIsProcessingFirstTime(false);
-                console.log('Canvas successfully populated with insights!');
-              }
-              
-              // Stop polling after max attempts
-              if (attempts >= maxAttempts) {
-                clearInterval(pollForUpdates);
-                setIsUpdating(false);
-                setIsProcessingFirstTime(false);
-              }
-            } catch (error) {
-              console.error('Error polling for updates:', error);
-            }
-          }, 10000);
-        }
-      }
-    } catch (error) {
-      console.error('Error triggering auto-update:', error);
-    }
-  };
-
-  const handleRefreshCanvas = async () => {
-    // Prevent multiple simultaneous refresh requests
-    if (isRefreshing || isUpdating) {
-      console.log('Refresh already in progress, ignoring duplicate request');
-      return;
-    }
-    
-    setIsRefreshing(true);
-    setIsUpdating(true);
-    
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/phd-canvas/refresh`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log('Full refresh initiated:', result);
-        
-        // Poll for updates
-        setTimeout(() => {
-          fetchCanvas();
-          fetchStats();
-        }, 5000);
-        
-        setTimeout(() => {
-          setIsUpdating(false);
-          setIsRefreshing(false);
-        }, 10000);
-      }
-    } catch (error) {
-      console.error('Error refreshing canvas:', error);
-      setIsUpdating(false);
-      setIsRefreshing(false);
-    }
-  };
-
-  const handleFullRefresh = async () => {
-    // Prevent multiple simultaneous refresh requests
-    if (isRefreshing || isUpdating) {
-      console.log('Refresh already in progress, ignoring duplicate request');
-      return;
-    }
-    
-    setIsRefreshing(true);
-    setIsUpdating(true);
-    
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/phd-canvas/refresh`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log('Full refresh initiated:', result);
-        
-        // Poll for updates
-        setTimeout(() => {
-          fetchCanvas();
-          fetchStats();
-        }, 5000);
-        
-        setTimeout(() => {
-          setIsUpdating(false);
-          setIsRefreshing(false);
-        }, 10000);
-      }
-    } catch (error) {
-      console.error('Error refreshing canvas:', error);
-      setIsUpdating(false);
-      setIsRefreshing(false);
-    }
-  };
-
-  const toggleSection = (sectionKey) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [sectionKey]: !prev[sectionKey]
-    }));
-  };
-
-  const handlePrint = () => {
-    setIsPrintView(true);
-    setTimeout(() => {
-      window.print();
-      setIsPrintView(false);
-    }, 100);
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return 'Never';
-    return new Date(dateString).toLocaleDateString();
-  };
-
-  if (isLoading) {
-    return (
-      <div className="canvas-loading">
-        <div className="loading-spinner"></div>
-        <p>Loading your {appName} Canvas...</p>
-      </div>
-    );
-  }
-
-  // Sort sections by priority and insights count
-  const sortedSections = Object.entries(canvasData?.sections || {})
-    .sort(([, a], [, b]) => {
-      // First by priority (lower number = higher priority)
-      if (a.priority !== b.priority) {
-        return a.priority - b.priority;
-      }
-      // Then by insights count (more insights first)
-      return b.insights.length - a.insights.length;
-    });
 
   return (
-    <div className={`canvas-page ${isPrintView ? 'print-view' : ''}`}>
-      {/* Header */}
-      <div className="canvas-header">
-        <div className="header-left">
-          <button 
-            className="back-button"
-            onClick={onNavigateToChat}
-          >
-            <ArrowLeft size={20} />
-            Back to Chat
-          </button>
-          <div className="canvas-title-section">
-            <h1 className="canvas-title">
-              <FileText className="canvas-title-icon" />
-              {appName} Canvas
-            </h1>
-            <p className="canvas-subtitle">Your research progress at a glance</p>
-          </div>
+    <>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Insights</h1>
+          <div className="page-sub">AI-synthesized from your research conversations · {INSIGHTS.length} sections</div>
         </div>
-        
-        <div className="header-actions">
-          <div className="header-buttons">
-            <button 
-              onClick={handleRefreshCanvas}
-              disabled={isRefreshing || isUpdating}
-              className={`refresh-button ${(isRefreshing || isUpdating) ? 'disabled' : ''}`}
-            >
-              <RefreshCw className={`refresh-icon ${(isRefreshing || isUpdating) ? 'spinning' : ''}`} />
-              {(isRefreshing || isUpdating) ? 'Refreshing...' : 'Refresh Canvas'}
-            </button>
-            
-            <button 
-              className="action-button print-button"
-              onClick={handlePrint}
-            >
-              <Printer className="action-icon" />
-              Print
-            </button>
-          </div>
-          <a 
-            href="https://neon.ai" 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            className="canvas-powered-by"
-          >
-            <img src="/neon-logo.png" alt="" className="canvas-powered-by-logo" />
-            Powered by Neon.ai
-          </a>
+        <div className="page-meta">
+          <span className="dot"/>
+          <span>updated 3 min ago</span>
+          <button className="icon-btn" title="Refresh"><Icon name="refresh" size={14}/></button>
         </div>
       </div>
+      <div className="insight-grid">
+        {INSIGHTS.map(ins => (
+          <div key={ins.id} className="insight">
+            <div className="insight-head">
+              <div className="insight-icon"><Icon name={ins.icon} size={15}/></div>
+              <div className="insight-title">{ins.title}</div>
+              <div className="confidence">
+                <div className="conf-bar"><i style={{ width: ins.confidence + '%' }}/></div>
+                <span>{ins.confidence}%</span>
+              </div>
+            </div>
+            <div className="insight-body">
+              <div>{ins.summary}</div>
+              <ul>
+                {ins.bullets.map((b, i) => <li key={i} dangerouslySetInnerHTML={{ __html: b }}/>)}
+              </ul>
+            </div>
+            <div className="insight-actions">
+              <button className="chip"><Icon name="message" size={11}/>Ask follow-up</button>
+              <button className="chip"><Icon name="task" size={11}/>To task</button>
+              <button className="chip"><Icon name="cite" size={11}/>Cite</button>
+              <button className="chip"><Icon name="expand" size={11}/>Expand</button>
+              <button className={`chip ${pinned.has(ins.id) ? 'pinned' : ''}`} onClick={() => togglePin(ins.id)}>
+                <Icon name="pin" size={11}/>{pinned.has(ins.id) ? 'Pinned' : 'Pin'}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
 
-      {/* Stats Bar */}
-      <div className="canvas-stats">
-        <div className="stat-item">
-          <span className="stat-number">{canvasData?.total_insights || 0}</span>
-          <span className="stat-label">Total Insights</span>
+function WorkspaceView({ openModal, layout, setLayout, widgetStates, setWidgetStates }) {
+  const [dragId, setDragId] = useState(null);
+  const [dragOverId, setDragOverId] = useState(null);
+
+  const onDragStart = (id) => setDragId(id);
+  const onDragOver = (id) => { if (id !== dragId) setDragOverId(id); };
+  const onDragEnd = () => { setDragId(null); setDragOverId(null); };
+  const onDrop = (targetId) => {
+    if (!dragId || dragId === targetId) { onDragEnd(); return; }
+    const next = [...layout];
+    const fromIdx = next.findIndex(w => w.id === dragId);
+    const toIdx = next.findIndex(w => w.id === targetId);
+    const [moved] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, moved);
+    setLayout(next);
+    onDragEnd();
+  };
+
+  const setWState = (type) => (newState) => {
+    setWidgetStates(s => ({ ...s, [type]: newState }));
+  };
+
+  const removeWidget = (id, label) => {
+    openModal('confirm-remove', {
+      label,
+      onConfirm: () => {
+        setLayout(l => l.filter(w => w.id !== id));
+        window.dispatchEvent(new CustomEvent('canvas-toast', { detail: { msg: label + ' removed', kind: 'success' } }));
+      },
+    });
+  };
+
+  const resizeWidget = (id, size) => setLayout(l => l.map(w => w.id === id ? { ...w, size } : w));
+
+  // Each widget starts from scratch — fresh empty state, no demo content.
+  const addWidget = (meta) => {
+    const id = 'w-' + Date.now();
+    setLayout(l => [...l, { id, type: meta.type, size: meta.defaultSize, critic: meta.critic }]);
+    if (EMPTY_STATE[meta.type]) {
+      // Always reset to a fresh empty state when a widget is added (even if previously removed)
+      setWidgetStates(s => ({ ...s, [meta.type]: JSON.parse(JSON.stringify(EMPTY_STATE[meta.type])) }));
+    }
+  };
+
+  const reset = () => {
+    if (!window.confirm('Reset workspace? All widgets and content will be cleared.')) return;
+    setLayout([]);
+    setWidgetStates({});
+    localStorage.removeItem(LAYOUT_KEY);
+    localStorage.removeItem(STATES_KEY);
+  };
+
+  return (
+    <>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Workspace</h1>
+          <div className="page-sub">{layout.length} widgets · {layout.filter(w => w.critic).length} anti-yes-man · drag headers to reorder, click size pill to resize</div>
         </div>
-        <div className="stat-item">
-          <span className="stat-number">
-            {Object.keys(canvasData?.sections || {}).filter(key => 
-              canvasData.sections[key].insights.length > 0
-            ).length}
-          </span>
-          <span className="stat-label">Active Sections</span>
-        </div>
-        <div className="stat-item">
-          <span className="stat-number">
-            {formatDate(canvasData?.last_updated)}
-          </span>
-          <span className="stat-label">Last Updated</span>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-ghost" onClick={reset} title="Reset layout"><Icon name="reset" size={13}/>Reset</button>
+          <button className="btn btn-primary" onClick={() => openModal('palette', {
+            layout, onAdd: addWidget,
+          })}><Icon name="plus" size={13}/>Add widget</button>
         </div>
       </div>
-
-      {/* Canvas Content */}
-      <div className="canvas-content">
-        {sortedSections.length === 0 ? (
-          <div className="empty-canvas">
-            <FileText className="empty-canvas-icon" />
-            <h2>Your Canvas is Empty</h2>
-            {isUpdating || isProcessingFirstTime ? (
-              <div>
-                <p>
-                  {isProcessingFirstTime 
-                    ? 'Processing your chat history to populate insights...' 
-                    : 'Updating canvas with latest insights...'
-                  }
-                </p>
-                <div className="loading-spinner">
-                  <RefreshCw className="spinning" />
-                </div>
-                <p className="processing-note">
-                  This may take a few minutes for extensive chat history.
-                </p>
-              </div>
-            ) : (
-              <div>
-                <p>Start chatting with your AI advisors to populate your {appName} Canvas with insights!</p>
-                <div className="empty-canvas-actions">
-                  <button 
-                    className="start-chatting-button"
-                    onClick={onNavigateToChat}
-                  >
-                    Start Chatting
-                  </button>
-                  <button 
-                    className="refresh-button secondary"
-                    onClick={handleFullRefresh}
-                  >
-                    <RefreshCw className="action-icon" />
-                    Process Existing Chats
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="sections-container">
-            {sortedSections.map(([sectionKey, section]) => (
-              <CanvasSection
-                key={sectionKey}
-                section={section}
-                sectionKey={sectionKey}
-                isExpanded={expandedSections[sectionKey]}
-                onToggle={toggleSection}
-              />
-            ))}
+      <div className="workspace">
+        {layout.length === 0 && (
+          <div className="empty-cell">
+            <Icon name="layout" size={32} style={{ color: 'var(--canvas-text-4)' }}/>
+            <div style={{ fontSize: 14, color: 'var(--canvas-text-2)', fontWeight: 500 }}>Empty workspace</div>
+            <div>Add widgets from the palette to start composing your canvas.</div>
+            <button className="btn btn-primary" onClick={() => openModal('palette', { layout, onAdd: addWidget })} style={{ marginTop: 6 }}>
+              <Icon name="plus" size={13}/>Add your first widget
+            </button>
           </div>
         )}
+        {layout.map((w) => (
+          <CanvasWidget
+            key={w.id}
+            widget={w}
+            isDragging={dragId === w.id}
+            isDragOver={dragOverId === w.id}
+            onDragStart={onDragStart}
+            onDragOver={onDragOver}
+            onDragEnd={onDragEnd}
+            onDrop={onDrop}
+            state={widgetStates[w.type] ?? (EMPTY_STATE[w.type] ?? {})}
+            setState={setWState(w.type)}
+            onRemove={removeWidget}
+            onResize={resizeWidget}
+            openModal={openModal}
+          />
+        ))}
       </div>
+    </>
+  );
+}
 
-      {/* Copyright Footer */}
-      <footer className="canvas-copyright-footer">
-        <CopyrightNotice />
-      </footer>
+function ModalRouter({ modal, onClose }) {
+  if (!modal) return null;
+  const handleBackdropClick = (e) => { if (e.target === e.currentTarget) onClose(); };
+  let content = null;
+  switch (modal.kind) {
+    case 'palette':         content = <PaletteModal data={modal.data} onClose={onClose}/>; break;
+    case 'add-citation':    content = <AddCitationModal data={modal.data} onClose={onClose}/>; break;
+    case 'add-task':        content = <AddTaskModal data={modal.data} onClose={onClose}/>; break;
+    case 'add-deadline':    content = <AddDeadlineModal data={modal.data} onClose={onClose}/>; break;
+    case 'log-words':       content = <LogWordsModal data={modal.data} onClose={onClose}/>; break;
+    case 'confirm-remove':  content = <ConfirmRemoveModal data={modal.data} onClose={onClose}/>; break;
+    case 'reviewer-2':      content = <ReviewerModal data={modal.data} onClose={onClose}/>; break;
+    case 'devils-advocate': content = <DevilsModal data={modal.data} onClose={onClose}/>; break;
+    case 'scope-realism':   content = <ScopeModal data={modal.data} onClose={onClose}/>; break;
+    case 'reading-paper':   content = <ReadingPaperModal data={modal.data} onClose={onClose}/>; break;
+    case 'budget-item':     content = <BudgetItemModal data={modal.data} onClose={onClose}/>; break;
+    case 'note':            content = <NoteModal data={modal.data} onClose={onClose}/>; break;
+    case 'habit':           content = <HabitModal data={modal.data} onClose={onClose}/>; break;
+    case 'goal':            content = <GoalModal data={modal.data} onClose={onClose}/>; break;
+    case 'meeting':         content = <MeetingModal data={modal.data} onClose={onClose}/>; break;
+    case 'command':         content = <CommandPaletteModal data={modal.data} onClose={onClose}/>; break;
+    default: return null;
+  }
+  return <div className="canvas-modal-backdrop" onClick={handleBackdropClick}>{content}</div>;
+}
 
-      {/* Print Footer */}
-      {isPrintView && (
-        <div className="print-footer">
-          <p>Generated by {appName} - {new Date().toLocaleDateString()}</p>
-          <p>Student: {user?.email} | Total Insights: {canvasData?.total_insights || 0}</p>
+function ToastStack() {
+  const [toasts, setToasts] = useState([]);
+  useEffect(() => {
+    const handler = (e) => {
+      const id = Date.now() + Math.random();
+      setToasts(t => [...t, { id, ...e.detail }]);
+      setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 3500);
+    };
+    window.addEventListener('canvas-toast', handler);
+    return () => window.removeEventListener('canvas-toast', handler);
+  }, []);
+  return (
+    <div className="toast-stack">
+      {toasts.map(t => (
+        <div key={t.id} className={`toast ${t.kind || 'success'}`}>
+          <Icon name={t.kind === 'critic' ? 'gavel' : t.kind === 'danger' ? 'alert' : 'check'} size={14}/>
+          <span>{t.msg}</span>
         </div>
-      )}
+      ))}
+    </div>
+  );
+}
+
+
+const CanvasPage = ({ user, authToken, onNavigateToHome, onNavigateToChat, onSignOut }) => {
+  const { theme, toggleTheme } = useTheme();
+  useAppConfig();
+  const [view, setView] = useState(() => localStorage.getItem(VIEW_KEY) || 'workspace');
+  const [modal, setModal] = useState(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [tourForceShow, setTourForceShow] = useState(0);
+
+  const [layout, setLayout] = useState(() => {
+    try {
+      const saved = localStorage.getItem(LAYOUT_KEY);
+      return saved ? JSON.parse(saved) : DEFAULT_LAYOUT;
+    } catch { return DEFAULT_LAYOUT; }
+  });
+  const [widgetStates, setWidgetStates] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STATES_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+
+  useEffect(() => { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); }, [layout]);
+  useEffect(() => { localStorage.setItem(STATES_KEY, JSON.stringify(widgetStates)); }, [widgetStates]);
+  useEffect(() => { localStorage.setItem(VIEW_KEY, view); }, [view]);
+
+  // Apply canvas theme attribute on body for scoped styling
+  useEffect(() => {
+    document.body.dataset.canvasTheme = theme;
+    return () => { delete document.body.dataset.canvasTheme; };
+  }, [theme]);
+
+  const openModal = useCallback((kind, data = {}) => setModal({ kind, data }), []);
+  const closeModal = useCallback(() => setModal(null), []);
+
+  const exportWorkspace = useCallback(() => {
+    const data = { layout, states: widgetStates };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'canvas-workspace.json';
+    a.click();
+    window.dispatchEvent(new CustomEvent('canvas-toast', { detail: { msg: 'Workspace exported as JSON', kind: 'success' } }));
+  }, [layout, widgetStates]);
+
+  const openCommandPalette = useCallback(() => {
+    openModal('command', {
+      layout,
+      onSetView: (v) => setView(v),
+      onAddWidget: (meta) => {
+        const id = 'w-' + Date.now();
+        setLayout(l => [...l, { id, type: meta.type, size: meta.defaultSize, critic: meta.critic }]);
+        if (EMPTY_STATE[meta.type]) {
+          setWidgetStates(s => ({ ...s, [meta.type]: JSON.parse(JSON.stringify(EMPTY_STATE[meta.type])) }));
+        }
+      },
+      onToggleTheme: toggleTheme,
+      onExport: exportWorkspace,
+    });
+  }, [openModal, layout, toggleTheme, exportWorkspace]);
+
+  // Esc closes modal, ⌘K opens command palette
+  useEffect(() => {
+    const k = (e) => {
+      if (e.key === 'Escape') closeModal();
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        openCommandPalette();
+      }
+    };
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, [closeModal, openCommandPalette]);
+
+  const canvasSidebarItems = layout.map(w => {
+    const meta = WIDGET_CATALOG.find(m => m.type === w.type);
+    return {
+      id: w.id,
+      label: meta?.name || w.type,
+      sub: meta?.cat || '',
+      onClick: () => {
+        const el = document.querySelector(`[data-widget-id="${w.id}"]`);
+        if (el) {
+          el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          el.style.boxShadow = '0 0 0 2px var(--canvas-accent), 0 0 24px var(--canvas-accent-glow)';
+          setTimeout(() => { el.style.boxShadow = ''; }, 1400);
+        }
+      },
+    };
+  });
+
+  return (
+    <div className="canvas-page-with-sidebar" data-canvas-theme={theme}>
+      <Sidebar
+        user={user}
+        authToken={authToken}
+        onSignOut={onSignOut}
+        onSidebarToggle={setIsSidebarCollapsed}
+        isMobileOpen={isMobileMenuOpen}
+        onMobileToggle={setIsMobileMenuOpen}
+        onNavigateToCanvas={() => {}}
+        onSelectSession={(id) => onNavigateToChat && onNavigateToChat(id)}
+        onNewChat={() => onNavigateToChat && onNavigateToChat()}
+        pageContext="canvas"
+        canvasItems={canvasSidebarItems}
+      />
+      <div className={`canvas-main-area ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+        <div className="canvas-app-shell">
+          <AppHeader
+            currentPage="canvas"
+            onNavigateToHome={onNavigateToHome}
+            onNavigateToChat={onNavigateToChat}
+            onNavigateToCanvas={(v) => setView(v || 'workspace')}
+            onMobileMenu={() => setIsMobileMenuOpen(true)}
+          >
+            <button className="icon-btn" onClick={() => setTourForceShow(n => n + 1)} title="Show tour">
+              <HelpCircle size={18}/>
+            </button>
+            <button className="icon-btn" onClick={openCommandPalette} title="Search & commands (⌘K)">
+              <Icon name="search" size={16}/>
+            </button>
+          </AppHeader>
+          <div className="canvas-content">
+            {view === 'insights'
+              ? <InsightsView/>
+              : <WorkspaceView openModal={openModal} layout={layout} setLayout={setLayout} widgetStates={widgetStates} setWidgetStates={setWidgetStates}/>}
+          </div>
+        </div>
+      </div>
+      <ModalRouter modal={modal} onClose={closeModal}/>
+      <ToastStack/>
+      <CanvasWelcomeTour key={tourForceShow} forceShow={tourForceShow > 0}/>
     </div>
   );
 };

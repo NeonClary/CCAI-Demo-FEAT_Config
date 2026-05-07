@@ -1,18 +1,16 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Home, MessageCircle, Reply, X, Sparkles, Users, Settings2, FileText, Menu } from 'lucide-react';
+import { MessageCircle, Reply, X, Sparkles, Users, Settings2, FileText } from 'lucide-react';
 import EnhancedChatInput from '../components/EnhancedChatInput';
 import MessageBubble from '../components/MessageBubble';
 import ThinkingIndicator from '../components/ThinkingIndicator';
 import SuggestionsPanel from '../components/SuggestionsPanel';
-import ThemeToggle from '../components/ThemeToggle';
-import ProviderDropdown from '../components/ProviderDropdown';
+import AppHeader from '../components/AppHeader';
 import ExportButton from '../components/ExportButton';
 import Sidebar from '../components/Sidebar';
 import { useAppConfig } from '../contexts/AppConfigContext';
 import { useTheme } from '../contexts/ThemeContext';
 import '../styles/ChatPage.css';
 import '../styles/EnhancedChatInput.css';
-import AdvisorStatusDropdown from '../components/AdvisorStatusDropdown';
 import AdvisorCarousel from '../components/AdvisorCarousel';
 
 const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onSignOut }) => {
@@ -769,64 +767,24 @@ const handleNewChat = async (sessionId = null) => {
       
       <div className={`main-chat-area ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <div className="modern-chat-page">
-          {/* Floating Header */}
-          <div className="floating-header">
-            <div className="header-left">
-              <button 
-                className="mobile-menu-button"
-                onClick={handleMobileMenuToggle}
-              >
-                <Menu size={20} />
-              </button>
-              <button onClick={onNavigateToHome} className="modern-home-btn">
-                <Home size={20} />
-              </button>
-              <div className="header-brand">
-                <div className="brand-icon">
-                  <Users size={24} />
-                </div>
-                <div className="brand-text">
-                  <h1>{config?.app?.title || 'Advisory'}</h1>
-                  <p>{config?.app?.subtitle || 'AI-Powered Guidance'}</p>
-                </div>
+          <AppHeader
+            currentPage="chat"
+            onNavigateToHome={onNavigateToHome}
+            onNavigateToChat={() => {}}
+            onNavigateToCanvas={onNavigateToCanvas}
+            onMobileMenu={handleMobileMenuToggle}
+          >
+            {currentSessionTitle && (
+              <div className="session-title-display">
+                <span>{currentSessionTitle}</span>
               </div>
-            </div>
-            
-            <div className="header-right">
-              <AdvisorStatusDropdown 
-                advisors={advisors}
-                thinkingAdvisors={thinkingAdvisors}
-                getAdvisorColors={getAdvisorColors}
-                isDark={isDark}
-              />
-              
-              <div className="header-controls">
-                {/* Add session title display */}
-                {currentSessionTitle && (
-                  <div className="session-title-display">
-                    <span>{currentSessionTitle}</span>
-                  </div>
-                )}
-                
-                {/* Export Button */}
-                <ExportButton
-                  hasMessages={hasConversationMessages}
-                  currentSessionId={currentSessionId}
-                  authToken={authToken}
-                />
-
-                {/* Provider Dropdown */}
-                <ProviderDropdown
-                  currentProvider={currentProvider}
-                  onProviderChange={handleProviderSwitch}
-                  isLoading={isProviderSwitching}
-                />
-
-                {/* Theme Toggle */}
-                <ThemeToggle />
-              </div>
-            </div>
-          </div>
+            )}
+            <ExportButton
+              hasMessages={hasConversationMessages}
+              currentSessionId={currentSessionId}
+              authToken={authToken}
+            />
+          </AppHeader>
 
           {/* Main Content */}
           <div className="chat-content">

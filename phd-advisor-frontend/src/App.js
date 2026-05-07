@@ -37,7 +37,10 @@ function App() {
     setCurrentView('auth');
   };
 
-  const navigateToCanvas = () => {
+  const navigateToCanvas = (canvasView) => {
+    if (canvasView === 'insights' || canvasView === 'workspace') {
+      localStorage.setItem('canvas-view-v2', canvasView);
+    }
     setCurrentView('canvas');
   };
 
@@ -73,7 +76,9 @@ function App() {
         <div className="App">
           {currentView === 'home' && (
             <HomePage
+              onNavigateToHome={navigateToHome}
               onNavigateToChat={isAuthenticated ? navigateToChat : navigateToAuth}
+              onNavigateToCanvas={isAuthenticated ? navigateToCanvas : navigateToAuth}
               isAuthenticated={isAuthenticated}
             />
           )}
@@ -81,9 +86,10 @@ function App() {
             <AuthPage onAuthSuccess={handleAuthSuccess} />
           )}
           {currentView === 'canvas' && isAuthenticated && (
-            <CanvasPage 
+            <CanvasPage
               user={user}
               authToken={authToken}
+              onNavigateToHome={navigateToHome}
               onNavigateToChat={navigateToChat}
               onSignOut={handleSignOut}
             />
