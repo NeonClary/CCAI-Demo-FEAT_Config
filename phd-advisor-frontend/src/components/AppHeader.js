@@ -28,9 +28,13 @@ const AppHeader = ({
     if (onNavigateToCanvas) onNavigateToCanvas(view);
   };
 
+  // Accept either 'canvas' (all canvas tabs highlight equally) or a more specific
+  // 'canvas-<subview>' from CanvasPage so only the active one highlights.
   const isOnHome = currentPage === 'home';
   const isOnChat = currentPage === 'chat';
-  const isOnCanvas = currentPage === 'canvas';
+  const isOnCanvas = currentPage === 'canvas' || currentPage.startsWith('canvas-');
+  const canvasSub = currentPage.startsWith('canvas-') ? currentPage.slice(7) : null;
+  const tabActive = (sub) => isOnCanvas && (canvasSub === null ? false : canvasSub === sub);
 
   return (
     <header className="floating-header app-header">
@@ -62,8 +66,9 @@ const AppHeader = ({
 
       <div className="canvas-tabs chat-view-tabs">
         <button className={`tab ${isOnChat ? 'active' : ''}`} onClick={onNavigateToChat}>Chat</button>
-        <button className={`tab ${isOnCanvas ? 'active' : ''}`} onClick={() => goToCanvas('insights')}>Insights</button>
-        <button className={`tab ${isOnCanvas ? 'active' : ''}`} onClick={() => goToCanvas('workspace')}>Workspace</button>
+        <button className={`tab ${tabActive('insights') ? 'active' : ''}`} onClick={() => goToCanvas('insights')}>Insights</button>
+        <button className={`tab ${tabActive('workspace') ? 'active' : ''}`} onClick={() => goToCanvas('workspace')}>Workspace</button>
+        <button className={`tab ${tabActive('deliverables') ? 'active' : ''}`} onClick={() => goToCanvas('deliverables')}>Deliverables</button>
       </div>
 
       <div className="header-right">

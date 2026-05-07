@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import Icon from './CanvasIcon';
 import { WIDGET_CATALOG, CATEGORIES } from './canvasData';
 
@@ -506,13 +506,71 @@ export function BudgetItemModal({ data, onClose }) {
   );
 }
 
-// ---------- Note ----------
+// ---------- Note (with @mention autocomplete) ----------
 export function NoteModal({ data, onClose }) {
   const init = data.initial || {};
   const [text, setT] = useState(init.text || '');
   const [tag, setG] = useState(init.tag || '');
   const [linkTo, setL] = useState(init.linkTo || '');
+  const [mention, setMention] = useState(null); // { start, query, choices }
+  const [mentionIdx, setMentionIdx] = useState(0);
+  const taRef = useRef(null);
   const editing = !!init.id;
+
+  // Pull mention sources from the persisted canvas state so the modal stays self-contained.
+  const mentionSources = useMemo(() => {
+    try {
+      const all = JSON.parse(localStorage.getItem('canvas-states-v2') || '{}');
+      const out = [];
+      (all.bibliography?.entries || []).forEach(e => out.push({ key: '@' + e.key, label: e.title, kind: 'cite' }));
+      (all.writing?.chapters || []).forEach(c => out.push({ key: '@' + c.name.replace(/\s+/g, '-'), label: c.name, kind: 'chapter' }));
+      (all.kanban?.cards || []).forEach(c => out.push({ key: '@' + c.title.slice(0, 30).replace(/\s+/g, '-'), label: c.title, kind: 'task' }));
+      return out;
+    } catch { return []; }
+  }, []);
+
+  const onTextChange = (e) => {
+    const val = e.target.value;
+    const cursor = e.target.selectionStart;
+    setT(val);
+    // Look back from cursor for an @mention being typed
+    const before = val.slice(0, cursor);
+    const m = before.match(/@(\S*)$/);
+    if (m) {
+      const q = m[1].toLowerCase();
+      const choices = mentionSources
+        .filter(s => s.label.toLowerCase().includes(q) || s.key.toLowerCase().includes('@' + q))
+        .slice(0, 6);
+      setMention({ start: cursor - m[0].length, query: m[1], choices });
+      setMentionIdx(0);
+    } else {
+      setMention(null);
+    }
+  };
+
+  const insertMention = (item) => {
+    if (!mention) return;
+    const before = text.slice(0, mention.start);
+    const after = text.slice(mention.start + 1 + mention.query.length); // +1 for the @
+    const inserted = item.key + ' ';
+    setT(before + inserted + after);
+    setMention(null);
+    setTimeout(() => {
+      if (taRef.current) {
+        const pos = before.length + inserted.length;
+        taRef.current.setSelectionRange(pos, pos);
+        taRef.current.focus();
+      }
+    }, 0);
+  };
+
+  const onKeyDown = (e) => {
+    if (!mention || mention.choices.length === 0) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(mention.choices.length - 1, i + 1)); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(0, i - 1)); }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mention.choices[mentionIdx]); }
+    if (e.key === 'Escape') setMention(null);
+  };
 
   const submit = () => {
     if (!text.trim()) return;
@@ -532,8 +590,39 @@ export function NoteModal({ data, onClose }) {
       </div>
       <div className="modal-body">
         <div className="form-grid">
-          <div className="form-row">
-            <textarea className="textarea" autoFocus style={{ minHeight: 140, fontFamily: 'var(--canvas-mono)', fontSize: 12.5 }} value={text} onChange={e => setT(e.target.value)} placeholder="What's the thought? Markdown welcome."/>
+          <div className="form-row" style={{ position: 'relative' }}>
+            <textarea ref={taRef} className="textarea" autoFocus
+              style={{ minHeight: 140, fontFamily: 'var(--canvas-mono)', fontSize: 12.5 }}
+              value={text} onChange={onTextChange} onKeyDown={onKeyDown}
+              placeholder="What's the thought? Markdown welcome. Type @ to mention citations, chapters, tasks."/>
+            {mention && mention.choices.length > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '100%', left: 0, right: 0,
+                background: 'var(--canvas-surface)',
+                border: '1px solid var(--canvas-border-2)',
+                borderRadius: 7,
+                marginTop: 4,
+                boxShadow: 'var(--canvas-shadow-lg)',
+                zIndex: 10,
+                maxHeight: 200,
+                overflowY: 'auto',
+              }}>
+                {mention.choices.map((c, i) => (
+                  <button key={c.key + i} onMouseEnter={() => setMentionIdx(i)} onClick={() => insertMention(c)}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '6px 10px', textAlign: 'left',
+                      background: i === mentionIdx ? 'var(--canvas-surface-2)' : 'transparent',
+                      color: 'var(--canvas-text)', border: 'none', cursor: 'pointer', fontSize: 12,
+                    }}>
+                    <span className="tag-pill">{c.kind}</span>
+                    <span style={{ fontFamily: 'var(--canvas-mono)', color: 'var(--canvas-accent)' }}>{c.key}</span>
+                    <span style={{ flex: 1, color: 'var(--canvas-text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="form-grid two">
             <div className="form-row">
@@ -797,6 +886,126 @@ export function PaletteModal({ data, onClose }) {
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Global content search (notes / quotes / citations / kanban / deadlines / outline) ----------
+export function GlobalSearchModal({ data, onClose }) {
+  const [q, setQ] = useState('');
+  const [idx, setIdx] = useState(0);
+  const states = data.states || {};
+
+  const items = useMemo(() => {
+    if (!q.trim()) return [];
+    const ql = q.toLowerCase();
+    const out = [];
+    // Notes
+    (states.notes?.items || []).forEach(n => {
+      if ((n.text || '').toLowerCase().includes(ql) || (n.tag || '').toLowerCase().includes(ql) || (n.linkTo || '').toLowerCase().includes(ql)) {
+        out.push({ kind: 'Note', label: (n.text || '').slice(0, 80), sub: n.tag ? `#${n.tag}` : '', icon: 'notes', widgetType: 'notes' });
+      }
+    });
+    // Citations
+    (states.bibliography?.entries || []).forEach(e => {
+      const blob = `${e.title} ${e.authors} ${e.journal} ${e.key}`.toLowerCase();
+      if (blob.includes(ql)) out.push({ kind: 'Citation', label: e.title, sub: `${e.authors} (${e.year})`, icon: 'book', widgetType: 'bibliography' });
+    });
+    // Kanban
+    (states.kanban?.cards || []).forEach(c => {
+      if (`${c.title} ${c.meta || ''}`.toLowerCase().includes(ql)) {
+        out.push({ kind: 'Task', label: c.title, sub: `${c.priority?.toUpperCase()} · ${c.meta || ''}`, icon: 'kanban', widgetType: 'kanban' });
+      }
+    });
+    // Deadlines
+    (states.deadlines || []).forEach(d => {
+      if (`${d.title} ${d.tag}`.toLowerCase().includes(ql)) {
+        out.push({ kind: 'Deadline', label: d.title, sub: `${d.date} · ${d.tag}`, icon: 'calendar', widgetType: 'deadlines' });
+      }
+    });
+    // Highlights
+    (states.highlights?.items || []).forEach(h => {
+      if (`${h.text} ${h.citeKey}`.toLowerCase().includes(ql)) {
+        out.push({ kind: 'Quote', label: `"${h.text}"`.slice(0, 80), sub: h.citeKey ? `@${h.citeKey}` : '', icon: 'cite', widgetType: 'highlights' });
+      }
+    });
+    // Outline
+    (states.outline?.items || []).forEach(o => {
+      if ((o.text || '').toLowerCase().includes(ql)) {
+        out.push({ kind: 'Outline', label: o.text, sub: `depth ${o.depth}`, icon: 'list', widgetType: 'outline' });
+      }
+    });
+    // Documenter
+    (states.documenter?.entries || []).forEach(e => {
+      if ((e.text || '').toLowerCase().includes(ql)) {
+        out.push({ kind: 'Journal', label: e.text.slice(0, 80), sub: e.date, icon: 'pencil', widgetType: 'documenter' });
+      }
+    });
+    return out.slice(0, 30);
+  }, [q, states]);
+
+  const jumpTo = (it) => {
+    const el = document.querySelector(`[data-widget-id^="w-"][data-widget-type="${it.widgetType}"]`)
+      || document.querySelector(`.widget`); // fallback: scroll to first
+    if (el) {
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      el.style.boxShadow = '0 0 0 2px var(--canvas-accent), 0 0 24px var(--canvas-accent-glow)';
+      setTimeout(() => { el.style.boxShadow = ''; }, 1400);
+    }
+    onClose();
+  };
+
+  return (
+    <div className="canvas-modal" style={{ maxWidth: 600 }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ padding: '16px 18px 8px', borderBottom: '1px solid var(--canvas-border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <Icon name="search" size={16} style={{ color: 'var(--canvas-text-3)' }}/>
+        <input
+          autoFocus
+          value={q}
+          onChange={e => { setQ(e.target.value); setIdx(0); }}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') { e.preventDefault(); setIdx(i => Math.min(items.length - 1, i + 1)); }
+            if (e.key === 'ArrowUp') { e.preventDefault(); setIdx(i => Math.max(0, i - 1)); }
+            if (e.key === 'Enter' && items[idx]) jumpTo(items[idx]);
+          }}
+          placeholder="Search across notes, citations, tasks, quotes, deadlines…"
+          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--canvas-text)', fontSize: 15, padding: '4px 0' }}
+        />
+        <kbd style={{ fontFamily: 'var(--canvas-mono)', fontSize: 10, color: 'var(--canvas-text-3)', background: 'var(--canvas-surface-2)', padding: '2px 6px', borderRadius: 4 }}>esc</kbd>
+      </div>
+      <div style={{ maxHeight: 420, overflowY: 'auto', padding: 6 }}>
+        {!q.trim() && (
+          <div style={{ padding: 30, textAlign: 'center', color: 'var(--canvas-text-3)', fontSize: 13 }}>
+            Type to search across your canvas content.
+          </div>
+        )}
+        {q.trim() && items.length === 0 && (
+          <div style={{ padding: 30, textAlign: 'center', color: 'var(--canvas-text-3)', fontSize: 13 }}>
+            No matches for "{q}".
+          </div>
+        )}
+        {items.map((it, i) => (
+          <button key={i} onClick={() => jumpTo(it)} onMouseEnter={() => setIdx(i)}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+              padding: '8px 12px', borderRadius: 7, textAlign: 'left',
+              background: idx === i ? 'var(--canvas-surface-2)' : 'transparent',
+              color: 'var(--canvas-text)', border: 'none', cursor: 'pointer',
+            }}>
+            <div style={{ width: 24, height: 24, borderRadius: 5, background: 'var(--canvas-surface-2)', display: 'grid', placeItems: 'center', color: 'var(--canvas-accent)' }}>
+              <Icon name={it.icon} size={13}/>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.label}</div>
+              <div style={{ fontSize: 11, color: 'var(--canvas-text-3)' }}>{it.sub}</div>
+            </div>
+            <span style={{ fontFamily: 'var(--canvas-mono)', fontSize: 9.5, color: 'var(--canvas-text-4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{it.kind}</span>
+          </button>
+        ))}
+      </div>
+      <div style={{ padding: '8px 14px', borderTop: '1px solid var(--canvas-border)', display: 'flex', gap: 14, fontSize: 10.5, color: 'var(--canvas-text-3)', fontFamily: 'var(--canvas-mono)' }}>
+        <span>↑↓ navigate</span><span>↵ jump</span><span>esc close</span>
       </div>
     </div>
   );

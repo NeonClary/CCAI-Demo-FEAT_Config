@@ -100,6 +100,9 @@ export const WIDGET_CATALOG = [
   { type: 'gantt', name: 'Milestone Timeline', desc: 'Proposal → IRB → defense', icon: 'flag', cat: 'project', defaultSize: 'L', stub: true },
   { type: 'meeting-log', name: 'Meeting Log', desc: 'Per-stakeholder, last contact, actions', icon: 'message', cat: 'project', defaultSize: 'M' },
   { type: 'goals', name: 'Goals / OKRs', desc: 'Quarterly milestones with progress sliders', icon: 'bullseye', cat: 'project', defaultSize: 'M' },
+  { type: 'calendar', name: 'Calendar', desc: 'Month grid with deadlines and writing days', icon: 'calendar', cat: 'project', defaultSize: 'M', enhanced: true },
+  { type: 'activity', name: 'Activity Feed', desc: 'Chronological log of edits across widgets', icon: 'graph', cat: 'project', defaultSize: 'M', enhanced: true },
+  { type: 'documenter', name: 'Daily Documenter', desc: 'Date-stamped journal · AI weekly summary (LLM stub)', icon: 'pencil', cat: 'project', defaultSize: 'M', enhanced: true },
 
   { type: 'mood', name: 'Mood / Burnout Check-in', desc: 'Daily slider, trend graph', icon: 'smile', cat: 'wellness', defaultSize: 'S', stub: true },
   { type: 'sleep', name: 'Sleep & Energy', desc: 'Correlate with productive days', icon: 'heart', cat: 'wellness', defaultSize: 'S', stub: true },
@@ -137,8 +140,69 @@ export const CATEGORIES = [
   { id: 'critic', label: 'Anti-yes-man', critic: true },
 ];
 
-// Workspace starts empty — users add widgets from the palette.
+// Workspace starts empty — users add widgets from the palette or pick a preset.
 export const DEFAULT_LAYOUT = [];
+
+// Curated starter layouts. Each preset assigns its own widget IDs so reseeding
+// won't collide with manually-added widgets.
+const presetIds = (types) => types.map((t, i) => ({ id: `pre-${t.type}-${i}`, ...t }));
+export const WORKSPACE_PRESETS = [
+  {
+    id: 'day1-phd',
+    name: 'Day-1 PhD',
+    desc: 'Get oriented: reading queue, bibliography, notes, deadlines, kanban, pomodoro.',
+    icon: 'sparkles',
+    layout: presetIds([
+      { type: 'reading-queue', size: 'M' },
+      { type: 'bibliography', size: 'M' },
+      { type: 'notes', size: 'M' },
+      { type: 'deadlines', size: 'S' },
+      { type: 'pomodoro', size: 'S' },
+      { type: 'kanban', size: 'L' },
+    ]),
+  },
+  {
+    id: 'writing-sprint',
+    name: 'Writing Sprint',
+    desc: 'Focus mode for drafting: writing pad, outline, LaTeX, highlights, pomodoro.',
+    icon: 'pencil',
+    layout: presetIds([
+      { type: 'writing', size: 'M' },
+      { type: 'outline', size: 'M' },
+      { type: 'pomodoro', size: 'S' },
+      { type: 'latex', size: 'M' },
+      { type: 'highlights', size: 'M' },
+      { type: 'bibliography', size: 'M' },
+    ]),
+  },
+  {
+    id: 'quals-prep',
+    name: 'Quals Prep',
+    desc: 'Lit-review heavy: bibliography, reading queue, notes, highlights, kanban.',
+    icon: 'book',
+    layout: presetIds([
+      { type: 'bibliography', size: 'L' },
+      { type: 'reading-queue', size: 'M' },
+      { type: 'notes', size: 'M' },
+      { type: 'highlights', size: 'M' },
+      { type: 'kanban', size: 'M' },
+    ]),
+  },
+  {
+    id: 'defense-mode',
+    name: 'Defense Mode',
+    desc: 'Final stretch: writing, outline, anti-yes-man critics, deadlines.',
+    icon: 'gavel',
+    layout: presetIds([
+      { type: 'writing', size: 'M' },
+      { type: 'outline', size: 'M' },
+      { type: 'reviewer-2', size: 'M', critic: true },
+      { type: 'devils-advocate', size: 'M', critic: true },
+      { type: 'scope-realism', size: 'M', critic: true },
+      { type: 'deadlines', size: 'S' },
+    ]),
+  },
+];
 
 // Initial state when a widget is first added — minimal scaffolding, no demo content.
 export const EMPTY_STATE = {
@@ -178,5 +242,8 @@ export const EMPTY_STATE = {
   outline: { items: [], expanded: {} },
   highlights: { items: [] },
   latex: { source: '', displayMode: true },
+  calendar: { viewMonth: new Date().toISOString().slice(0, 7) },
+  activity: {},
+  documenter: { entries: [], lastSummary: null },
 };
 

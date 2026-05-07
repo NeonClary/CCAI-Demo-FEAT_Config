@@ -5,12 +5,64 @@ import Icon from './CanvasIcon';
 
 const fireToast = (msg, kind = 'success') =>
   window.dispatchEvent(new CustomEvent('canvas-toast', { detail: { msg, kind } }));
+const fireActivity = (source, msg) =>
+  window.dispatchEvent(new CustomEvent('canvas-activity', { detail: { source, msg } }));
+
+// Cross-widget drag-drop helpers — one mime type, JSON payload tagged by `kind`.
+const X_MIME = 'application/x-canvas-item';
+const setDragPayload = (e, kind, payload) => {
+  e.dataTransfer.setData(X_MIME, JSON.stringify({ kind, payload }));
+  e.dataTransfer.effectAllowed = 'copy';
+};
+const readDragPayload = (e) => {
+  try { return JSON.parse(e.dataTransfer.getData(X_MIME)); } catch { return null; }
+};
 
 // ===== Bibliography =====
 export function BibliographyWidget({ state, setState, openModal }) {
   const formats = ['APA', 'MLA', 'Chicago', 'BibTeX'];
   const fmt = state.format || 'APA';
   const [sortBy, setSortBy] = useState('year');
+  const [dropOver, setDropOver] = useState(false);
+
+  const onDrop = async (e) => {
+    e.preventDefault();
+    setDropOver(false);
+    const data = readDragPayload(e);
+    if (!data || data.kind !== 'paper') return;
+    const p = data.payload;
+    // If we have a DOI, hit CrossRef and build a real citation; else stub from title.
+    const titleStr = p.title || 'Untitled';
+    let entry = {
+      key: 'cite' + Date.now(),
+      authors: 'Unknown',
+      title: titleStr.replace(/^.*?— /, ''),
+      journal: '',
+      year: new Date().getFullYear(),
+      cited: 0,
+      doi: p.doi || '',
+    };
+    if (p.doi) {
+      try {
+        const cleaned = p.doi.trim().replace(/^https?:\/\/(dx\.)?doi\.org\//, '');
+        const res = await fetch(`https://api.crossref.org/works/${encodeURIComponent(cleaned)}`);
+        if (res.ok) {
+          const json = await res.json();
+          const w = json.message;
+          entry.authors = (w.author || []).map(a => `${a.family || ''}, ${(a.given || '').charAt(0)}.`).join('; ') || entry.authors;
+          entry.title = (w.title && w.title[0]) || entry.title;
+          entry.journal = (w['container-title'] && w['container-title'][0]) || '';
+          entry.year = (w.issued && w.issued['date-parts'] && w.issued['date-parts'][0][0]) || entry.year;
+          const firstAuthor = (entry.authors.split(',')[0] || 'cite').toLowerCase().replace(/[^a-z]/g, '');
+          entry.key = firstAuthor + entry.year;
+        }
+      } catch { /* fall through with stub */ }
+    }
+    setState({ ...state, entries: [...state.entries, entry] });
+    fireToast(`@${entry.key} added from Reading Queue`);
+    fireActivity('Bibliography', `Added @${entry.key} (from Reading Queue)`);
+  };
+
   const setFmt = (f) => setState({ ...state, format: f });
 
   const formatEntry = (e) => {
@@ -46,7 +98,19 @@ export function BibliographyWidget({ state, setState, openModal }) {
   });
 
   return (
-    <>
+    <div
+      onDragOver={(e) => { if (e.dataTransfer.types.includes(X_MIME)) { e.preventDefault(); setDropOver(true); } }}
+      onDragLeave={() => setDropOver(false)}
+      onDrop={onDrop}
+      style={{ display: 'flex', flexDirection: 'column', gap: 10, position: 'relative', flex: 1 }}
+      className={dropOver ? 'canvas-drop-active' : ''}
+    >
+      {dropOver && (
+        <div className="canvas-drop-overlay">
+          <Icon name="plus" size={18}/>
+          <span>Drop to add citation</span>
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
         <div className="format-tabs">
           {formats.map(f => (
@@ -78,10 +142,12 @@ export function BibliographyWidget({ state, setState, openModal }) {
           </div>
         ))}
         {sorted.length === 0 && (
-          <div style={{ padding: 18, textAlign: 'center', color: 'var(--canvas-text-3)', fontSize: 12 }}>No citations yet.</div>
+          <div style={{ padding: 18, textAlign: 'center', color: 'var(--canvas-text-3)', fontSize: 12 }}>
+            No citations yet. Add one or drag a paper from the Reading Queue.
+          </div>
         )}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -313,6 +379,7 @@ export function WritingWidget({ state, setState }) {
       _sessionDelta: 0,
     });
     fireToast(`Saved · ${words} words in ${active.name}`);
+    fireActivity('Writing', `Saved ${words} words to "${active.name}"`);
   };
 
   const addChapter = () => {
@@ -606,11 +673,15 @@ export function ReadingQueueWidget({ state, setState, openModal }) {
     <>
       <div className="dl-list">
         {state.map((p, i) => (
-          <div key={i} className="dl-row" style={{ padding: '7px 9px', position: 'relative' }}>
+          <div key={i} className="dl-row"
+            draggable
+            onDragStart={(e) => setDragPayload(e, 'paper', p)}
+            title="Drag to Bibliography to add as citation"
+            style={{ padding: '7px 9px', position: 'relative', cursor: 'grab' }}>
             <span style={{ width: 4, height: 28, borderRadius: 2, background: colors[p.priority], flexShrink: 0 }}/>
             <div className="dl-info" onClick={() => edit(p, i)} style={{ cursor: 'pointer' }}>
               <div className="dl-title" style={{ fontSize: 12 }}>{p.title}</div>
-              <div className="dl-sub">{p.priority} · ~{p.time}</div>
+              <div className="dl-sub">{p.priority} · ~{p.time}{p.doi ? ' · ' + p.doi : ''}</div>
             </div>
             <button className="icon-btn" style={{width:24,height:24}} title="Mark read" onClick={() => remove(i, p)}>
               <Icon name="check" size={13}/>
@@ -1095,6 +1166,257 @@ export function LatexWidget({ state, setState }) {
         {!katexReady && !error && <span className="spinner"/>}
         {error && <span style={{ fontSize: 11, color: 'var(--canvas-danger)', fontFamily: 'var(--canvas-mono)' }}>{error}</span>}
         <div ref={containerRef} style={{ width: '100%', textAlign: 'center' }}/>
+      </div>
+    </>
+  );
+}
+
+// ===== Calendar — month grid with deadlines (red) and writing days (green) =====
+export function CalendarWidget({ state, setState, allStates = {} }) {
+  const monthStr = state.viewMonth || new Date().toISOString().slice(0, 7);
+  const [year, month] = monthStr.split('-').map(Number);
+  const first = new Date(year, month - 1, 1);
+  const startWeekday = first.getDay(); // Sunday-indexed
+  const daysInMonth = new Date(year, month, 0).getDate();
+
+  // Source data from cross-widget state
+  const deadlines = (allStates.deadlines || []).reduce((m, d) => {
+    const k = d.date.slice(0, 10);
+    (m[k] ||= []).push({ kind: 'deadline', ...d });
+    return m;
+  }, {});
+  const writing = ((allStates.writing && allStates.writing.dailyTotals) || {});
+  const kanbanCards = (allStates.kanban && allStates.kanban.cards) || [];
+
+  const cells = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    cells.push({ d, dateStr });
+  }
+  while (cells.length % 7) cells.push(null);
+
+  const shiftMonth = (delta) => {
+    const next = new Date(year, month - 1 + delta, 1);
+    setState({ ...state, viewMonth: next.toISOString().slice(0, 7) });
+  };
+  const monthLabel = first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button className="icon-btn" onClick={() => shiftMonth(-1)}><Icon name="chevron" size={14} style={{ transform: 'rotate(180deg)' }}/></button>
+        <div style={{ flex: 1, fontWeight: 600, fontSize: 13 }}>{monthLabel}</div>
+        <button className="icon-btn" onClick={() => shiftMonth(1)}><Icon name="chevron" size={14}/></button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3, fontSize: 10, color: 'var(--canvas-text-4)', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'center', fontFamily: 'var(--canvas-mono)' }}>
+        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => <div key={i}>{d}</div>)}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
+        {cells.map((c, i) => {
+          if (!c) return <div key={i} style={{ aspectRatio: '1' }}/>;
+          const dls = deadlines[c.dateStr] || [];
+          const words = writing[c.dateStr] || 0;
+          const dueCards = kanbanCards.filter(card => (card.meta || '').includes(c.dateStr));
+          const isToday = c.dateStr === today;
+          return (
+            <div key={i}
+              title={[
+                ...dls.map(d => `Deadline: ${d.title}`),
+                ...(words ? [`${words} words written`] : []),
+                ...dueCards.map(d => `Task: ${d.title}`),
+              ].join('\n') || c.dateStr}
+              style={{
+                aspectRatio: '1',
+                border: `1px solid ${isToday ? 'var(--canvas-accent)' : 'var(--canvas-border)'}`,
+                background: isToday ? 'var(--canvas-accent-glow)' : 'var(--canvas-bg-2)',
+                borderRadius: 4,
+                padding: 3,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1,
+                fontSize: 10,
+                position: 'relative',
+              }}
+            >
+              <span style={{ fontFamily: 'var(--canvas-mono)', color: isToday ? 'var(--canvas-accent)' : 'var(--canvas-text-2)', fontWeight: isToday ? 700 : 500 }}>
+                {c.d}
+              </span>
+              <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', marginTop: 'auto' }}>
+                {dls.length > 0 && <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--canvas-danger)' }}/>}
+                {words > 0 && <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--canvas-ok)' }}/>}
+                {dueCards.length > 0 && <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--canvas-warn)' }}/>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex', gap: 12, fontSize: 10, color: 'var(--canvas-text-3)', flexWrap: 'wrap' }}>
+        <span><span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--canvas-danger)', marginRight: 4 }}/>Deadlines</span>
+        <span><span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--canvas-ok)', marginRight: 4 }}/>Writing</span>
+        <span><span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--canvas-warn)', marginRight: 4 }}/>Tasks</span>
+      </div>
+    </>
+  );
+}
+
+// ===== Activity Feed — surfaces recent edits across all widgets =====
+// Activity entries are written by other widgets via window.dispatchEvent('canvas-activity').
+// We persist a rolling buffer of the last 100 events in this widget's own state.
+export function ActivityWidget({ state, setState }) {
+  const events = state.events || [];
+  useEffect(() => {
+    const handler = (e) => {
+      const entry = { id: 'a' + Date.now() + Math.random(), at: Date.now(), ...e.detail };
+      setState(prev => {
+        const next = { ...(prev || {}), events: [entry, ...((prev && prev.events) || [])].slice(0, 100) };
+        return next;
+      });
+    };
+    window.addEventListener('canvas-activity', handler);
+    return () => window.removeEventListener('canvas-activity', handler);
+    // setState ref is stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const fmt = (t) => {
+    const d = Date.now() - t;
+    if (d < 60_000) return 'just now';
+    if (d < 3600_000) return Math.floor(d / 60_000) + 'm ago';
+    if (d < 86400_000) return Math.floor(d / 3600_000) + 'h ago';
+    return Math.floor(d / 86400_000) + 'd ago';
+  };
+
+  return (
+    <>
+      <div className="note-list">
+        {events.length === 0 && (
+          <div style={{ padding: 18, textAlign: 'center', color: 'var(--canvas-text-3)', fontSize: 12 }}>
+            No activity yet. Edits across widgets will show up here.
+          </div>
+        )}
+        {events.map(e => (
+          <div key={e.id} className="note-row" style={{ padding: '7px 9px' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span className="tag-pill">{e.source}</span>
+              <span style={{ fontSize: 12, flex: 1 }}>{e.msg}</span>
+              <span style={{ fontFamily: 'var(--canvas-mono)', fontSize: 10, color: 'var(--canvas-text-3)' }}>{fmt(e.at)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      {events.length > 0 && (
+        <button className="add-tiny" onClick={() => setState({ ...state, events: [] })}>Clear feed</button>
+      )}
+    </>
+  );
+}
+
+// ===== Daily Documenter — date-stamped journal with stub AI weekly summary =====
+export function DocumenterWidget({ state, setState }) {
+  const entries = state.entries || [];
+  const [draft, setDraft] = useState('');
+  const today = new Date().toISOString().slice(0, 10);
+  const [generating, setGenerating] = useState(false);
+
+  const append = () => {
+    if (!draft.trim()) return;
+    const entry = { id: 'doc' + Date.now(), date: today, text: draft.trim(), at: Date.now() };
+    setState({ ...state, entries: [entry, ...entries] });
+    setDraft('');
+    window.dispatchEvent(new CustomEvent('canvas-activity', {
+      detail: { source: 'Documenter', msg: `Logged: ${draft.trim().slice(0, 50)}…` },
+    }));
+    fireToast('Entry saved');
+  };
+
+  const remove = (id) => setState({ ...state, entries: entries.filter(e => e.id !== id) });
+
+  // TODO(LLM): wire to /api/summarize-week with last 7 days of entries.
+  // Backend call shape (commented because endpoint isn't ready):
+  // const generateSummary = async () => {
+  //   const last7 = entries.filter(e => Date.now() - e.at < 7*86400_000);
+  //   const res = await fetch(`${process.env.REACT_APP_API_URL}/api/canvas/summarize`, {
+  //     method: 'POST',
+  //     body: JSON.stringify({ entries: last7 }),
+  //   });
+  //   const { summary } = await res.json();
+  //   setState({ ...state, lastSummary: { at: Date.now(), text: summary } });
+  // };
+  const generateSummary = () => {
+    // Stub: echo back a structured summary built from the local entries so the UI
+    // shape is real even though no LLM is hooked up yet.
+    setGenerating(true);
+    setTimeout(() => {
+      const last7 = entries.filter(e => Date.now() - e.at < 7 * 86400_000);
+      const text = last7.length === 0
+        ? 'No entries in the last 7 days.'
+        : `**This week** · ${last7.length} entries logged.\n\n` +
+          '_LLM summary will replace this once the backend endpoint is wired._\n\n' +
+          last7.slice(0, 3).map(e => `- ${e.date}: ${e.text.slice(0, 80)}${e.text.length > 80 ? '…' : ''}`).join('\n');
+      setState({ ...state, lastSummary: { at: Date.now(), text } });
+      setGenerating(false);
+      fireToast('Weekly summary generated (stub)');
+    }, 600);
+  };
+
+  // Group entries by date
+  const grouped = entries.reduce((m, e) => { (m[e.date] ||= []).push(e); return m; }, {});
+  const dates = Object.keys(grouped).sort().reverse();
+
+  return (
+    <>
+      <div className="form-grid">
+        <textarea
+          className="textarea"
+          placeholder={`What did you do today? (${today})`}
+          rows={3}
+          style={{ minHeight: 50, fontSize: 12.5 }}
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) append(); }}
+        />
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn btn-primary" onClick={append} disabled={!draft.trim()}>
+            <Icon name="plus" size={13}/>Log entry
+          </button>
+          <button className="btn" onClick={generateSummary} disabled={entries.length === 0 || generating}>
+            {generating ? <><div className="spinner"/>Summarizing</> : <><Icon name="sparkles" size={13}/>Weekly summary</>}
+          </button>
+        </div>
+      </div>
+      {state.lastSummary && (
+        <div className="review" style={{ borderLeftColor: 'var(--canvas-accent)' }}>
+          <span className="review-tag" style={{ color: 'var(--canvas-accent)' }}>
+            Generated {new Date(state.lastSummary.at).toLocaleString()} · stub
+          </span>
+          <div className="canvas-md">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{state.lastSummary.text}</ReactMarkdown>
+          </div>
+        </div>
+      )}
+      <div className="note-list" style={{ maxHeight: 260 }}>
+        {dates.map(date => (
+          <div key={date}>
+            <div style={{ fontSize: 10, color: 'var(--canvas-text-4)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, fontFamily: 'var(--canvas-mono)', padding: '6px 2px 2px' }}>
+              {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            </div>
+            {grouped[date].map(e => (
+              <div key={e.id} className="note-row" style={{ position: 'relative' }}>
+                <div className="note-text">{e.text}</div>
+                <div className="row-actions">
+                  <button className="icon-btn" onClick={() => remove(e.id)}><Icon name="trash" size={11}/></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
+        {entries.length === 0 && (
+          <div style={{ padding: 18, textAlign: 'center', color: 'var(--canvas-text-3)', fontSize: 12 }}>
+            No entries yet. Drop a quick line about today.
+          </div>
+        )}
       </div>
     </>
   );
