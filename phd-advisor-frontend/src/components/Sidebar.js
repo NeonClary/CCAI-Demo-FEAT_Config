@@ -11,7 +11,9 @@ import {
   User,
   Settings,
   PanelLeft,
-  FileText
+  FileText,
+  ChevronRight,
+  Clock
 } from 'lucide-react';
 import CopyrightNotice from './CopyrightNotice';
 import '../styles/Sidebar.css';
@@ -30,9 +32,22 @@ const Sidebar = ({
   refreshTrigger,
   onCurrentSessionDeleted,
   pageContext = 'chat',
-  canvasItems = []
+  canvasItems = [],
+  canvasSubview = 'workspace',
+  widgetGroups = [],
+  deliverableProjects = [],
 }) => {
   const isOnCanvas = pageContext === 'canvas';
+  const [expanded, setExpanded] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('sidebar-expanded-v1') || '{}'); } catch { return {}; }
+  });
+  const toggleExpanded = (key) => {
+    setExpanded(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      localStorage.setItem('sidebar-expanded-v1', JSON.stringify(next));
+      return next;
+    });
+  };
   const [chatSessions, setChatSessions] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -260,7 +275,11 @@ const Sidebar = ({
               <Search size={16} className="search-icon" />
               <input
                 type="text"
-                placeholder={isOnCanvas ? 'Search widgets...' : 'Search chats...'}
+                placeholder={
+                  isOnCanvas
+                    ? (canvasSubview === 'deliverables' ? 'Search drafts...' : 'Search widgets...')
+                    : 'Search chats...'
+                }
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="search-input"
@@ -279,39 +298,123 @@ const Sidebar = ({
           </div>
         )}
 
-        {/* Canvas widgets list (when on canvas) */}
+        {/* Canvas sidebar — subview-aware (Insights / Workspace / Deliverables) */}
         {isOnCanvas ? (
-          <div className="chat-sessions">
-            {(() => {
-              const filtered = canvasItems.filter(it =>
-                !searchTerm || it.label.toLowerCase().includes(searchTerm.toLowerCase())
-              );
-              if (filtered.length === 0) {
-                return (
-                  <div className="no-sessions">
-                    {!isCollapsed && (searchTerm ? 'No widgets match' : 'No widgets yet')}
-                  </div>
+          <div className="canvas-sidebar-menu">
+            {!isCollapsed && (() => {
+              const q = searchTerm.toLowerCase();
+
+              // ---------- DELIVERABLES: project list with expandable section dropdown ----------
+              if (canvasSubview === 'deliverables') {
+                const projects = deliverableProjects.filter(p =>
+                  !q || p.name.toLowerCase().includes(q) || p.sections.some(s => s.name.toLowerCase().includes(q))
                 );
+                if (projects.length === 0) {
+                  return (
+                    <div className="no-sessions">
+                      {searchTerm ? 'No drafts match' : 'No drafts yet — create one in Deliverables'}
+                    </div>
+                  );
+                }
+                return projects.map(p => {
+                  const open = expanded[`p-${p.id}`] ?? p.isActive;
+                  const totalWords = p.sections.reduce((s, x) => s + x.wc, 0);
+                  return (
+                    <div key={p.id} className={`csm-project ${p.isActive ? 'active' : ''}`}>
+                      <button
+                        className="csm-project-head"
+                        onClick={() => toggleExpanded(`p-${p.id}`)}
+                      >
+                        <ChevronRight size={12} className={`csm-chevron ${open ? 'open' : ''}`}/>
+                        <FileText size={13}/>
+                        <span className="csm-project-name">{p.name}</span>
+                        {p.versions > 0 && (
+                          <span className="csm-versions" title={`${p.versions} version${p.versions === 1 ? '' : 's'} saved`}>
+                            <Clock size={10}/>{p.versions}
+                          </span>
+                        )}
+                      </button>
+                      {open && (
+                        <div className="csm-project-body">
+                          <button className="csm-row" onClick={p.onOpen}>
+                            <span className="csm-row-icon">📂</span>
+                            <span>Open editor</span>
+                          </button>
+                          {p.sections.map(s => (
+                            <button key={s.id} className="csm-row csm-row-section" onClick={s.onClick}>
+                              <span className="csm-row-bullet"/>
+                              <span className="csm-row-label">{s.name}</span>
+                              {s.wc > 0 && <span className="csm-row-meta">{s.wc}</span>}
+                            </button>
+                          ))}
+                          <div className="csm-row csm-row-foot">
+                            <Clock size={11}/>
+                            <span>{p.versions} version{p.versions === 1 ? '' : 's'} · auto-saved</span>
+                          </div>
+                          <div className="csm-row csm-row-foot">
+                            <span style={{ color: 'var(--text-tertiary, #9CA3AF)' }}>{totalWords} words total</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
+              }
+
+              // ---------- WORKSPACE: widgets grouped by category ----------
+              if (canvasSubview === 'workspace') {
+                const groups = widgetGroups
+                  .map(g => ({
+                    ...g,
+                    items: g.items.filter(it => !q || it.label.toLowerCase().includes(q)),
+                  }))
+                  .filter(g => g.items.length > 0);
+                if (groups.length === 0) {
+                  return (
+                    <div className="no-sessions">
+                      {searchTerm ? 'No widgets match' : 'Workspace is empty — add widgets'}
+                    </div>
+                  );
+                }
+                return groups.map(g => {
+                  const open = expanded[`g-${g.id}`] ?? true;
+                  return (
+                    <div key={g.id} className="csm-group">
+                      <button className="csm-group-head" onClick={() => toggleExpanded(`g-${g.id}`)}>
+                        <ChevronRight size={11} className={`csm-chevron ${open ? 'open' : ''}`}/>
+                        <span className="csm-group-name">{g.label}</span>
+                        <span className="csm-group-count">{g.items.length}</span>
+                      </button>
+                      {open && (
+                        <div className="csm-group-body">
+                          {g.items.map(it => (
+                            <button key={it.id} className={`csm-row ${it.critic ? 'critic' : ''}`} onClick={it.onClick}>
+                              <span className="csm-row-bullet"/>
+                              <span className="csm-row-label">{it.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
+              }
+
+              // ---------- INSIGHTS / fallback: keep flat list ----------
+              const items = canvasItems.filter(it => !q || it.label.toLowerCase().includes(q));
+              if (items.length === 0) {
+                return <div className="no-sessions">{searchTerm ? 'No matches' : 'Nothing here yet'}</div>;
               }
               return (
                 <div className="sessions-list">
-                  {filtered.map((it) => (
-                    <div
-                      key={it.id}
-                      className={`session-item ${isCollapsed ? 'collapsed' : ''}`}
-                      onClick={it.onClick}
-                      title={isCollapsed ? it.label : ''}
-                    >
+                  {items.map((it) => (
+                    <div key={it.id} className="session-item" onClick={it.onClick}>
                       <div className="session-content">
-                        <div className="session-icon">
-                          <FileText size={16} />
+                        <div className="session-icon"><FileText size={16}/></div>
+                        <div className="session-details">
+                          <div className="session-title">{it.label}</div>
+                          {it.sub && <div className="session-meta"><span>{it.sub}</span></div>}
                         </div>
-                        {!isCollapsed && (
-                          <div className="session-details">
-                            <div className="session-title">{it.label}</div>
-                            {it.sub && <div className="session-meta"><span>{it.sub}</span></div>}
-                          </div>
-                        )}
                       </div>
                     </div>
                   ))}

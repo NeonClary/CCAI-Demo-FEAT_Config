@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { HelpCircle } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppConfig } from '../contexts/AppConfigContext';
@@ -27,7 +27,7 @@ import {
   PaletteModal, CommandPaletteModal, GlobalSearchModal,
 } from '../components/canvas/CanvasModals';
 import CanvasWelcomeTour from '../components/canvas/CanvasWelcomeTour';
-import DeliverablesView from '../components/canvas/CanvasDeliverables';
+import DeliverablesView, { TEMPLATES as DELIVERABLE_TEMPLATES } from '../components/canvas/CanvasDeliverables';
 import '../styles/CanvasPage.css';
 
 const LAYOUT_KEY = 'canvas-layout-v2';
@@ -455,22 +455,72 @@ const CanvasPage = ({ user, authToken, onNavigateToHome, onNavigateToChat, onSig
     return () => window.removeEventListener('keydown', k);
   }, [closeModal, openCommandPalette, openGlobalSearch]);
 
-  const canvasSidebarItems = layout.map(w => {
-    const meta = WIDGET_CATALOG.find(m => m.type === w.type);
-    return {
-      id: w.id,
-      label: meta?.name || w.type,
-      sub: meta?.cat || '',
-      onClick: () => {
-        const el = document.querySelector(`[data-widget-id="${w.id}"]`);
-        if (el) {
-          el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-          el.style.boxShadow = '0 0 0 2px var(--canvas-accent), 0 0 24px var(--canvas-accent-glow)';
-          setTimeout(() => { el.style.boxShadow = ''; }, 1400);
-        }
-      },
-    };
-  });
+  // Highlight a widget when picked from the sidebar
+  const flashScrollTo = (selector) => {
+    const el = document.querySelector(selector);
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.style.boxShadow = '0 0 0 2px var(--canvas-accent), 0 0 24px var(--canvas-accent-glow)';
+    setTimeout(() => { el.style.boxShadow = ''; }, 1400);
+  };
+
+  // Workspace: group widgets by category for the new sidebar
+  const widgetGroups = useMemo(() => {
+    const groups = {};
+    layout.forEach(w => {
+      const meta = WIDGET_CATALOG.find(m => m.type === w.type);
+      if (!meta) return;
+      const cat = meta.cat;
+      (groups[cat] ||= { id: cat, label: cat, items: [] }).items.push({
+        id: w.id,
+        label: meta.name,
+        icon: meta.icon,
+        critic: meta.critic,
+        onClick: () => flashScrollTo(`[data-widget-id="${w.id}"]`),
+      });
+    });
+    // Order: critic last
+    const order = ['research', 'writing', 'project', 'wellness', 'career', 'data', 'practical', 'critic'];
+    return order.map(c => groups[c]).filter(Boolean);
+  }, [layout]);
+
+  // Deliverables: list of projects with sections + history actions
+  const deliverableProjects = useMemo(() => {
+    try {
+      const dStore = JSON.parse(localStorage.getItem('canvas-deliverables-v2') || '{}');
+      const projects = Object.values(dStore.projects || {});
+      return projects.map(p => {
+        const t = DELIVERABLE_TEMPLATES.find(x => x.id === p.templateId);
+        return {
+          id: p.id,
+          name: p.name,
+          icon: t?.icon || 'book',
+          versions: p.versions?.length || 0,
+          isActive: p.id === dStore.activeProjectId,
+          sections: (t?.sections || []).map(s => ({
+            id: s.id,
+            name: s.name,
+            wc: ((p.sections || {})[s.id] || '').trim().split(/\s+/).filter(Boolean).length,
+            onClick: () => {
+              if (p.id !== dStore.activeProjectId) {
+                // Open this project first; section scroll happens after a tick.
+                const next = { ...dStore, activeProjectId: p.id };
+                localStorage.setItem('canvas-deliverables-v2', JSON.stringify(next));
+                window.dispatchEvent(new Event('storage'));
+              }
+              setTimeout(() => flashScrollTo(`#notion-section-${s.id}`), 80);
+            },
+          })),
+          onOpen: () => {
+            const next = { ...dStore, activeProjectId: p.id };
+            localStorage.setItem('canvas-deliverables-v2', JSON.stringify(next));
+            window.dispatchEvent(new Event('storage'));
+          },
+        };
+      });
+    } catch { return []; }
+    // re-derive when view or layout changes (layout proxy for "user did something")
+  }, [view, layout, widgetStates]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="canvas-page-with-sidebar" data-canvas-theme={theme}>
@@ -485,7 +535,9 @@ const CanvasPage = ({ user, authToken, onNavigateToHome, onNavigateToChat, onSig
         onSelectSession={(id) => onNavigateToChat && onNavigateToChat(id)}
         onNewChat={() => onNavigateToChat && onNavigateToChat()}
         pageContext="canvas"
-        canvasItems={canvasSidebarItems}
+        canvasSubview={view}
+        widgetGroups={widgetGroups}
+        deliverableProjects={deliverableProjects}
       />
       <div className={`canvas-main-area ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <div className="canvas-app-shell">

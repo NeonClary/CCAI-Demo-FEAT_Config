@@ -1609,6 +1609,159 @@ body[data-canvas-theme="light"] .canvas-modal-backdrop .critic-meter .bar { back
 .canvas-page-with-sidebar .paper-empty { color: #9ca3af; font-style: italic; font-size: 12px; }
 .canvas-page-with-sidebar .paper-section { margin-bottom: 4px; }
 
+/* ----- Canvas-mode app sidebar menu (Insights / Workspace / Deliverables) ----- */
+/* These rules live in the *app* sidebar (not the canvas-page-with-sidebar scope)
+   because they apply to .sidebar from components.css when the user is on canvas. */
+.canvas-sidebar-menu {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.canvas-sidebar-menu .no-sessions {
+  padding: 18px 12px;
+  font-size: 12px;
+  color: var(--text-tertiary, #9CA3AF);
+  text-align: center;
+}
+
+/* --- Workspace: widget groups --- */
+.canvas-sidebar-menu .csm-group { display: flex; flex-direction: column; gap: 1px; margin-bottom: 4px; }
+.canvas-sidebar-menu .csm-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: var(--text-tertiary, #9CA3AF);
+  cursor: pointer;
+}
+.canvas-sidebar-menu .csm-group-head:hover { background: var(--bg-secondary, #f3f4f6); color: var(--text-secondary, #6b7280); }
+.dark .canvas-sidebar-menu .csm-group-head:hover { background: var(--bg-secondary-dark, #374151); }
+.canvas-sidebar-menu .csm-group-name { flex: 1; text-align: left; }
+.canvas-sidebar-menu .csm-group-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-tertiary, #9CA3AF);
+}
+.canvas-sidebar-menu .csm-group-body { display: flex; flex-direction: column; gap: 1px; padding: 2px 0 6px 8px; }
+
+/* --- Deliverables: project blocks --- */
+.canvas-sidebar-menu .csm-project {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+}
+.canvas-sidebar-menu .csm-project.active { background: rgba(99, 102, 241, 0.06); }
+.dark .canvas-sidebar-menu .csm-project.active { background: rgba(129, 140, 248, 0.10); }
+.canvas-sidebar-menu .csm-project-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary, #111827);
+  cursor: pointer;
+  text-align: left;
+}
+.canvas-sidebar-menu .csm-project-head:hover { background: var(--bg-secondary, #f3f4f6); }
+.dark .canvas-sidebar-menu .csm-project-head { color: var(--text-primary-dark, #f9fafb); }
+.dark .canvas-sidebar-menu .csm-project-head:hover { background: var(--bg-secondary-dark, #374151); }
+.canvas-sidebar-menu .csm-project.active .csm-project-name { color: var(--accent-primary, #6366F1); font-weight: 600; }
+.canvas-sidebar-menu .csm-project-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.canvas-sidebar-menu .csm-versions {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-tertiary, #9CA3AF);
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-secondary, #f3f4f6);
+}
+.dark .canvas-sidebar-menu .csm-versions { background: var(--bg-secondary-dark, #374151); }
+.canvas-sidebar-menu .csm-project-body {
+  padding: 2px 0 8px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* --- Shared row (used in groups and project bodies) --- */
+.canvas-sidebar-menu .csm-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 6px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--text-secondary, #6b7280);
+  text-align: left;
+  cursor: pointer;
+}
+.canvas-sidebar-menu .csm-row:hover {
+  background: var(--bg-secondary, #f3f4f6);
+  color: var(--text-primary, #111827);
+}
+.dark .canvas-sidebar-menu .csm-row { color: var(--text-secondary-dark, #9ca3af); }
+.dark .canvas-sidebar-menu .csm-row:hover { background: var(--bg-secondary-dark, #374151); color: var(--text-primary-dark, #f9fafb); }
+.canvas-sidebar-menu .csm-row.critic { color: #8B5CF6; }
+.dark .canvas-sidebar-menu .csm-row.critic { color: #A78BFA; }
+.canvas-sidebar-menu .csm-row-bullet {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.45;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+.canvas-sidebar-menu .csm-row-icon { font-size: 11px; opacity: 0.85; }
+.canvas-sidebar-menu .csm-row-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.canvas-sidebar-menu .csm-row-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  color: var(--text-tertiary, #9CA3AF);
+}
+.canvas-sidebar-menu .csm-row-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  color: var(--text-tertiary, #9CA3AF);
+  cursor: default;
+}
+.canvas-sidebar-menu .csm-row-foot:hover { background: transparent; color: var(--text-tertiary, #9CA3AF); }
+
+/* Chevron rotates open/closed */
+.canvas-sidebar-menu .csm-chevron {
+  transition: transform 0.15s ease;
+  color: var(--text-tertiary, #9CA3AF);
+}
+.canvas-sidebar-menu .csm-chevron.open { transform: rotate(90deg); }
+
 /* ----- Deliverable project tabs (Overleaf-style multi-draft) ----- */
 .canvas-page-with-sidebar .deliverable-projects {
   display: flex;
@@ -1651,6 +1804,41 @@ body[data-canvas-theme="light"] .canvas-modal-backdrop .critic-meter .bar { back
 }
 .canvas-page-with-sidebar .deliverable-new-project summary::-webkit-details-marker { display: none; }
 .canvas-page-with-sidebar .deliverable-new-project[open] summary { background: var(--canvas-surface-2); color: var(--canvas-text); }
+
+/* Auto-save indicator next to the project title */
+.canvas-page-with-sidebar .save-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--canvas-text-3);
+  font-family: var(--canvas-mono);
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--canvas-surface-2);
+  transition: background .2s, color .2s;
+}
+.canvas-page-with-sidebar .save-indicator-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--canvas-ok);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+  transition: background .2s;
+}
+.canvas-page-with-sidebar .save-indicator.saving {
+  background: var(--canvas-accent-glow);
+  color: var(--canvas-accent);
+}
+.canvas-page-with-sidebar .save-indicator.saving .save-indicator-dot {
+  background: var(--canvas-accent);
+  animation: save-pulse 0.6s ease infinite;
+}
+@keyframes save-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
 
 /* Editable project title — looks like the page-title but is an input */
 .canvas-page-with-sidebar .page-title-editable {

@@ -27,7 +27,7 @@ const newId = (p) => p + Math.random().toString(36).slice(2, 8);
 // ============================================================================
 // Templates
 // ============================================================================
-const TEMPLATES = [
+export const TEMPLATES = [
   {
     id: 'research-paper',
     name: 'Research Paper',
@@ -509,11 +509,14 @@ const DeliverablesView = ({ allStates }) => {
         <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 12, marginBottom: 4, color: 'var(--canvas-text-3)' }} onClick={closeProject}>
           <Icon name="back" size={12}/>All drafts
         </button>
-        <input
-          className="page-title page-title-editable"
-          value={project.name}
-          onChange={(e) => renameProject(e.target.value)}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input
+            className="page-title page-title-editable"
+            value={project.name}
+            onChange={(e) => renameProject(e.target.value)}
+          />
+          <SaveIndicator project={project}/>
+        </div>
         <div className="page-sub">
           {template.name} · {totalWords} / {totalTarget} words · ~{readingMinutes(totalWords)} min read · {template.sections.length} {template.mode === 'slides' ? 'slides' : 'sections'}
         </div>
@@ -803,6 +806,45 @@ const DeliverablesView = ({ allStates }) => {
     </>
   );
 };
+
+// ============================================================================
+// Auto-save indicator. Drafts persist to localStorage on every keystroke,
+// so we show a transient "Saving…" pill when the project changes, settling
+// to "Saved · Xs ago" while idle.
+// ============================================================================
+function SaveIndicator({ project }) {
+  const [savedAt, setSavedAt] = useState(Date.now());
+  const [pulse, setPulse] = useState(false);
+  const sectionsKey = JSON.stringify(project?.sections || {});
+  useEffect(() => {
+    setPulse(true);
+    const t1 = setTimeout(() => setPulse(false), 300);
+    const t2 = setTimeout(() => setSavedAt(Date.now()), 350);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [sectionsKey]);
+
+  // Tick the relative-time string
+  const [, force] = useState(0);
+  useEffect(() => {
+    const i = setInterval(() => force(n => n + 1), 5000);
+    return () => clearInterval(i);
+  }, []);
+
+  const ago = (() => {
+    const d = Math.floor((Date.now() - savedAt) / 1000);
+    if (d < 5) return 'just now';
+    if (d < 60) return `${d}s ago`;
+    if (d < 3600) return `${Math.floor(d / 60)}m ago`;
+    return `${Math.floor(d / 3600)}h ago`;
+  })();
+
+  return (
+    <span className={`save-indicator ${pulse ? 'saving' : ''}`}>
+      <span className="save-indicator-dot"/>
+      {pulse ? 'Saving…' : `Saved · ${ago}`}
+    </span>
+  );
+}
 
 // ============================================================================
 // RichBlock — Notion-style click-to-edit + Docs-style floating toolbar.
