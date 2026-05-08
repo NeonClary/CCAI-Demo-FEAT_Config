@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { MessageCircle, Reply, X, Sparkles, Users, Settings2, FileText } from 'lucide-react';
+import { MessageCircle, Reply, X, Sparkles, Users, Settings2, FileText, HelpCircle } from 'lucide-react';
 import EnhancedChatInput from '../components/EnhancedChatInput';
 import MessageBubble from '../components/MessageBubble';
 import ThinkingIndicator from '../components/ThinkingIndicator';
@@ -784,6 +784,14 @@ const handleNewChat = async (sessionId = null) => {
               currentSessionId={currentSessionId}
               authToken={authToken}
             />
+            {/* User guide button (from main) — slotted into AppHeader's children */}
+            <button
+              className="icon-btn header-help-btn"
+              onClick={() => window.dispatchEvent(new CustomEvent('open-user-guide'))}
+              title="Open user guide"
+            >
+              <HelpCircle size={18} />
+            </button>
           </AppHeader>
 
           {/* Main Content */}
