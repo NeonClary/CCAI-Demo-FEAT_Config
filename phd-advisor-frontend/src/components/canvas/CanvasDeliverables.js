@@ -296,6 +296,7 @@ const DeliverablesView = ({ allStates }) => {
               <button onClick={() => exportAs('markdown')}>Markdown (.md)</button>
               <button onClick={() => exportAs('latex')}>LaTeX (.tex)</button>
               <button onClick={() => exportAs('html')}>HTML (.html)</button>
+              <button onClick={() => window.print()}>Print / Save as PDF</button>
             </div>
           </details>
         </div>

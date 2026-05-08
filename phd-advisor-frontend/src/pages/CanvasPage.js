@@ -432,7 +432,8 @@ const CanvasPage = ({ user, authToken, onNavigateToHome, onNavigateToChat, onSig
     openModal('global-search', { states: widgetStates });
   }, [openModal, widgetStates]);
 
-  // Esc closes modal, ⌘K opens command palette, ⌘/ opens global content search
+  // Esc closes modal, ⌘K opens command palette, ⌘/ opens global content search,
+  // ? opens the welcome tour for help (matches the icon in the topbar).
   useEffect(() => {
     const k = (e) => {
       if (e.key === 'Escape') closeModal();
@@ -443,6 +444,11 @@ const CanvasPage = ({ user, authToken, onNavigateToHome, onNavigateToChat, onSig
       if ((e.metaKey || e.ctrlKey) && e.key === '/') {
         e.preventDefault();
         openGlobalSearch();
+      }
+      // ? key (Shift+/) — only when the user isn't typing in an input
+      if (e.key === '?' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+        e.preventDefault();
+        setTourForceShow(n => n + 1);
       }
     };
     window.addEventListener('keydown', k);
@@ -510,8 +516,30 @@ const CanvasPage = ({ user, authToken, onNavigateToHome, onNavigateToChat, onSig
       <ModalRouter modal={modal} onClose={closeModal}/>
       <ToastStack/>
       <CanvasWelcomeTour key={tourForceShow} forceShow={tourForceShow > 0}/>
+      <ShortcutHint/>
     </div>
   );
 };
+
+// Subtle floating hint bar showing the most-used keyboard shortcuts.
+// Auto-hides on small screens and after the first 12s, until the user hovers.
+function ShortcutHint() {
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(false), 12000);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <div
+      className={`canvas-shortcut-hint ${visible ? 'visible' : ''}`}
+      onMouseEnter={() => setVisible(true)}
+      onMouseLeave={() => setVisible(false)}
+    >
+      <span><kbd>⌘</kbd><kbd>K</kbd> commands</span>
+      <span><kbd>⌘</kbd><kbd>/</kbd> search</span>
+      <span><kbd>?</kbd> help</span>
+    </div>
+  );
+}
 
 export default CanvasPage;

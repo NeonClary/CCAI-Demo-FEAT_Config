@@ -64,12 +64,34 @@ const AppHeader = ({
         </div>
       </div>
 
-      <div className="canvas-tabs chat-view-tabs">
-        <button className={`tab ${isOnChat ? 'active' : ''}`} onClick={onNavigateToChat}>Chat</button>
-        <button className={`tab ${tabActive('insights') ? 'active' : ''}`} onClick={() => goToCanvas('insights')}>Insights</button>
-        <button className={`tab ${tabActive('workspace') ? 'active' : ''}`} onClick={() => goToCanvas('workspace')}>Workspace</button>
-        <button className={`tab ${tabActive('deliverables') ? 'active' : ''}`} onClick={() => goToCanvas('deliverables')}>Deliverables</button>
-      </div>
+      {/* Hide the view pill bar on the home page — home is a landing page,
+          not part of the chat ↔ canvas surface. */}
+      {!isOnHome && (
+        <div className="canvas-tabs chat-view-tabs">
+          <button className={`tab ${isOnChat ? 'active' : ''}`} onClick={onNavigateToChat}>Chat</button>
+          <button className={`tab ${tabActive('insights') ? 'active' : ''}`} onClick={() => goToCanvas('insights')}>Insights</button>
+          <button className={`tab ${tabActive('workspace') ? 'active' : ''}`} onClick={() => goToCanvas('workspace')}>Workspace</button>
+          <button className={`tab ${tabActive('deliverables') ? 'active' : ''}`} onClick={() => goToCanvas('deliverables')}>Deliverables</button>
+        </div>
+      )}
+
+      {/* Compact mobile dropdown — appears in place of the pill bar at narrow widths */}
+      {!isOnHome && (
+        <select
+          className="canvas-tabs-mobile"
+          value={isOnChat ? 'chat' : (canvasSub || 'workspace')}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === 'chat') onNavigateToChat();
+            else goToCanvas(v);
+          }}
+        >
+          <option value="chat">Chat</option>
+          <option value="insights">Insights</option>
+          <option value="workspace">Workspace</option>
+          <option value="deliverables">Deliverables</option>
+        </select>
+      )}
 
       <div className="header-right">
         {children}

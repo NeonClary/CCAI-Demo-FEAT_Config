@@ -88,6 +88,54 @@
 
 .canvas-page-with-sidebar *, .canvas-modal-backdrop *, .toast-stack * { box-sizing: border-box; }
 
+/* Standardized motion tokens */
+.canvas-page-with-sidebar, .canvas-modal-backdrop {
+  --canvas-ease: cubic-bezier(0.2, 0, 0, 1);
+  --canvas-fast: 120ms var(--canvas-ease);
+  --canvas-base: 180ms var(--canvas-ease);
+  --canvas-slow: 280ms var(--canvas-ease);
+}
+
+/* Widgets fade + slight rise on mount */
+@keyframes canvas-widget-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+.canvas-page-with-sidebar .widget {
+  animation: canvas-widget-in 240ms var(--canvas-ease);
+}
+
+/* Smooth content view transitions */
+@keyframes canvas-view-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: none; }
+}
+.canvas-content > * {
+  animation: canvas-view-in 220ms var(--canvas-ease);
+}
+
+/* Improved focus rings — accent halo, no harsh outline */
+.canvas-page-with-sidebar :focus-visible,
+.canvas-modal-backdrop :focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--canvas-accent-glow);
+  border-radius: 4px;
+}
+.canvas-page-with-sidebar input:focus-visible,
+.canvas-page-with-sidebar textarea:focus-visible,
+.canvas-modal-backdrop input:focus-visible,
+.canvas-modal-backdrop textarea:focus-visible {
+  outline: none;
+  border-color: var(--canvas-accent);
+  box-shadow: 0 0 0 3px var(--canvas-accent-glow);
+}
+
+/* Respect users who don't want motion */
+@media (prefers-reduced-motion: reduce) {
+  .canvas-page-with-sidebar .widget,
+  .canvas-content > * { animation: none; }
+}
+
 .canvas-page-with-sidebar button {
   font-family: inherit;
   cursor: pointer;
@@ -192,8 +240,19 @@
   top: 50%;
   transform: translate(-50%, -50%);
 }
+.canvas-tabs-mobile { display: none; }
 @media (max-width: 900px) {
   .floating-header > .chat-view-tabs { display: none; }
+  .canvas-tabs-mobile {
+    display: inline-block;
+    background: var(--canvas-surface, var(--bg-tertiary, #f3f4f6));
+    border: 1px solid var(--canvas-border, var(--border-primary, #e5e7eb));
+    color: var(--canvas-text, var(--text-primary, #111827));
+    font-family: inherit;
+    font-size: 13px;
+    padding: 6px 10px;
+    border-radius: 7px;
+  }
 }
 
 /* Shared view-tabs pill bar — used on both Canvas and Chat pages.
@@ -1839,6 +1898,88 @@ body[data-canvas-theme="light"] .canvas-modal-backdrop .critic-meter .bar { back
   background: rgba(0, 0, 0, 0.04);
 }
 
+/* "Coming soon" stub widget — roadmap-preview card, not a dead end */
+.canvas-page-with-sidebar .widget-stub {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 4px 8px;
+}
+.canvas-page-with-sidebar .widget-stub-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  background: var(--canvas-surface-2);
+  color: var(--canvas-text-3);
+  display: grid;
+  place-items: center;
+}
+.canvas-page-with-sidebar .widget-stub-tag {
+  font-size: 9.5px;
+  font-family: var(--canvas-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--canvas-text-4);
+  font-weight: 600;
+  margin-top: 8px;
+}
+.canvas-page-with-sidebar .widget-stub-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--canvas-text);
+}
+.canvas-page-with-sidebar .widget-stub-desc {
+  font-size: 12px;
+  color: var(--canvas-text-3);
+  line-height: 1.5;
+}
+.canvas-page-with-sidebar .widget-stub-plan {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--canvas-text-3);
+  line-height: 1.6;
+}
+.canvas-page-with-sidebar .widget-stub-plan li::marker { color: var(--canvas-accent); }
+
+/* Shared empty-state block inside widgets (Notion-style: airy, single CTA) */
+.canvas-page-with-sidebar .widget-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--canvas-text-3);
+  flex: 1;
+}
+.canvas-page-with-sidebar .widget-empty-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--canvas-surface-2);
+  color: var(--canvas-text-3);
+  display: grid;
+  place-items: center;
+  margin-bottom: 4px;
+}
+.canvas-page-with-sidebar .widget-empty-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--canvas-text-2);
+}
+.canvas-page-with-sidebar .widget-empty-hint {
+  font-size: 12px;
+  color: var(--canvas-text-3);
+  max-width: 240px;
+  line-height: 1.5;
+}
+.canvas-page-with-sidebar .widget-empty-action {
+  margin-top: 8px;
+}
+
 /* Cross-widget drop overlay — shows over the target widget body during drag */
 .canvas-page-with-sidebar .canvas-drop-overlay {
   position: absolute;
@@ -1905,6 +2046,94 @@ body[data-canvas-theme="light"] .canvas-modal-backdrop .critic-meter .bar { back
   font-family: inherit;
   width: 100%;
   outline: none;
+}
+
+/* Print: just the Notion page itself, no chrome */
+@media print {
+  .canvas-sidebar,
+  .canvas-page-with-sidebar .floating-header,
+  .canvas-page-with-sidebar .canvas-tabs,
+  .canvas-page-with-sidebar .notion-toc,
+  .canvas-page-with-sidebar .deliverable-insertables,
+  .canvas-page-with-sidebar .canvas-shortcut-hint,
+  .canvas-page-with-sidebar .page-header > div:last-child,
+  .toast-stack,
+  .canvas-modal-backdrop {
+    display: none !important;
+  }
+  .canvas-page-with-sidebar,
+  .canvas-main-area,
+  .canvas-app-shell,
+  .canvas-content,
+  .canvas-page-with-sidebar .notion-deliverable-grid,
+  .canvas-page-with-sidebar .notion-page-wrap {
+    display: block !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000 !important;
+  }
+  .canvas-page-with-sidebar .notion-page {
+    background: #ffffff !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    max-width: none !important;
+  }
+  .canvas-page-with-sidebar .notion-page-title { font-size: 28px; color: #000 !important; }
+  .canvas-page-with-sidebar .notion-h2 { color: #000 !important; }
+  .canvas-page-with-sidebar .notion-text { color: #000 !important; padding: 0 !important; margin: 0 !important; }
+  .canvas-page-with-sidebar .check-pill,
+  .canvas-page-with-sidebar .notion-callout { display: none !important; }
+}
+
+/* Floating shortcut hint — subtle, hides itself, hover-revealed */
+.canvas-shortcut-hint {
+  position: fixed;
+  bottom: 16px;
+  right: 20px;
+  z-index: 50;
+  display: flex;
+  gap: 14px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--canvas-surface);
+  border: 1px solid var(--canvas-border);
+  box-shadow: var(--canvas-shadow);
+  font-size: 11.5px;
+  color: var(--canvas-text-3);
+  font-family: 'Inter', sans-serif;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.25s var(--canvas-ease), transform 0.25s var(--canvas-ease);
+  pointer-events: none;
+}
+.canvas-shortcut-hint.visible {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.canvas-shortcut-hint:not(.visible):hover {
+  opacity: 0.6;
+  transform: none;
+  pointer-events: auto;
+}
+.canvas-shortcut-hint kbd {
+  display: inline-block;
+  font-family: var(--canvas-mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--canvas-surface-2);
+  border: 1px solid var(--canvas-border-2);
+  color: var(--canvas-text-2);
+  margin-right: 2px;
+  min-width: 14px;
+  text-align: center;
+}
+@media (max-width: 768px) {
+  .canvas-shortcut-hint { display: none; }
 }
 
 /* Toast */

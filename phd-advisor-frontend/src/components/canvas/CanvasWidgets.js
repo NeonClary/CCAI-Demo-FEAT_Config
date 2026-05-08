@@ -8,6 +8,18 @@ const fireToast = (msg, kind = 'success') =>
 const fireActivity = (source, msg) =>
   window.dispatchEvent(new CustomEvent('canvas-activity', { detail: { source, msg } }));
 
+// Shared empty-state block — every widget uses this so the look stays consistent.
+function EmptyState({ icon = 'sparkles', title, hint, action }) {
+  return (
+    <div className="widget-empty">
+      <div className="widget-empty-icon"><Icon name={icon} size={20}/></div>
+      <div className="widget-empty-title">{title}</div>
+      {hint && <div className="widget-empty-hint">{hint}</div>}
+      {action && <div className="widget-empty-action">{action}</div>}
+    </div>
+  );
+}
+
 // Cross-widget drag-drop helpers — one mime type, JSON payload tagged by `kind`.
 const X_MIME = 'application/x-canvas-item';
 const setDragPayload = (e, kind, payload) => {
@@ -142,9 +154,11 @@ export function BibliographyWidget({ state, setState, openModal }) {
           </div>
         ))}
         {sorted.length === 0 && (
-          <div style={{ padding: 18, textAlign: 'center', color: 'var(--canvas-text-3)', fontSize: 12 }}>
-            No citations yet. Add one or drag a paper from the Reading Queue.
-          </div>
+          <EmptyState
+            icon="book"
+            title="No citations yet"
+            hint="Add one with the + button, paste a DOI, or drag a paper here from the Reading Queue."
+          />
         )}
       </div>
     </div>
@@ -595,7 +609,11 @@ export function DeadlinesWidget({ state, setState, openModal }) {
           );
         })}
         {enriched.length === 0 && (
-          <div style={{ padding: 18, textAlign: 'center', color: 'var(--canvas-text-3)', fontSize: 12 }}>No deadlines.</div>
+          <EmptyState
+            icon="calendar"
+            title="No deadlines yet"
+            hint="Track due dates and download them straight into your calendar as .ics files."
+          />
         )}
       </div>
       <button className="add-tiny" onClick={() => openModal('add-deadline', {
@@ -751,9 +769,11 @@ export function NotesWidget({ state, setState, openModal }) {
           </div>
         ))}
         {filtered.length === 0 && (
-          <div style={{ padding: 18, textAlign: 'center', color: 'var(--canvas-text-3)', fontSize: 12 }}>
-            {notes.length === 0 ? 'No notes. Capture quick thoughts, paper claims, or ideas.' : `No notes match "${search}"`}
-          </div>
+          notes.length === 0 ? (
+            <EmptyState icon="notes" title="No notes yet" hint="Capture quick thoughts. Markdown supported. Type @ to mention citations, chapters, or tasks."/>
+          ) : (
+            <EmptyState icon="search" title={`No notes match "${search}"`} hint="Try a shorter query or clear the search box."/>
+          )
         )}
       </div>
       <button className="add-tiny" onClick={add}>+ New note</button>
@@ -816,7 +836,7 @@ export function HabitsWidget({ state, setState, openModal }) {
           );
         })}
         {habits.length === 0 && (
-          <div style={{ padding: 14, textAlign: 'center', color: 'var(--canvas-text-3)', fontSize: 12 }}>No habits yet.</div>
+          <EmptyState icon="flame" title="No habits yet" hint="Track daily research practices. Read 1 paper, write 30 min, lab notebook entry."/>
         )}
       </div>
       <button className="add-tiny" onClick={add}>+ New habit</button>
@@ -855,7 +875,7 @@ export function GoalsWidget({ state, setState, openModal }) {
           </div>
         ))}
         {goals.length === 0 && (
-          <div style={{ padding: 18, textAlign: 'center', color: 'var(--canvas-text-3)', fontSize: 12 }}>No goals yet.</div>
+          <EmptyState icon="bullseye" title="No goals yet" hint="Quarterly OKRs, dissertation milestones, anything you want to track."/>
         )}
       </div>
       <button className="add-tiny" onClick={add}>+ New goal</button>
@@ -888,9 +908,7 @@ export function MeetingsWidget({ state, setState, openModal }) {
           </div>
         ))}
         {meetings.length === 0 && (
-          <div style={{ padding: 18, textAlign: 'center', color: 'var(--canvas-text-3)', fontSize: 12 }}>
-            No meetings logged.
-          </div>
+          <EmptyState icon="message" title="No meetings logged" hint="Capture decisions, action items, and last contact for each stakeholder."/>
         )}
       </div>
       <button className="add-tiny" onClick={add}>+ Log meeting</button>
@@ -935,9 +953,7 @@ export function OutlineWidget({ state, setState }) {
     <>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         {items.length === 0 ? (
-          <div style={{ padding: 18, textAlign: 'center', color: 'var(--canvas-text-3)', fontSize: 12 }}>
-            Empty outline. Click + to add the first node.
-          </div>
+          <EmptyState icon="list" title="Empty outline" hint="Click + Node below. Use Tab/Shift+Tab to indent, Enter for a sibling."/>
         ) : items.map((it, i) => {
           const hasChildren = items[i + 1] && items[i + 1].depth > it.depth;
           const isCollapsed = !!expanded[it.id] && hasChildren;
@@ -1054,9 +1070,7 @@ export function HighlightsWidget({ state, setState }) {
           </div>
         ))}
         {items.length === 0 && (
-          <div style={{ padding: 18, textAlign: 'center', color: 'var(--canvas-text-3)', fontSize: 12 }}>
-            No quotes yet. Paste one above.
-          </div>
+          <EmptyState icon="cite" title="No quotes yet" hint="Paste a quote above with citation key and page; copy formatted with one click."/>
         )}
       </div>
     </>
@@ -1203,12 +1217,18 @@ export function CalendarWidget({ state, setState, allStates = {} }) {
   const monthLabel = first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const today = new Date().toISOString().slice(0, 10);
 
+  const goToToday = () => setState({ ...state, viewMonth: new Date().toISOString().slice(0, 7) });
+  const isCurrentMonth = monthStr === new Date().toISOString().slice(0, 7);
+
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <button className="icon-btn" onClick={() => shiftMonth(-1)}><Icon name="chevron" size={14} style={{ transform: 'rotate(180deg)' }}/></button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <button className="icon-btn" onClick={() => shiftMonth(-1)} title="Previous month"><Icon name="chevron" size={14} style={{ transform: 'rotate(180deg)' }}/></button>
         <div style={{ flex: 1, fontWeight: 600, fontSize: 13 }}>{monthLabel}</div>
-        <button className="icon-btn" onClick={() => shiftMonth(1)}><Icon name="chevron" size={14}/></button>
+        {!isCurrentMonth && (
+          <button className="chip" onClick={goToToday} title="Jump to today" style={{ fontSize: 10.5 }}>Today</button>
+        )}
+        <button className="icon-btn" onClick={() => shiftMonth(1)} title="Next month"><Icon name="chevron" size={14}/></button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3, fontSize: 10, color: 'var(--canvas-text-4)', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'center', fontFamily: 'var(--canvas-mono)' }}>
         {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => <div key={i}>{d}</div>)}
@@ -1292,9 +1312,7 @@ export function ActivityWidget({ state, setState }) {
     <>
       <div className="note-list">
         {events.length === 0 && (
-          <div style={{ padding: 18, textAlign: 'center', color: 'var(--canvas-text-3)', fontSize: 12 }}>
-            No activity yet. Edits across widgets will show up here.
-          </div>
+          <EmptyState icon="graph" title="No activity yet" hint="Edits across your widgets will show up here as you work."/>
         )}
         {events.map(e => (
           <div key={e.id} className="note-row" style={{ padding: '7px 9px' }}>
@@ -1413,24 +1431,52 @@ export function DocumenterWidget({ state, setState }) {
           </div>
         ))}
         {entries.length === 0 && (
-          <div style={{ padding: 18, textAlign: 'center', color: 'var(--canvas-text-3)', fontSize: 12 }}>
-            No entries yet. Drop a quick line about today.
-          </div>
+          <EmptyState icon="pencil" title="No entries yet" hint="Drop a line about today. Hit ⌘↵ to log it. Tap Weekly summary anytime."/>
         )}
       </div>
     </>
   );
 }
 
-// ===== Stub =====
+// ===== Stub — roadmap preview card =====
+// Shows what's coming for this widget type so adding it from the palette
+// doesn't feel like a dead end.
+const STUB_PLANS = {
+  'concept-map': ['Drag papers as nodes', 'Connect by theme', 'Auto-cluster by citation overlap'],
+  'highlights': ['Pull quotes with auto-citation', 'Search across all notes'],
+  'paper-tldr': ['Drop a PDF', 'Get claim / method / limits / gaps', 'Save to Bibliography in one click'],
+  'outline': ['Collapsible tree', 'Drop Insights into slots', 'Promote to Deliverable section'],
+  'latex': ['Render math as you type', 'Snippet library', 'Copy as image / TeX'],
+  'draft-locker': ['Versioned chapter drafts', 'Diff between versions', 'Roll back any change'],
+  'gantt': ['Proposal → IRB → defense timeline', 'Critical-path highlighting', 'Drag to reschedule'],
+  'mood': ['Daily slider', 'Trend graph', 'Correlate with productive days'],
+  'sleep': ['Sleep duration vs. word output', 'Energy heatmap', 'Apple Health import'],
+  'focus': ['Curated ambient playlists', 'Focus session timer', 'Auto-pause on Pomodoro break'],
+  'cfp': ['CFP deadlines by venue', 'Fit score by topic', 'Submission status pipeline'],
+  'grants': ['Grant deadlines + amounts', 'Award log', 'Generate budget justification'],
+  'crm': ['Collaborators with last touch', 'Quick-add from Meeting Log', 'Reminders for cold contacts'],
+  'cv': ['Track outputs over time', 'Auto-generate CV from Bibliography', 'Highlight by impact factor'],
+  'datasets': ['Public datasets by domain', 'Saved searches', 'License + access notes'],
+  'methods': ['When to use what test', 'Examples + citations', 'Saved templates per chapter'],
+  'discounts': ['Software & services with edu pricing', 'Discount expiration tracking'],
+  'assumption': ['Names hidden assumptions', 'Asks "what if wrong?"', 'Logs to a hypothesis tree'],
+  'whats-missing': ['Gap analysis on lit review', 'Compares to top venues', 'Suggests targeted reads'],
+  'calibrator': ['Challenges every "results show" claim', 'Asks for the prior', 'Flags p-hacking patterns'],
+};
+
 export function StubWidget({ meta }) {
+  const plan = STUB_PLANS[meta.type] || [];
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--canvas-text-3)', textAlign: 'center', padding: '20px 16px' }}>
-      <div style={{ width: 38, height: 38, borderRadius: 9, background: 'var(--canvas-surface-2)', display: 'grid', placeItems: 'center', color: 'var(--canvas-text-4)' }}>
-        <Icon name={meta.icon} size={18}/>
-      </div>
-      <div style={{ fontSize: 11, color: 'var(--canvas-text-4)', fontFamily: 'var(--canvas-mono)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Coming soon</div>
-      <div style={{ fontSize: 11.5, color: 'var(--canvas-text-3)', maxWidth: 220 }}>{meta.desc}</div>
+    <div className="widget-stub">
+      <div className="widget-stub-icon"><Icon name={meta.icon} size={18}/></div>
+      <div className="widget-stub-tag">Coming soon</div>
+      <div className="widget-stub-title">{meta.name}</div>
+      <div className="widget-stub-desc">{meta.desc}</div>
+      {plan.length > 0 && (
+        <ul className="widget-stub-plan">
+          {plan.map((p, i) => <li key={i}>{p}</li>)}
+        </ul>
+      )}
     </div>
   );
 }
