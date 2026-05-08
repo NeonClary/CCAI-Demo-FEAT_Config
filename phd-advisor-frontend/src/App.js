@@ -39,7 +39,7 @@ function App() {
   };
 
   const navigateToCanvas = (canvasView) => {
-    if (canvasView === 'insights' || canvasView === 'workspace') {
+    if (['insights', 'workspace', 'deliverables'].includes(canvasView)) {
       localStorage.setItem('canvas-view-v2', canvasView);
     }
     setCurrentView('canvas');
