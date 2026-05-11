@@ -871,7 +871,8 @@ export function PaletteModal({ data, onClose }) {
                   <div className="pi-title">
                     {w.name}
                     {w.critic && <span className="widget-tag" style={{ fontSize: 8.5 }}>WEDGE</span>}
-                    {w.enhanced && !w.stub && <span className="widget-tag widget-tag-enhanced" style={{ fontSize: 8.5 }}>ENHANCED</span>}
+                    {w.critic && <span className="widget-tag widget-tag-chat" style={{ fontSize: 8.5 }} title="Real critique happens in the main chat — this widget is a scratchpad">BEST IN CHAT</span>}
+                    {w.enhanced && !w.stub && !w.critic && <span className="widget-tag widget-tag-enhanced" style={{ fontSize: 8.5 }}>ENHANCED</span>}
                     {w.stub && <span style={{ fontSize: 9, color: 'var(--canvas-text-4)', fontFamily: 'var(--canvas-mono)', marginLeft: 4 }}>SOON</span>}
                   </div>
                   <div className="pi-desc">{w.desc}</div>

@@ -4,6 +4,20 @@ import Icon from './CanvasIcon';
 const fireToast = (msg, kind = 'success') =>
   window.dispatchEvent(new CustomEvent('canvas-toast', { detail: { msg, kind } }));
 
+// Critic widgets are scripted in canvas; the *real* critique should happen in
+// the main chat so message history lives in one place (per Daniel's review).
+// "Open in chat" stashes a draft prompt + persona hint then asks CanvasPage to
+// navigate to chat — the chat page can read `canvas-chat-handoff` from localStorage.
+const handoffToChat = (persona, prompt, context = {}) => {
+  try {
+    localStorage.setItem('canvas-chat-handoff', JSON.stringify({
+      at: Date.now(), persona, prompt, ...context,
+    }));
+  } catch { /* ignore */ }
+  window.dispatchEvent(new CustomEvent('canvas-open-in-chat', { detail: { persona, prompt } }));
+  fireToast(`Opening ${persona} in chat — full history will be there.`);
+};
+
 // ---------- Reviewer 2 widget ----------
 export function Reviewer2Widget({ state, setState, openModal }) {
   return (
@@ -27,16 +41,26 @@ export function Reviewer2Widget({ state, setState, openModal }) {
         <div className="bar"><i style={{ width: '92%' }}/></div>
         <span style={{ color: 'var(--canvas-critic)' }}>harsh</span>
       </div>
-      <button
-        className="btn btn-critic"
-        style={{ alignSelf: 'flex-start' }}
-        onClick={() => openModal('reviewer-2', {
-          initial: state.lastDraft,
-          onComplete: (review) => setState({ ...state, lastDraft: review.draft, lastReview: review }),
-        })}
-      >
-        <Icon name="gavel" size={13}/>Get critique
-      </button>
+      <div style={{ display: 'flex', gap: 6, alignSelf: 'flex-start' }}>
+        <button
+          className="btn btn-critic"
+          onClick={() => openModal('reviewer-2', {
+            initial: state.lastDraft,
+            onComplete: (review) => setState({ ...state, lastDraft: review.draft, lastReview: review }),
+          })}
+        >
+          <Icon name="gavel" size={13}/>Get critique
+        </button>
+        <button
+          className="btn"
+          title="Open Reviewer 2 in the main chat (history lives there)"
+          onClick={() => handoffToChat('Reviewer 2', state.lastDraft
+            ? `Critique this draft as Reviewer 2: "${state.lastDraft}"`
+            : 'Open Reviewer 2 and ready a critique.')}
+        >
+          <Icon name="message" size={13}/>Open in chat
+        </button>
+      </div>
     </>
   );
 }
@@ -58,17 +82,26 @@ export function DevilsAdvocateWidget({ state, setState, openModal }) {
           </div>
         ))}
       </div>
-      <button
-        className="btn btn-critic"
-        style={{ alignSelf: 'flex-start' }}
-        onClick={() => openModal('devils-advocate', {
-          claim: state.claim,
-          counters: state.counters,
-          onUpdate: (next) => setState({ ...state, ...next }),
-        })}
-      >
-        <Icon name="scale" size={13}/>Push harder
-      </button>
+      <div style={{ display: 'flex', gap: 6, alignSelf: 'flex-start' }}>
+        <button
+          className="btn btn-critic"
+          onClick={() => openModal('devils-advocate', {
+            claim: state.claim,
+            counters: state.counters,
+            onUpdate: (next) => setState({ ...state, ...next }),
+          })}
+        >
+          <Icon name="scale" size={13}/>Push harder
+        </button>
+        <button
+          className="btn"
+          title="Open Devil's Advocate in the main chat (history lives there)"
+          onClick={() => handoffToChat("Devil's Advocate",
+            `Take the position of devil's advocate on my claim: "${state.claim || 'my current hypothesis'}". Be ruthless.`)}
+        >
+          <Icon name="message" size={13}/>Open in chat
+        </button>
+      </div>
     </>
   );
 }
@@ -98,13 +131,22 @@ export function ScopeRealismWidget({ state, openModal }) {
           </div>
         ))}
       </div>
-      <button
-        className="btn btn-critic"
-        style={{ alignSelf: 'flex-start' }}
-        onClick={() => openModal('scope-realism', { state })}
-      >
-        <Icon name="bullseye" size={13}/>Read full verdict
-      </button>
+      <div style={{ display: 'flex', gap: 6, alignSelf: 'flex-start' }}>
+        <button
+          className="btn btn-critic"
+          onClick={() => openModal('scope-realism', { state })}
+        >
+          <Icon name="bullseye" size={13}/>Read full verdict
+        </button>
+        <button
+          className="btn"
+          title="Open Scope Realism in the main chat (history lives there)"
+          onClick={() => handoffToChat('Scope Realism',
+            `Run a brutal feasibility check on my goal: "${state.target || 'my current research scope'}". Be specific about what's at risk.`)}
+        >
+          <Icon name="message" size={13}/>Open in chat
+        </button>
+      </div>
     </div>
   );
 }

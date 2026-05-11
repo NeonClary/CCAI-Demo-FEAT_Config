@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
   MessageSquare,
-  Plus,
   SquarePen,
   Search,
   MoreVertical,
   Trash2,
-  Edit3,
   LogOut,
   User,
   Settings,
@@ -28,7 +26,6 @@ const Sidebar = ({
   onSidebarToggle,
   isMobileOpen = false,
   onMobileToggle,
-  onNavigateToCanvas,
   refreshTrigger,
   onCurrentSessionDeleted,
   pageContext = 'chat',
@@ -36,6 +33,7 @@ const Sidebar = ({
   canvasSubview = 'workspace',
   widgetGroups = [],
   deliverableProjects = [],
+  insightSections = [],
 }) => {
   const isOnCanvas = pageContext === 'canvas';
   const [expanded, setExpanded] = useState(() => {
@@ -277,7 +275,9 @@ const Sidebar = ({
                 type="text"
                 placeholder={
                   isOnCanvas
-                    ? (canvasSubview === 'deliverables' ? 'Search drafts...' : 'Search widgets...')
+                    ? (canvasSubview === 'deliverables' ? 'Search drafts...'
+                       : canvasSubview === 'insights' ? 'Search sections...'
+                       : 'Search widgets...')
                     : 'Search chats...'
                 }
                 value={searchTerm}
@@ -312,7 +312,7 @@ const Sidebar = ({
                 if (projects.length === 0) {
                   return (
                     <div className="no-sessions">
-                      {searchTerm ? 'No drafts match' : 'No drafts yet — create one in Deliverables'}
+                      {searchTerm ? 'No drafts match' : 'No drafts yet — create one in Documents'}
                     </div>
                   );
                 }
@@ -400,7 +400,37 @@ const Sidebar = ({
                 });
               }
 
-              // ---------- INSIGHTS / fallback: keep flat list ----------
+              // ---------- INSIGHTS: section list with confidence badges ----------
+              if (canvasSubview === 'insights') {
+                const sections = insightSections.filter(s => !q || s.name.toLowerCase().includes(q));
+                if (sections.length === 0) {
+                  return <div className="no-sessions">{searchTerm ? 'No sections match' : 'No insights yet'}</div>;
+                }
+                return (
+                  <div className="csm-group">
+                    <div className="csm-group-head" style={{ cursor: 'default' }}>
+                      <span className="csm-group-name">Sections</span>
+                      <span className="csm-group-count">{sections.length}</span>
+                    </div>
+                    <div className="csm-group-body">
+                      {sections.map(s => {
+                        const complete = s.taskCount > 0 && s.doneCount === s.taskCount;
+                        return (
+                          <button key={s.id} className={`csm-row ${complete ? 'csm-row-done' : ''}`} onClick={s.onClick}>
+                            <span className="csm-row-bullet"/>
+                            <span className="csm-row-label">{s.name}</span>
+                            {s.taskCount > 0 && (
+                              <span className="csm-row-meta">{s.doneCount}/{s.taskCount}</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
+
+              // ---------- Fallback: flat list (legacy) ----------
               const items = canvasItems.filter(it => !q || it.label.toLowerCase().includes(q));
               if (items.length === 0) {
                 return <div className="no-sessions">{searchTerm ? 'No matches' : 'Nothing here yet'}</div>;

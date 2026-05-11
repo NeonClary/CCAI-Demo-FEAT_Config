@@ -398,6 +398,483 @@
   box-shadow: 0 0 8px var(--canvas-ok);
 }
 
+/* ----- Insights view ----- */
+.canvas-page-with-sidebar .insights-stats {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  padding: 14px 18px;
+  background: var(--canvas-surface);
+  border: 1px solid var(--canvas-border);
+  border-radius: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.canvas-page-with-sidebar[data-canvas-theme="light"] .insights-stats {
+  background: #ffffff;
+  border-color: rgba(15, 15, 15, 0.06);
+}
+.canvas-page-with-sidebar .insights-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 70px;
+}
+.canvas-page-with-sidebar .insights-stat-value {
+  font-family: var(--canvas-mono);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--canvas-text);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.canvas-page-with-sidebar .insights-stat-label {
+  font-size: 11px;
+  color: var(--canvas-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+}
+.canvas-page-with-sidebar .insights-stat-update {
+  font-size: 11px;
+  color: var(--canvas-text-3);
+  font-family: var(--canvas-mono);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.canvas-page-with-sidebar .insights-filters {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.canvas-page-with-sidebar .insights-pinned-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  background: var(--canvas-accent-glow);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+.canvas-page-with-sidebar .insights-pinned-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: var(--canvas-surface);
+  border: 1px solid var(--canvas-border);
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--canvas-text);
+  cursor: pointer;
+  transition: all .12s;
+}
+.canvas-page-with-sidebar .insights-pinned-pill:hover {
+  border-color: var(--canvas-accent);
+  color: var(--canvas-accent);
+}
+
+/* Cards vs Tasks view toggle on the Insights view */
+.canvas-page-with-sidebar .insights-view-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 12px;
+  background: var(--canvas-surface);
+  border: 1px solid var(--canvas-border);
+  border-radius: 7px;
+  padding: 3px;
+}
+.canvas-page-with-sidebar .insights-view-toggle button {
+  background: transparent;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--canvas-text-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.canvas-page-with-sidebar .insights-view-toggle button:hover { color: var(--canvas-text); }
+.canvas-page-with-sidebar .insights-view-toggle button.active {
+  background: var(--canvas-surface-3);
+  color: var(--canvas-text);
+  box-shadow: inset 0 0 0 1px var(--canvas-border-2);
+}
+
+/* Flat task list view */
+.canvas-page-with-sidebar .insights-tasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.canvas-page-with-sidebar .insights-task-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--canvas-surface);
+  border: 1px solid var(--canvas-border);
+  border-radius: 7px;
+  position: relative;
+  transition: background .12s, border-color .12s;
+}
+.canvas-page-with-sidebar .insights-task-row:hover {
+  border-color: var(--canvas-border-2);
+}
+.canvas-page-with-sidebar .insights-task-row.task-completed { opacity: 0.7; }
+.canvas-page-with-sidebar .insights-task-row.task-abandoned { opacity: 0.5; }
+.canvas-page-with-sidebar .insights-task-row.task-completed:hover,
+.canvas-page-with-sidebar .insights-task-row.task-abandoned:hover { opacity: 0.95; }
+.canvas-page-with-sidebar .insights-task-row .insight-task-check { margin-top: 4px; }
+.canvas-page-with-sidebar .insights-task-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.canvas-page-with-sidebar .insights-task-section {
+  background: transparent;
+  border: none;
+  color: var(--canvas-text-3);
+  font-family: var(--canvas-mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.canvas-page-with-sidebar .insights-task-section:hover { color: var(--canvas-accent); }
+.canvas-page-with-sidebar .insights-task-text {
+  font-size: 13px;
+  color: var(--canvas-text);
+  line-height: 1.5;
+}
+.canvas-page-with-sidebar .insights-task-row.task-completed .insights-task-text,
+.canvas-page-with-sidebar .insights-task-row.task-abandoned .insights-task-text {
+  text-decoration: line-through;
+  color: var(--canvas-text-3);
+}
+.canvas-page-with-sidebar .insights-task-text strong { color: var(--canvas-text); }
+
+/* Per-card progress bar — replaces the old single status pill */
+.canvas-page-with-sidebar .insight-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 0 4px;
+}
+.canvas-page-with-sidebar .insight-progress-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--canvas-mono);
+  font-size: 10.5px;
+  color: var(--canvas-text-3);
+}
+.canvas-page-with-sidebar .insight-progress-count { font-weight: 600; }
+.canvas-page-with-sidebar .insight-progress-badge {
+  font-family: var(--canvas-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.canvas-page-with-sidebar .insight-progress-badge.done { background: rgba(16,185,129,0.15); color: #10B981; }
+.canvas-page-with-sidebar .insight-progress-badge.inprog { background: rgba(59,130,246,0.15); color: #3B82F6; }
+.canvas-page-with-sidebar .insight-progress-badge.abandoned { background: var(--canvas-surface-2); color: var(--canvas-text-4); }
+
+.canvas-page-with-sidebar .insight-progress-bar {
+  height: 5px;
+  background: var(--canvas-surface-2);
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+}
+.canvas-page-with-sidebar .insight-progress-bar > i {
+  display: block;
+  height: 100%;
+  transition: width .25s;
+}
+.canvas-page-with-sidebar .insight-progress-bar .ip-completed { background: #10B981; }
+.canvas-page-with-sidebar .insight-progress-bar .ip-inprogress { background: #3B82F6; }
+.canvas-page-with-sidebar .insight-progress-bar .ip-abandoned  { background: var(--canvas-text-4); }
+
+/* Per-bullet tasks inside the body */
+.canvas-page-with-sidebar .insight-tasks {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.canvas-page-with-sidebar .insight-task {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 13px;
+  color: var(--canvas-text-2);
+  line-height: 1.5;
+  position: relative;
+}
+.canvas-page-with-sidebar .insight-task.task-completed .insight-task-text {
+  text-decoration: line-through;
+  color: var(--canvas-text-3);
+  opacity: 0.7;
+}
+.canvas-page-with-sidebar .insight-task.task-abandoned .insight-task-text {
+  text-decoration: line-through;
+  color: var(--canvas-text-4);
+  opacity: 0.5;
+}
+.canvas-page-with-sidebar .insight-task.task-in-progress .insight-task-text {
+  color: var(--canvas-text);
+  font-weight: 500;
+}
+.canvas-page-with-sidebar .insight-task-text { flex: 1; }
+.canvas-page-with-sidebar .insight-task-text strong { color: var(--canvas-text); }
+.canvas-page-with-sidebar .insight-task-check {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1.5px solid currentColor;
+  background: transparent;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  margin-top: 2px;
+  transition: background .12s;
+}
+.canvas-page-with-sidebar .insight-task-check:hover {
+  background: var(--canvas-surface-2);
+}
+.canvas-page-with-sidebar .insight-task.task-completed .insight-task-check {
+  background: #10B981;
+  color: #fff;
+}
+.canvas-page-with-sidebar .insight-task.task-abandoned .insight-task-check {
+  background: var(--canvas-text-4);
+  color: #fff;
+}
+.canvas-page-with-sidebar .task-check-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Sidebar row for a fully-done section gets struck through */
+.sidebar .csm-row-done .csm-row-label {
+  text-decoration: line-through;
+  color: var(--text-tertiary, #9CA3AF);
+}
+.sidebar .csm-row-done .csm-row-meta {
+  color: #10B981;
+  font-weight: 600;
+}
+
+/* Insight status pill + menu */
+.canvas-page-with-sidebar .insight-status-wrap {
+  position: relative;
+}
+.canvas-page-with-sidebar .insight-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background .12s;
+}
+.canvas-page-with-sidebar .insight-status-pill:hover {
+  background: var(--canvas-surface-2);
+}
+.canvas-page-with-sidebar .insight-status-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 5;
+  background: var(--canvas-surface);
+  border: 1px solid var(--canvas-border-2);
+  border-radius: 7px;
+  box-shadow: var(--canvas-shadow-lg);
+  padding: 4px;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+}
+.canvas-page-with-sidebar .insight-status-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--canvas-text);
+  cursor: pointer;
+  text-align: left;
+}
+.canvas-page-with-sidebar .insight-status-menu button:hover {
+  background: var(--canvas-surface-2);
+}
+.canvas-page-with-sidebar .insight-status-menu button.active {
+  background: var(--canvas-accent-glow);
+  color: var(--canvas-accent);
+  font-weight: 600;
+}
+
+/* Card-level status mutes the body when completed/abandoned */
+.canvas-page-with-sidebar .insight.status-completed .insight-body,
+.canvas-page-with-sidebar .insight.status-completed .insight-foot {
+  opacity: 0.65;
+}
+.canvas-page-with-sidebar .insight.status-abandoned {
+  opacity: 0.5;
+}
+.canvas-page-with-sidebar .insight.status-abandoned:hover { opacity: 0.85; }
+
+/* Progress bar in stats — segmented for status mix */
+.canvas-page-with-sidebar .insights-stat-progress {
+  flex: 1;
+  min-width: 180px;
+  max-width: 280px;
+  gap: 4px;
+}
+.canvas-page-with-sidebar .insights-progress-bar {
+  height: 6px;
+  width: 100%;
+  background: var(--canvas-surface-2);
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+}
+.canvas-page-with-sidebar .insights-progress-bar > i {
+  display: block;
+  height: 100%;
+  transition: width .3s;
+}
+.canvas-page-with-sidebar .insights-progress-bar .ip-completed { background: #10B981; }
+.canvas-page-with-sidebar .insights-progress-bar .ip-inprogress { background: #3B82F6; }
+.canvas-page-with-sidebar .insights-progress-bar .ip-abandoned  { background: var(--canvas-text-4); }
+
+/* Confidence ring */
+.canvas-page-with-sidebar .confidence-ring {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.canvas-page-with-sidebar .confidence-ring span {
+  position: absolute;
+  font-family: var(--canvas-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+/* Insight card refinements */
+.canvas-page-with-sidebar .insight {
+  transition: border-color .15s, transform .15s, box-shadow .15s;
+}
+.canvas-page-with-sidebar .insight:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+}
+.canvas-page-with-sidebar .insight.is-pinned {
+  border-color: var(--canvas-accent);
+  background: var(--canvas-surface);
+  box-shadow: 0 0 0 1px var(--canvas-accent-glow);
+}
+.canvas-page-with-sidebar[data-canvas-theme="light"] .insight.is-pinned {
+  background: #ffffff;
+}
+
+/* Insight footer (source count + updated time) */
+.canvas-page-with-sidebar .insight-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0 0;
+  font-size: 11px;
+  color: var(--canvas-text-3);
+}
+.canvas-page-with-sidebar .insight-foot-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--canvas-mono);
+}
+.canvas-page-with-sidebar .insight-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--canvas-text-4);
+}
+
+/* Expanded source-quotes panel */
+.canvas-page-with-sidebar .insight-detail {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--canvas-bg-2);
+  border-left: 2px solid var(--canvas-accent);
+  border-radius: 0 6px 6px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: canvas-view-in 180ms var(--canvas-ease);
+}
+.canvas-page-with-sidebar[data-canvas-theme="light"] .insight-detail {
+  background: rgba(99, 102, 241, 0.04);
+}
+.canvas-page-with-sidebar .insight-detail-head {
+  font-size: 10.5px;
+  font-family: var(--canvas-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--canvas-accent);
+  font-weight: 600;
+}
+.canvas-page-with-sidebar .insight-quote {
+  font-size: 12.5px;
+  color: var(--canvas-text-2);
+  line-height: 1.5;
+  font-style: italic;
+}
+
 /* Insights */
 .canvas-page-with-sidebar .insight-grid {
   display: grid;
@@ -589,6 +1066,10 @@
 .canvas-modal-backdrop .widget-tag-enhanced {
   background: rgba(16, 185, 129, 0.15);
   color: #10B981;
+}
+.canvas-modal-backdrop .widget-tag-chat {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3B82F6;
 }
 .canvas-page-with-sidebar .widget-actions { display: flex; gap: 1px; opacity: 0; transition: opacity .12s; }
 .canvas-page-with-sidebar .widget:hover .widget-actions { opacity: 1; }
@@ -2452,6 +2933,87 @@ body[data-canvas-theme="light"] .canvas-modal-backdrop .critic-meter .bar { back
 }
 .canvas-page-with-sidebar[data-canvas-theme="light"] .canvas-insert-row:hover {
   background: rgba(0, 0, 0, 0.04);
+}
+
+/* PhD Journey milestone rows */
+.canvas-page-with-sidebar .phd-milestone {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background .12s;
+}
+.canvas-page-with-sidebar .phd-milestone:hover { background: var(--canvas-surface-2); }
+.canvas-page-with-sidebar .phd-milestone-check {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1.5px solid var(--canvas-text-4);
+  background: transparent;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  margin-top: 2px;
+  color: #fff;
+  transition: background .12s, border-color .12s;
+}
+.canvas-page-with-sidebar .phd-milestone.milestone-in-progress .phd-milestone-check {
+  background: #3B82F6;
+  border-color: #3B82F6;
+}
+.canvas-page-with-sidebar .phd-milestone.milestone-completed .phd-milestone-check {
+  background: #10B981;
+  border-color: #10B981;
+}
+.canvas-page-with-sidebar .phd-milestone-body { flex: 1; min-width: 0; }
+.canvas-page-with-sidebar .phd-milestone-label {
+  font-size: 13px;
+  color: var(--canvas-text);
+  font-weight: 500;
+  line-height: 1.4;
+}
+.canvas-page-with-sidebar .phd-milestone.milestone-completed .phd-milestone-label {
+  text-decoration: line-through;
+  color: var(--canvas-text-3);
+}
+.canvas-page-with-sidebar .phd-milestone-hint {
+  font-size: 11.5px;
+  color: var(--canvas-text-4);
+  font-style: italic;
+  margin-top: 2px;
+}
+.canvas-page-with-sidebar .phd-milestone-note {
+  font-size: 11.5px;
+  color: var(--canvas-text-2);
+  margin-top: 2px;
+}
+
+/* PhD Resources link rows */
+.canvas-page-with-sidebar .phd-resource-link {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px;
+  background: transparent;
+  border-radius: 5px;
+  text-decoration: none;
+  color: var(--canvas-text);
+  transition: background .12s;
+}
+.canvas-page-with-sidebar .phd-resource-link:hover {
+  background: var(--canvas-surface-2);
+}
+.canvas-page-with-sidebar .phd-resource-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--canvas-accent);
+}
+.canvas-page-with-sidebar .phd-resource-desc {
+  font-size: 11px;
+  color: var(--canvas-text-3);
 }
 
 /* "Coming soon" stub widget — roadmap-preview card, not a dead end */

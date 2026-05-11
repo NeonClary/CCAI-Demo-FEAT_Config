@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Icon from './CanvasIcon';
+import { MOD } from './platform';
 
 const TOUR_KEY = 'canvas-tour-seen-v1';
 
@@ -12,7 +13,7 @@ const STEPS = [
   {
     title: 'Add widgets from the palette',
     icon: 'plus',
-    body: 'Click "Add widget" on the Workspace view, or hit ⌘K and search. There are 30+ widgets — bibliography, kanban, pomodoro, writing tracker, plus three "anti-yes-man" widgets that push back on your thinking.',
+    body: `Click "Add widget" on the Workspace view, or hit ${MOD}+K and search. There are 30+ widgets — bibliography, kanban, pomodoro, writing tracker, plus three "anti-yes-man" widgets that push back on your thinking.`,
   },
   {
     title: 'Make it yours',

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Icon from './CanvasIcon';
+import { MOD } from './platform';
 
 const fireToast = (msg, kind = 'success') =>
   window.dispatchEvent(new CustomEvent('canvas-toast', { detail: { msg, kind } }));
@@ -1431,8 +1432,188 @@ export function DocumenterWidget({ state, setState }) {
           </div>
         ))}
         {entries.length === 0 && (
-          <EmptyState icon="pencil" title="No entries yet" hint="Drop a line about today. Hit ⌘↵ to log it. Tap Weekly summary anytime."/>
+          <EmptyState icon="pencil" title="No entries yet" hint={`Drop a line about today. Hit ${MOD}+↵ to log it. Tap Weekly summary anytime.`}/>
         )}
+      </div>
+    </>
+  );
+}
+
+// ===== PhD Journey — standard milestones with status + notes =====
+// Captures the "General Journey" list: courses, prelim, lit review, IRB,
+// committee, topic, comps, defense, ProQuest. Each milestone has a status
+// (open/in-progress/completed) and an inline note.
+const PHD_MILESTONES = [
+  { id: 'courses', label: 'Course selection & dissertation credits', hint: 'Plan term-by-term. Check funding constraints.' },
+  { id: 'prelim', label: 'Preliminary exam', hint: 'Department format varies — consult your handbook.' },
+  { id: 'lit-review', label: 'Literature review', hint: 'Coverage + critique. Bibliography widget pairs well here.' },
+  { id: 'topic', label: 'Pick dissertation topic', hint: 'Narrow until your advisor pushes back.' },
+  { id: 'committee', label: 'Select committee', hint: 'Pros/cons of a co-chair: more buy-in, more scheduling.' },
+  { id: 'irb', label: 'IRB approval', hint: 'Allow 6–12 weeks. Pre-fill paperwork early.' },
+  { id: 'data', label: 'Data collection', hint: 'Pilot first. Plan for the inevitable instrument failure.' },
+  { id: 'comps', label: 'Comprehensive exam', hint: 'Department format varies.' },
+  { id: 'analysis', label: 'Data analysis & visualization', hint: 'Make the figures before the prose.' },
+  { id: 'writing', label: 'Write dissertation', hint: 'One chapter at a time. Aim for "good enough to defend".' },
+  { id: 'defense', label: 'Oral defense', hint: 'Slides + practice Q&A. Use the Defense Slides template.' },
+  { id: 'proquest', label: 'Final admin (ProQuest upload)', hint: 'Read the formatting checklist before you start formatting.' },
+];
+
+export function PhdJourneyWidget({ state, setState }) {
+  const statuses = state.statuses || {};
+  const notes = state.notes || {};
+  const [editingId, setEditingId] = useState(null);
+  const completed = PHD_MILESTONES.filter(m => statuses[m.id] === 'completed').length;
+  const total = PHD_MILESTONES.length;
+  const pct = Math.round((completed / total) * 100);
+
+  const cycleStatus = (id) => {
+    const cur = statuses[id] || 'open';
+    const next = cur === 'open' ? 'in-progress' : cur === 'in-progress' ? 'completed' : 'open';
+    setState({ ...state, statuses: { ...statuses, [id]: next } });
+  };
+  const updateNote = (id, text) => setState({ ...state, notes: { ...notes, [id]: text } });
+
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--canvas-text-2)' }}>
+        <span style={{ fontFamily: 'var(--canvas-mono)', fontWeight: 700, fontSize: 16, color: 'var(--canvas-text)' }}>
+          {completed}<span style={{ color: 'var(--canvas-text-3)', fontWeight: 500 }}>/{total}</span>
+        </span>
+        <div className="progress" style={{ flex: 1, height: 6 }}>
+          <i style={{ width: pct + '%' }}/>
+        </div>
+        <span style={{ fontFamily: 'var(--canvas-mono)', fontSize: 11, color: 'var(--canvas-text-3)' }}>{pct}%</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {PHD_MILESTONES.map(m => {
+          const status = statuses[m.id] || 'open';
+          const note = notes[m.id] || '';
+          return (
+            <div key={m.id} className={`phd-milestone milestone-${status}`}>
+              <button
+                className="phd-milestone-check"
+                onClick={() => cycleStatus(m.id)}
+                title={`Status: ${status} (click to advance)`}
+              >
+                {status === 'completed' && <Icon name="check" size={11}/>}
+                {status === 'in-progress' && <span className="task-check-dot"/>}
+              </button>
+              <div className="phd-milestone-body" onClick={() => setEditingId(editingId === m.id ? null : m.id)}>
+                <div className="phd-milestone-label">{m.label}</div>
+                {(note || editingId === m.id) ? (
+                  editingId === m.id ? (
+                    <input
+                      className="inline-input"
+                      autoFocus
+                      defaultValue={note}
+                      placeholder={m.hint}
+                      onBlur={(e) => { updateNote(m.id, e.target.value); setEditingId(null); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditingId(null); }}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ marginTop: 2, fontSize: 11.5 }}
+                    />
+                  ) : (
+                    <div className="phd-milestone-note">{note}</div>
+                  )
+                ) : (
+                  <div className="phd-milestone-hint">{m.hint}</div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+// ===== PhD Resources — curated links + open-source apps =====
+// Static curated list of useful PhD tools and resources, plus user-added links.
+const PHD_RESOURCE_GROUPS = [
+  {
+    label: 'Open-source PhD tools',
+    items: [
+      { name: 'Zotero', href: 'https://www.zotero.org/', desc: 'Reference manager — free and open source' },
+      { name: 'Obsidian', href: 'https://obsidian.md/', desc: 'Local-first knowledge graph for notes' },
+      { name: 'JabRef', href: 'https://www.jabref.org/', desc: 'BibTeX-native reference manager' },
+      { name: 'Pandoc', href: 'https://pandoc.org/', desc: 'Universal document converter' },
+      { name: 'Quarto', href: 'https://quarto.org/', desc: 'Scientific publishing with R/Python/Julia' },
+    ],
+  },
+  {
+    label: 'Writing & formatting',
+    items: [
+      { name: 'Overleaf', href: 'https://www.overleaf.com/', desc: 'Browser LaTeX editor with templates' },
+      { name: 'LaTeX Templates', href: 'https://www.latextemplates.com/', desc: 'Thesis, CV, poster templates' },
+      { name: 'Hemingway Editor', href: 'https://hemingwayapp.com/', desc: 'Plain-language readability check' },
+    ],
+  },
+  {
+    label: 'Community & career',
+    items: [
+      { name: 'Academic Twitter / #PhDChat', href: 'https://twitter.com/search?q=%23PhDChat', desc: 'Peers + advisors discussing the grind' },
+      { name: 'ORCID', href: 'https://orcid.org/', desc: 'Permanent researcher ID for citations + grants' },
+      { name: 'Conferences & CFPs (WikiCFP)', href: 'http://www.wikicfp.com/', desc: 'Upcoming deadlines across fields' },
+    ],
+  },
+];
+
+export function PhdResourcesWidget({ state, setState }) {
+  const customLinks = state.customLinks || [];
+  const [name, setName] = useState('');
+  const [href, setHref] = useState('');
+
+  const addLink = () => {
+    if (!name.trim() || !href.trim()) return;
+    setState({ ...state, customLinks: [...customLinks, { id: 'r' + Date.now(), name: name.trim(), href: href.trim() }] });
+    setName(''); setHref('');
+    fireToast('Resource added');
+  };
+  const removeLink = (id) => setState({ ...state, customLinks: customLinks.filter(l => l.id !== id) });
+
+  return (
+    <>
+      {PHD_RESOURCE_GROUPS.map(g => (
+        <div key={g.label}>
+          <div style={{ fontSize: 10, color: 'var(--canvas-text-4)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 6 }}>
+            {g.label}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+            {g.items.map(it => (
+              <a key={it.name} href={it.href} target="_blank" rel="noopener noreferrer" className="phd-resource-link">
+                <span className="phd-resource-name">{it.name}</span>
+                <span className="phd-resource-desc">{it.desc}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      ))}
+      {customLinks.length > 0 && (
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--canvas-text-4)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 6 }}>
+            Your links
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+            {customLinks.map(l => (
+              <div key={l.id} className="phd-resource-link" style={{ position: 'relative' }}>
+                <a href={l.href} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', flexDirection: 'column', flex: 1, textDecoration: 'none', color: 'inherit' }}>
+                  <span className="phd-resource-name">{l.name}</span>
+                  <span className="phd-resource-desc">{l.href}</span>
+                </a>
+                <button className="icon-btn" onClick={() => removeLink(l.id)} style={{ position: 'absolute', right: 4, top: 4, width: 20, height: 20 }}>
+                  <Icon name="x" size={11}/>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 4 }}>
+        <input className="input" placeholder="Resource name" value={name} onChange={e => setName(e.target.value)} style={{ fontSize: 12, padding: '5px 8px' }}/>
+        <input className="input" placeholder="https://…" value={href} onChange={e => setHref(e.target.value)} style={{ fontSize: 12, padding: '5px 8px', flex: 2 }}/>
+        <button className="btn" onClick={addLink} disabled={!name.trim() || !href.trim()}>
+          <Icon name="plus" size={12}/>Add
+        </button>
       </div>
     </>
   );

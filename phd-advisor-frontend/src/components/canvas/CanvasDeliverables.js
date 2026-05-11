@@ -11,6 +11,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import Icon from './CanvasIcon';
+import { MOD } from './platform';
 
 // Markdown plugins shared across all rendered blocks. remark-math + rehype-katex
 // give us real LaTeX math (`$...$` inline, `$$...$$` block) inside any preview.
@@ -138,6 +139,71 @@ export const TEMPLATES = [
       { id: 'body', name: 'Why me', target: 250, hint: 'Specific achievements that match the call. Numbers > adjectives.', checks: ['hasNumber'] },
       { id: 'fit', name: 'Why this place', target: 150, hint: 'What about this group / journal makes it the right fit.', checks: [] },
       { id: 'close', name: 'Close', target: 60, hint: 'Thanks + next step + signature.', checks: [] },
+    ],
+  },
+  {
+    id: 'irb-protocol',
+    name: 'IRB Protocol',
+    desc: 'Standard sections for human-subjects research approval.',
+    icon: 'shield',
+    mode: 'document',
+    sections: [
+      { id: 'overview', name: 'Study overview', target: 200, hint: 'One-paragraph summary of purpose and procedures.', checks: [] },
+      { id: 'background', name: 'Background & significance', target: 400, hint: 'Why this study? What gap does it close?', checks: ['hasGap', 'hasCitation'] },
+      { id: 'aims', name: 'Specific aims & hypotheses', target: 250, hint: '2–3 aims. Each falsifiable.', checks: ['hasHypothesis'] },
+      { id: 'participants', name: 'Participants & recruitment', target: 300, hint: 'Inclusion/exclusion criteria, sample size, recruitment plan.', checks: ['hasNumber'] },
+      { id: 'procedures', name: 'Procedures', target: 500, hint: 'Step-by-step what subjects experience. Time burden in minutes.', checks: ['hasNumber'] },
+      { id: 'risks', name: 'Risks & mitigation', target: 200, hint: 'Anticipated risks (physical, psychological, privacy) + mitigations.', checks: ['hasLimit'] },
+      { id: 'benefits', name: 'Benefits', target: 100, hint: 'Direct + societal benefits. Be honest about minimal direct benefits.', checks: [] },
+      { id: 'consent', name: 'Consent process', target: 200, hint: 'Who consents, when, written or verbal, capacity considerations.', checks: [] },
+      { id: 'data', name: 'Data handling & confidentiality', target: 200, hint: 'Storage, access, identifiers, retention period.', checks: [] },
+    ],
+  },
+  {
+    id: 'meeting-prep',
+    name: 'Advisor Meeting Prep',
+    desc: 'Bring this to your 1:1 — agenda, updates, decisions needed, follow-ups.',
+    icon: 'message',
+    mode: 'document',
+    sections: [
+      { id: 'agenda', name: 'Agenda', target: 80, hint: '3–5 bullets ranked by priority.', checks: [] },
+      { id: 'progress', name: 'Progress since last meeting', target: 200, hint: 'What you actually did, with numbers when possible.', checks: ['hasNumber'] },
+      { id: 'blockers', name: 'Blockers', target: 150, hint: 'What you need from them to move forward.', checks: ['hasLimit'] },
+      { id: 'decisions', name: 'Decisions needed', target: 200, hint: 'Frame as A/B options with your recommendation.', checks: [] },
+      { id: 'questions', name: 'Questions', target: 150, hint: 'Open questions you genuinely want their take on.', checks: [] },
+      { id: 'followup', name: 'Action items (post-meeting)', target: 100, hint: 'Fill in during/after. Owner + due date for each.', checks: [] },
+    ],
+  },
+  {
+    id: 'dissertation-formatting',
+    name: 'Dissertation Formatting Checklist',
+    desc: 'Catch-everything pass before ProQuest submission.',
+    icon: 'shield',
+    mode: 'document',
+    sections: [
+      { id: 'frontmatter', name: 'Front matter', target: 0, hint: 'Title page, copyright, abstract, dedication, acknowledgements, ToC, list of figures/tables.', checks: [] },
+      { id: 'margins', name: 'Margins & spacing', target: 0, hint: 'Verify school requirements. Most: 1" margins, double-spaced body, single-spaced quotes/captions.', checks: ['hasNumber'] },
+      { id: 'fonts', name: 'Fonts & typography', target: 0, hint: 'One body font (Times/Garamond/Cambria) at 12pt. Captions 10–11pt. Headings consistent.', checks: ['hasNumber'] },
+      { id: 'pagenumbers', name: 'Page numbering', target: 0, hint: 'Roman for front matter, Arabic from Intro onward. Check section breaks.', checks: [] },
+      { id: 'figures', name: 'Figures & tables', target: 0, hint: 'Captions below figures, above tables. Numbered. Cited in text before they appear.', checks: ['hasFigure'] },
+      { id: 'citations', name: 'Citations & references', target: 0, hint: 'Consistent style throughout. Every cite has a reference; every reference is cited.', checks: ['hasCitation'] },
+      { id: 'appendices', name: 'Appendices', target: 0, hint: 'Lettered (A, B, C). Each cited in the body at least once.', checks: [] },
+      { id: 'proquest', name: 'ProQuest submission', target: 0, hint: 'PDF/A format, embedded fonts, no broken links, abstract under word limit.', checks: [] },
+    ],
+  },
+  {
+    id: 'faculty-hunt',
+    name: 'Faculty / Advisor Hunt',
+    desc: 'For prospective PhDs or finding committee members — research the people.',
+    icon: 'user',
+    mode: 'document',
+    sections: [
+      { id: 'criteria', name: 'What you\'re looking for', target: 150, hint: 'Research area, methodology, working style, mentorship reputation.', checks: [] },
+      { id: 'shortlist', name: 'Shortlist (5–10 names)', target: 400, hint: 'For each: name, institution, 2–3 representative papers, why they fit.', checks: ['hasCitation'] },
+      { id: 'pubs', name: 'Recent publications', target: 300, hint: 'What have they published in the last 2 years? Drop @keys from Bibliography.', checks: ['hasCitation'] },
+      { id: 'students', name: 'Current/recent students', target: 200, hint: 'Lab size, time-to-defense, where students go after.', checks: ['hasNumber'] },
+      { id: 'reachout', name: 'Outreach plan', target: 200, hint: 'When to email, what to send, who to mention.', checks: [] },
+      { id: 'notes', name: 'Conversation notes', target: 0, hint: 'After meetings/emails — vibes, fit signals, red flags.', checks: [] },
     ],
   },
   {
@@ -397,7 +463,7 @@ const DeliverablesView = ({ allStates }) => {
       <>
         <div className="page-header">
           <div>
-            <h1 className="page-title">Deliverables</h1>
+            <h1 className="page-title">Documents</h1>
             <div className="page-sub">
               Your one-stop deliverable center. Drafts auto-save. Versions kept for rollback.
               {projectList.length > 0 && ` · ${projectList.length} draft${projectList.length === 1 ? '' : 's'} in flight.`}
@@ -858,8 +924,8 @@ const lineWrap = (text, prefix) =>
   (text ? text.split('\n').map(line => line ? `${prefix}${line}` : line).join('\n') : `${prefix}`);
 
 const TOOLBAR = [
-  { id: 'bold',     icon: 'pencil', label: 'Bold (⌘B)',       run: (sel) => wrap(sel, '**') },
-  { id: 'italic',   icon: 'pencil', label: 'Italic (⌘I)',     run: (sel) => wrap(sel, '*') },
+  { id: 'bold',     icon: 'pencil', label: `Bold (${MOD}+B)`,   run: (sel) => wrap(sel, '**') },
+  { id: 'italic',   icon: 'pencil', label: `Italic (${MOD}+I)`, run: (sel) => wrap(sel, '*') },
   { id: 'code',     icon: 'flask',  label: 'Inline code',      run: (sel) => wrap(sel, '`') },
   { id: 'h2',       icon: 'list',   label: 'Heading',          run: (sel) => `## ${sel || 'Heading'}` },
   { id: 'h3',       icon: 'list',   label: 'Subheading',       run: (sel) => `### ${sel || 'Subheading'}` },
