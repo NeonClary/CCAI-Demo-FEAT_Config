@@ -2646,6 +2646,155 @@ body[data-canvas-theme="light"] .canvas-modal-backdrop .critic-meter .bar { back
   background: rgba(0, 0, 0, 0.025);
 }
 
+/* ----- Real LaTeX editor (CodeMirror + LaTeX.js) ----- */
+.canvas-page-with-sidebar .paper-editor-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--canvas-surface);
+  border: 1px solid var(--canvas-border);
+  border-radius: 7px;
+  padding: 3px;
+  margin-bottom: 14px;
+}
+.canvas-page-with-sidebar .paper-editor-toggle-label {
+  font-size: 10.5px;
+  color: var(--canvas-text-4);
+  font-family: var(--canvas-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0 8px 0 6px;
+}
+.canvas-page-with-sidebar .paper-editor-toggle button {
+  background: transparent;
+  border: none;
+  padding: 4px 11px;
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--canvas-text-3);
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.canvas-page-with-sidebar .paper-editor-toggle button:hover { color: var(--canvas-text); }
+.canvas-page-with-sidebar .paper-editor-toggle button.active {
+  background: var(--canvas-surface-3);
+  color: var(--canvas-text);
+  box-shadow: inset 0 0 0 1px var(--canvas-border-2);
+}
+
+.canvas-page-with-sidebar .latex-editor {
+  display: flex;
+  flex-direction: column;
+  background: var(--canvas-surface);
+  border: 1px solid var(--canvas-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.canvas-page-with-sidebar .latex-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--canvas-border);
+  background: var(--canvas-bg-2);
+}
+.canvas-page-with-sidebar .latex-editor-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--canvas-surface);
+  border: 1px solid var(--canvas-border);
+  border-radius: 5px;
+  padding: 2px;
+}
+.canvas-page-with-sidebar .latex-editor-mode button {
+  background: transparent;
+  border: none;
+  padding: 3px 10px;
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 11.5px;
+  color: var(--canvas-text-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+.canvas-page-with-sidebar .latex-editor-mode button.active {
+  background: var(--canvas-surface-3);
+  color: var(--canvas-text);
+}
+.canvas-page-with-sidebar .latex-editor-mode button:hover { color: var(--canvas-text); }
+
+.canvas-page-with-sidebar .latex-editor-panes {
+  display: grid;
+  min-height: 520px;
+  height: 70vh;
+  max-height: 800px;
+}
+.canvas-page-with-sidebar .latex-editor-panes.mode-split { grid-template-columns: 1fr 1fr; }
+.canvas-page-with-sidebar .latex-editor-panes.mode-source,
+.canvas-page-with-sidebar .latex-editor-panes.mode-preview { grid-template-columns: 1fr; }
+
+.canvas-page-with-sidebar .latex-source-pane {
+  border-right: 1px solid var(--canvas-border);
+  overflow: hidden;
+}
+.canvas-page-with-sidebar .latex-source-pane .cm-editor {
+  height: 100%;
+  font-size: 13px;
+}
+.canvas-page-with-sidebar .latex-source-pane .cm-scroller {
+  font-family: var(--canvas-mono);
+}
+.canvas-page-with-sidebar .latex-editor-panes.mode-preview .latex-source-pane,
+.canvas-page-with-sidebar .latex-editor-panes.mode-source ~ .latex-preview-pane {
+  display: none;
+}
+
+.canvas-page-with-sidebar .latex-preview-pane {
+  background: #fdfbf7;
+  color: #1a1a1a;
+  overflow-y: auto;
+  padding: 40px 56px;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  position: relative;
+}
+.canvas-page-with-sidebar[data-canvas-theme="light"] .latex-preview-pane { background: #fdfbf7; }
+.canvas-page-with-sidebar .latex-preview-body {
+  max-width: 720px;
+  margin: 0 auto;
+}
+.canvas-page-with-sidebar .latex-preview-body h1,
+.canvas-page-with-sidebar .latex-preview-body h2,
+.canvas-page-with-sidebar .latex-preview-body h3 {
+  font-family: 'Georgia', serif;
+  color: #0f172a;
+}
+.canvas-page-with-sidebar .latex-preview-body p {
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: #1f2937;
+  text-align: justify;
+}
+.canvas-page-with-sidebar .latex-preview-error {
+  display: flex;
+  gap: 10px;
+  padding: 10px 14px;
+  margin: 0 auto 14px;
+  max-width: 720px;
+  background: rgba(220, 38, 38, 0.08);
+  border-left: 3px solid var(--canvas-danger);
+  border-radius: 4px;
+  color: var(--canvas-danger);
+}
+
+@media (max-width: 900px) {
+  .canvas-page-with-sidebar .latex-editor-panes.mode-split { grid-template-columns: 1fr; }
+  .canvas-page-with-sidebar .latex-editor-panes.mode-split .latex-source-pane { border-right: none; border-bottom: 1px solid var(--canvas-border); }
+}
+
 /* ----- Notion-style single-surface deliverable editor ----- */
 .canvas-page-with-sidebar .notion-deliverable-grid {
   display: grid;

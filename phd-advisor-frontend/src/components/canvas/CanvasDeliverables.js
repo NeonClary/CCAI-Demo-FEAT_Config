@@ -12,6 +12,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import Icon from './CanvasIcon';
 import { MOD } from './platform';
+import LatexEditor from './CanvasLatexEditor';
 
 // Markdown plugins shared across all rendered blocks. remark-math + rehype-katex
 // give us real LaTeX math (`$...$` inline, `$$...$$` block) inside any preview.
@@ -788,11 +789,70 @@ const DeliverablesView = ({ allStates }) => {
 
   // ---------- PAPER / DOCUMENT MODE — Notion single-surface page ----------
   const paperLike = template.mode === 'paper';
+
+  // For paper-mode projects: optional LaTeX editor (CodeMirror + LaTeX.js preview).
+  // Source stored as a single string at project.latexSource.
+  const editorMode = (paperLike && project.editorMode) || 'rich';
+  const setEditorMode = (next) => {
+    setStore(s => {
+      const proj = s.projects[project.id];
+      // First time switching to LaTeX, seed the source from current sections.
+      let nextLatex = proj.latexSource;
+      if (next === 'latex' && (!nextLatex || nextLatex.trim() === '')) {
+        nextLatex = template.sections.map(sec =>
+          `\\section{${sec.name}}\n${proj.sections[sec.id] || ''}\n`
+        ).join('\n');
+      }
+      return {
+        ...s,
+        projects: {
+          ...s.projects,
+          [project.id]: { ...proj, editorMode: next, latexSource: nextLatex },
+        },
+      };
+    });
+  };
+  const updateLatexSource = (src) => {
+    setStore(s => ({
+      ...s,
+      projects: { ...s.projects, [project.id]: { ...s.projects[project.id], latexSource: src } },
+    }));
+  };
+
+  if (paperLike && editorMode === 'latex') {
+    return (
+      <>
+        {ProjectTabs}
+        {Header}
+        {HistoryPanel}
+        <div className="paper-editor-toggle">
+          <span className="paper-editor-toggle-label">Editor</span>
+          <button className="active" onClick={() => setEditorMode('rich')} title="Switch to Notion-style rich editor">
+            LaTeX
+          </button>
+          <button onClick={() => setEditorMode('rich')}>Rich</button>
+        </div>
+        <LatexEditor
+          value={project.latexSource || ''}
+          onChange={updateLatexSource}
+          title={project.name}
+        />
+      </>
+    );
+  }
+
   return (
     <>
       {ProjectTabs}
       {Header}
       {HistoryPanel}
+      {paperLike && (
+        <div className="paper-editor-toggle">
+          <span className="paper-editor-toggle-label">Editor</span>
+          <button onClick={() => setEditorMode('latex')}>LaTeX</button>
+          <button className="active" onClick={() => setEditorMode('rich')}>Rich</button>
+        </div>
+      )}
       <div className="notion-deliverable-grid">
         <div className="notion-toc">
           <div className="notion-toc-label">On this page</div>
