@@ -15,6 +15,8 @@ LOG = logging.getLogger(__name__)
 router = APIRouter()
 
 PROFILE_FIELDS = [
+    "knowledge_level",
+    "timezone",
     "cyber_role",
     "organization_type",
     "primary_domains",
@@ -23,7 +25,6 @@ PROFILE_FIELDS = [
     "compliance_focus",
     "current_goals",
     "learning_preferences",
-    "timezone",
 ]
 
 LIST_FIELDS = {"primary_domains", "certifications", "tools_stack"}
@@ -61,9 +62,33 @@ def _is_field_filled(value: Any) -> bool:
     return bool(value)
 
 
+def enrich_profile_from_user(
+    doc: Optional[Dict[str, Any]], user: User
+) -> Dict[str, Any]:
+    """Merge account signup fields into the profile when profile slots are empty."""
+    merged = dict(doc or {})
+    if user.academicStage and not _is_field_filled(merged.get("knowledge_level")):
+        merged["knowledge_level"] = user.academicStage
+    if user.researchArea and not _is_field_filled(merged.get("timezone")):
+        merged["timezone"] = user.researchArea
+    return merged
+
+
 def _calc_completion(doc: Dict[str, Any]) -> int:
     filled = sum(1 for f in PROFILE_FIELDS if _is_field_filled(doc.get(f)))
     return int(filled / len(PROFILE_FIELDS) * 100)
+
+
+def _profile_response(doc: Dict[str, Any], user: User) -> UserProfileResponse:
+    enriched = enrich_profile_from_user(doc, user)
+    fields = {k: _normalize_field(k, enriched.get(k)) for k in PROFILE_FIELDS}
+    return UserProfileResponse(
+        user_id=str(enriched.get("user_id", user.id)),
+        **fields,
+        advisor_notes=enriched.get("advisor_notes"),
+        updated_at=enriched.get("updated_at"),
+        completion_pct=_calc_completion(enriched),
+    )
 
 
 _SELECT_LOOKUP: Dict[str, Dict[str, str]] = {
@@ -99,6 +124,18 @@ def _normalize_field(key: str, value: Any) -> Any:
     return value
 
 
+async def _sync_profile_to_user(user: User, update_data: Dict[str, Any]) -> None:
+    """Keep users.academicStage / researchArea aligned with profile edits."""
+    user_updates: Dict[str, Any] = {}
+    if "knowledge_level" in update_data:
+        user_updates["academicStage"] = update_data["knowledge_level"] or None
+    if "timezone" in update_data:
+        user_updates["researchArea"] = update_data["timezone"] or None
+    if user_updates:
+        db = get_database()
+        await db.users.update_one({"_id": user.id}, {"$set": user_updates})
+
+
 @router.get("/users/me/profile", response_model=UserProfileResponse)
 async def get_my_profile(
     current_user: User = Depends(get_current_active_user),
@@ -106,18 +143,8 @@ async def get_my_profile(
     db = get_database()
     doc = await db.user_profiles.find_one({"user_id": current_user.id})
     if not doc:
-        resp = UserProfileResponse(user_id=str(current_user.id))
-        if current_user.researchArea:
-            resp.timezone = current_user.researchArea
-        return resp
-    fields = {k: _normalize_field(k, doc.get(k)) for k in PROFILE_FIELDS}
-    return UserProfileResponse(
-        user_id=str(doc["user_id"]),
-        **fields,
-        advisor_notes=doc.get("advisor_notes"),
-        updated_at=doc.get("updated_at"),
-        completion_pct=_calc_completion(doc),
-    )
+        doc = {"user_id": current_user.id}
+    return _profile_response(doc, current_user)
 
 
 @router.put("/users/me/profile", response_model=UserProfileResponse)
@@ -133,15 +160,11 @@ async def update_my_profile(
         {"$set": update_data, "$setOnInsert": {"user_id": current_user.id}},
         upsert=True,
     )
-    doc = await db.user_profiles.find_one({"user_id": current_user.id})
-    fields = {k: _normalize_field(k, doc.get(k)) for k in PROFILE_FIELDS}
-    return UserProfileResponse(
-        user_id=str(doc["user_id"]),
-        **fields,
-        advisor_notes=doc.get("advisor_notes"),
-        updated_at=doc.get("updated_at"),
-        completion_pct=_calc_completion(doc),
-    )
+    await _sync_profile_to_user(current_user, update_data)
+    doc = await db.user_profiles.find_one({"user_id": current_user.id}) or {
+        "user_id": current_user.id
+    }
+    return _profile_response(doc, current_user)
 
 
 class ClearDataRequest(BaseModel):

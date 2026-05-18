@@ -3,7 +3,7 @@
 # ============================================================================
 
 app:
-  title: "Cybersecurity Advisor Canvas"
+  title: "Cybersecurity Advisor"
   subtitle: "AI-Powered Security Guidance"
   primary_color: "#0F172A"
   logo_icon: "Shield"

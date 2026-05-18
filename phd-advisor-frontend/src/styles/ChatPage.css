@@ -79,19 +79,25 @@
   color: white;
 }
 
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .brand-text h1 {
   font-size: 20px;
   font-weight: 700;
   color: var(--text-primary);
   margin: 0;
-  line-height: 1;
+  line-height: 1.2;
 }
 
 .brand-text p {
   font-size: 13px;
   color: var(--text-secondary);
   margin: 0;
-  line-height: 1;
+  line-height: 1.35;
 }
 
 .header-right {
@@ -676,34 +682,6 @@
 /* FIXED: Chat area expansion when sidebar is collapsed */
 .main-chat-area.sidebar-collapsed {
   margin-left: 70px; /* Width of sidebar when collapsed */
-}
-
-/* Session title display in header */
-.session-title-display {
-  display: flex;
-  align-items: center;
-  padding: 6px 12px;
-  background: var(--bg-secondary, #f3f4f6);
-  border-radius: 6px;
-  margin-right: 8px;
-}
-
-.dark .session-title-display {
-  background: var(--bg-secondary-dark, #374151);
-}
-
-.session-title-display span {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary, #111827);
-  max-width: 150px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.dark .session-title-display span {
-  color: var(--text-primary-dark, #f9fafb);
 }
 
 /* Optional header sign out button */

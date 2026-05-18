@@ -1,34 +1,80 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { useAppConfig } from '../contexts/AppConfigContext';
 
-const STEPS = [
-  {
-    title: 'Role & environment',
-    fields: [
-      { key: 'cyber_role', label: 'Your role', type: 'select', options: ['Student / Learner', 'Career changer', 'SOC analyst', 'Security engineer', 'Architect / lead', 'Manager / director', 'Consultant', 'Other'] },
-      { key: 'organization_type', label: 'Organization type', type: 'select', options: ['Startup', 'Mid-size company', 'Enterprise', 'Government / public sector', 'Education', 'MSP / MSSP', 'Independent / job seeker'] },
-      { key: 'timezone', label: 'Time zone', type: 'text', placeholder: 'e.g. America/New_York' },
-    ],
-  },
-  {
-    title: 'Focus & tools',
-    fields: [
-      { key: 'primary_domains', label: 'Primary domains (comma-separated)', type: 'text', placeholder: 'e.g. cloud, appsec, IR, GRC, identity' },
-      { key: 'certifications', label: 'Certifications (comma-separated)', type: 'text', placeholder: 'e.g. Security+, CISSP, OSCP, or none yet' },
-      { key: 'tools_stack', label: 'Tools & platforms (comma-separated)', type: 'text', placeholder: 'e.g. Splunk, CrowdStrike, AWS, Jira' },
-    ],
-  },
-  {
-    title: 'Goals & learning',
-    fields: [
-      { key: 'compliance_focus', label: 'Compliance / frameworks', type: 'text', placeholder: 'e.g. SOC 2, NIST CSF, ISO 27001, HIPAA' },
-      { key: 'current_goals', label: 'Current goals', type: 'textarea', placeholder: 'Audit prep, cert study, incident readiness, architecture review...' },
-      { key: 'learning_preferences', label: 'How you learn best', type: 'text', placeholder: 'Labs, reading, CTFs, mentorship, certifications...' },
-    ],
-  },
-];
+const buildSteps = (config) => {
+  const knowledgeLevels = (config?.login?.knowledge_levels || config?.login?.academic_stages || [])
+    .filter((o) => o.value)
+    .map((o) => ({ value: o.value, label: o.label }));
+
+  const timezones = (config?.login?.timezones || [])
+    .filter((o) => o.value)
+    .map((o) => ({ value: o.value, label: o.label }));
+
+  return [
+    {
+      title: 'Background',
+      fields: [
+        {
+          key: 'knowledge_level',
+          label: 'Cybersecurity knowledge level',
+          type: 'select',
+          options: knowledgeLevels.length
+            ? knowledgeLevels
+            : [
+                { value: 'newcomer', label: 'New to cybersecurity' },
+                { value: 'practitioner', label: 'Practitioner' },
+              ],
+        },
+        {
+          key: 'timezone',
+          label: 'Time zone',
+          type: 'select',
+          options: timezones.length
+            ? timezones
+            : [{ value: 'UTC', label: 'UTC' }],
+        },
+      ],
+    },
+    {
+      title: 'Role & environment',
+      fields: [
+        { key: 'cyber_role', label: 'Your role', type: 'select', options: ['Student / Learner', 'Career changer', 'SOC analyst', 'Security engineer', 'Architect / lead', 'Manager / director', 'Consultant', 'Other'] },
+        { key: 'organization_type', label: 'Organization type', type: 'select', options: ['Startup', 'Mid-size company', 'Enterprise', 'Government / public sector', 'Education', 'MSP / MSSP', 'Independent / job seeker'] },
+      ],
+    },
+    {
+      title: 'Focus & tools',
+      fields: [
+        { key: 'primary_domains', label: 'Primary domains (comma-separated)', type: 'text', placeholder: 'e.g. cloud, appsec, IR, GRC, identity' },
+        { key: 'certifications', label: 'Certifications (comma-separated)', type: 'text', placeholder: 'e.g. Security+, CISSP, OSCP, or none yet' },
+        { key: 'tools_stack', label: 'Tools & platforms (comma-separated)', type: 'text', placeholder: 'e.g. Splunk, CrowdStrike, AWS, Jira' },
+      ],
+    },
+    {
+      title: 'Goals & learning',
+      fields: [
+        { key: 'compliance_focus', label: 'Compliance / frameworks', type: 'text', placeholder: 'e.g. SOC 2, NIST CSF, ISO 27001, HIPAA' },
+        { key: 'current_goals', label: 'Current goals', type: 'textarea', placeholder: 'Audit prep, cert study, incident readiness, architecture review...' },
+        { key: 'learning_preferences', label: 'How you learn best', type: 'text', placeholder: 'Labs, reading, CTFs, mentorship, certifications...' },
+      ],
+    },
+  ];
+};
+
+const initFormFromProfile = (steps, profile) => {
+  const init = {};
+  steps.forEach((s) => s.fields.forEach((f) => {
+    const val = profile[f.key];
+    if (Array.isArray(val)) init[f.key] = val.join(', ');
+    else if (val) init[f.key] = val;
+  }));
+  return init;
+};
 
 const ProfileWalkthrough = ({ authToken, onClose, existingProfile }) => {
+  const { config } = useAppConfig();
+  const steps = useMemo(() => buildSteps(config), [config]);
   const [step, setStep] = useState(0);
   const [formData, setFormData] = useState({});
   const [saving, setSaving] = useState(false);
@@ -43,24 +89,11 @@ const ProfileWalkthrough = ({ authToken, onClose, existingProfile }) => {
         });
         if (resp.ok && !cancelled) {
           const profile = await resp.json();
-          const init = {};
-          STEPS.forEach(s => s.fields.forEach(f => {
-            const val = profile[f.key];
-            if (Array.isArray(val)) init[f.key] = val.join(', ');
-            else if (val) init[f.key] = val;
-          }));
-          setFormData(init);
+          setFormData(initFormFromProfile(steps, profile));
         }
       } catch (e) {
-        // Fall back to existingProfile prop
         if (!cancelled && existingProfile) {
-          const init = {};
-          STEPS.forEach(s => s.fields.forEach(f => {
-            const val = existingProfile[f.key];
-            if (Array.isArray(val)) init[f.key] = val.join(', ');
-            else if (val) init[f.key] = val;
-          }));
-          setFormData(init);
+          setFormData(initFormFromProfile(steps, existingProfile));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -68,19 +101,19 @@ const ProfileWalkthrough = ({ authToken, onClose, existingProfile }) => {
     };
     fetchProfile();
     return () => { cancelled = true; };
-  }, [authToken, existingProfile]);
+  }, [authToken, existingProfile, steps]);
 
-  const handleChange = (key, value) => setFormData(prev => ({ ...prev, [key]: value }));
+  const handleChange = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
   const saveProfile = async () => {
     const payload = { ...formData };
-    ['primary_domains', 'certifications', 'tools_stack'].forEach(k => {
+    ['primary_domains', 'certifications', 'tools_stack'].forEach((k) => {
       if (typeof payload[k] === 'string') {
-        payload[k] = payload[k].split(',').map(s => s.trim()).filter(Boolean);
+        payload[k] = payload[k].split(',').map((s) => s.trim()).filter(Boolean);
       }
     });
-    const hasData = Object.values(payload).some(v =>
-      Array.isArray(v) ? v.length > 0 : Boolean(v)
+    const hasData = Object.values(payload).some((v) =>
+      (Array.isArray(v) ? v.length > 0 : Boolean(v))
     );
     if (!hasData) return;
     try {
@@ -106,8 +139,15 @@ const ProfileWalkthrough = ({ authToken, onClose, existingProfile }) => {
     onClose();
   };
 
-  const currentStep = STEPS[step];
-  const isLast = step === STEPS.length - 1;
+  const currentStep = steps[step];
+  const isLast = step === steps.length - 1;
+
+  const renderSelectOptions = (options) => options.map((o) => {
+    if (o && typeof o === 'object' && o.value != null) {
+      return <option key={o.value} value={o.value}>{o.label}</option>;
+    }
+    return <option key={o} value={o}>{o}</option>;
+  });
 
   return (
     <div onClick={handleClose} style={{
@@ -115,7 +155,7 @@ const ProfileWalkthrough = ({ authToken, onClose, existingProfile }) => {
       background: 'rgba(0,0,0,0.5)', display: 'flex',
       alignItems: 'center', justifyContent: 'center',
     }}>
-      <div onClick={e => e.stopPropagation()} style={{
+      <div onClick={(e) => e.stopPropagation()} style={{
         background: 'var(--bg-primary)', borderRadius: 16,
         width: '90%', maxWidth: 480, padding: 24,
         boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
@@ -125,27 +165,24 @@ const ProfileWalkthrough = ({ authToken, onClose, existingProfile }) => {
             Loading profile...
           </div>
         ) : <>
-        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h3 style={{ margin: 0, fontSize: 16, color: 'var(--text-primary)' }}>
-            {currentStep.title} ({step + 1}/{STEPS.length})
+            {currentStep.title} ({step + 1}/{steps.length})
           </h3>
           <button onClick={handleClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}>
             <X size={18} />
           </button>
         </div>
 
-        {/* Progress bar */}
         <div style={{ height: 4, background: 'var(--bg-secondary)', borderRadius: 2, marginBottom: 20 }}>
           <div style={{
             height: '100%', borderRadius: 2, background: 'var(--accent-primary)',
-            width: `${((step + 1) / STEPS.length) * 100}%`, transition: 'width 0.3s',
+            width: `${((step + 1) / steps.length) * 100}%`, transition: 'width 0.3s',
           }} />
         </div>
 
-        {/* Fields */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {currentStep.fields.map(f => (
+          {currentStep.fields.map((f) => (
             <div key={f.key}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>
                 {f.label}
@@ -153,7 +190,7 @@ const ProfileWalkthrough = ({ authToken, onClose, existingProfile }) => {
               {f.type === 'select' ? (
                 <select
                   value={formData[f.key] || ''}
-                  onChange={e => handleChange(f.key, e.target.value)}
+                  onChange={(e) => handleChange(f.key, e.target.value)}
                   style={{
                     width: '100%', padding: '8px 10px', borderRadius: 8,
                     border: '1px solid var(--border-primary)', background: 'var(--bg-secondary)',
@@ -161,12 +198,12 @@ const ProfileWalkthrough = ({ authToken, onClose, existingProfile }) => {
                   }}
                 >
                   <option value="">Select...</option>
-                  {f.options.map(o => <option key={o} value={o}>{o}</option>)}
+                  {renderSelectOptions(f.options)}
                 </select>
               ) : f.type === 'textarea' ? (
                 <textarea
                   value={formData[f.key] || ''}
-                  onChange={e => handleChange(f.key, e.target.value)}
+                  onChange={(e) => handleChange(f.key, e.target.value)}
                   placeholder={f.placeholder}
                   rows={3}
                   style={{
@@ -179,7 +216,7 @@ const ProfileWalkthrough = ({ authToken, onClose, existingProfile }) => {
                 <input
                   type="text"
                   value={formData[f.key] || ''}
-                  onChange={e => handleChange(f.key, e.target.value)}
+                  onChange={(e) => handleChange(f.key, e.target.value)}
                   placeholder={f.placeholder}
                   style={{
                     width: '100%', padding: '8px 10px', borderRadius: 8,
@@ -192,10 +229,9 @@ const ProfileWalkthrough = ({ authToken, onClose, existingProfile }) => {
           ))}
         </div>
 
-        {/* Navigation */}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
           <button
-            onClick={() => setStep(s => s - 1)}
+            onClick={() => setStep((s) => s - 1)}
             disabled={step === 0}
             style={{
               display: 'flex', alignItems: 'center', gap: 4, padding: '8px 14px',
@@ -222,7 +258,7 @@ const ProfileWalkthrough = ({ authToken, onClose, existingProfile }) => {
             </button>
           ) : (
             <button
-              onClick={() => setStep(s => s + 1)}
+              onClick={() => setStep((s) => s + 1)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 4, padding: '8px 14px',
                 borderRadius: 8, border: 'none',

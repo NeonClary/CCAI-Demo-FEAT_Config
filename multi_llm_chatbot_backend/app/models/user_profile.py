@@ -15,6 +15,8 @@ class UserProfile(BaseModel):
 
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     user_id: PyObjectId
+    knowledge_level: Optional[str] = None
+    timezone: Optional[str] = None
     cyber_role: Optional[str] = None
     organization_type: Optional[str] = None
     primary_domains: List[str] = []
@@ -23,12 +25,13 @@ class UserProfile(BaseModel):
     compliance_focus: Optional[str] = None
     current_goals: Optional[str] = None
     learning_preferences: Optional[str] = None
-    timezone: Optional[str] = None
     advisor_notes: Optional[str] = None
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class UserProfileUpdate(BaseModel):
+    knowledge_level: Optional[str] = None
+    timezone: Optional[str] = None
     cyber_role: Optional[str] = None
     organization_type: Optional[str] = None
     primary_domains: Optional[List[str]] = None
@@ -37,12 +40,13 @@ class UserProfileUpdate(BaseModel):
     compliance_focus: Optional[str] = None
     current_goals: Optional[str] = None
     learning_preferences: Optional[str] = None
-    timezone: Optional[str] = None
     advisor_notes: Optional[str] = None
 
 
 class UserProfileResponse(BaseModel):
     user_id: str
+    knowledge_level: Optional[str] = None
+    timezone: Optional[str] = None
     cyber_role: Optional[str] = None
     organization_type: Optional[str] = None
     primary_domains: List[str] = []
@@ -51,7 +55,6 @@ class UserProfileResponse(BaseModel):
     compliance_focus: Optional[str] = None
     current_goals: Optional[str] = None
     learning_preferences: Optional[str] = None
-    timezone: Optional[str] = None
     advisor_notes: Optional[str] = None
     updated_at: Optional[datetime] = None
     completion_pct: int = 0

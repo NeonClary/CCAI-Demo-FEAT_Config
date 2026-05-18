@@ -35,7 +35,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from app.api.routes.user_profile import _is_field_filled
+from app.api.routes.user_profile import _is_field_filled, enrich_profile_from_user
 from app.core.auth import get_current_active_user
 from app.core.bootstrap import create_llm_client
 from app.core.database import get_database
@@ -77,7 +77,8 @@ async def onboarding_start(
     message is generated based on which fields are still missing.
     """
     db = get_database()
-    profile = await db.user_profiles.find_one({"user_id": current_user.id}) or {}
+    doc = await db.user_profiles.find_one({"user_id": current_user.id})
+    profile = enrich_profile_from_user(doc, current_user)
     progress = _progress(profile)
 
     if progress >= 100:
@@ -128,7 +129,8 @@ async def onboarding_chat(
     current_user: User = Depends(get_current_active_user),
 ) -> Dict[str, Any]:
     db = get_database()
-    profile = await db.user_profiles.find_one({"user_id": current_user.id}) or {}
+    doc = await db.user_profiles.find_one({"user_id": current_user.id})
+    profile = enrich_profile_from_user(doc, current_user)
 
     agent = OnboardingAgent(create_llm_client())
     result = await agent.chat(msg.user_input, current_user.id, profile)

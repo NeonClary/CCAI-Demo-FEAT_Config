@@ -254,19 +254,20 @@ const loadChatSession = async (sessionId) => {
   }
 };
 
-// Save a message to the current session
-const saveMessageToSession = async (message) => {
-  if (!currentSessionId || !authToken) return;
+// Save a message to the current session (optional sessionId when state is not updated yet)
+const saveMessageToSession = async (message, sessionIdOverride) => {
+  const sid = sessionIdOverride || currentSessionId;
+  if (!sid || !authToken) return;
 
   try {
-    await fetch(`${process.env.REACT_APP_API_URL}/api/chat-sessions/${currentSessionId}/messages`, {
+    await fetch(`${process.env.REACT_APP_API_URL}/api/chat-sessions/${sid}/messages`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        session_id: currentSessionId,
+        session_id: sid,
         message: {
           ...message,
           timestamp: message.timestamp.toISOString()
@@ -434,6 +435,10 @@ const handleNewChat = async (sessionId = null) => {
       }
     }
 
+    saveMessageToSession(userMessage, sessionId).catch(err =>
+      console.error('Failed to persist user message:', err)
+    );
+
     // Update session title if this is the first message and title is generic
     if (messages.length === 0 && currentSessionTitle.includes('Chat ')) {
       const newTitle = inputMessage.length > 30 
@@ -456,7 +461,7 @@ const handleNewChat = async (sessionId = null) => {
         body: JSON.stringify({
           user_input: inputMessage,
           response_length: 'medium',
-          chat_session_id: currentSessionId // Include current session ID
+          chat_session_id: sessionId,
         }),
       });
 
@@ -496,7 +501,7 @@ const handleNewChat = async (sessionId = null) => {
               };
               setMessages(prev => [...prev, msg]);
               setThinkingAdvisors(prev => prev.filter(a => a !== d.persona_id));
-              await saveMessageToSession(msg);
+              await saveMessageToSession(msg, sessionId);
               break;
             }
             case 'clarification':
@@ -823,11 +828,6 @@ const handleNewChat = async (sessionId = null) => {
             onNavigateToCanvas={onNavigateToCanvas}
             onMobileMenu={handleMobileMenuToggle}
           >
-            {currentSessionTitle && (
-              <div className="session-title-display">
-                <span>{currentSessionTitle}</span>
-              </div>
-            )}
             <ExportButton
               hasMessages={hasConversationMessages}
               currentSessionId={currentSessionId}
@@ -996,67 +996,10 @@ const handleNewChat = async (sessionId = null) => {
                   ? `Reply to ${replyingTo.advisorName}...`
                   : chatPlaceholder
               }
-              showProfileButtons={!userProfile || userProfile.completion_pct < 100}
-              onOpenOnboarding={() => setShowOnboarding(true)}
-              onOpenProfileForm={() => setShowProfileForm(true)}
             />
           </div>
         </div>
       </div>
-
-      {showOnboarding && (
-        <OnboardingChat
-          authToken={authToken}
-          userName={user?.firstName}
-          onClose={() => { setShowOnboarding(false); loadProfile(); }}
-        />
-      )}
-
-      {showProfileForm && (
-        <ProfileWalkthrough
-          authToken={authToken}
-          existingProfile={userProfile}
-          onClose={() => { setShowProfileForm(false); loadProfile(); }}
-        />
-      )}
-
-      {showClearData && (
-        <ClearDataModal
-          authToken={authToken}
-          onClose={() => setShowClearData(false)}
-          onDataCleared={({ profile: clearedProfile, chats: clearedChats }) => {
-            if (clearedProfile) {
-              setUserProfile(null);
-              loadProfile();
-            }
-            if (clearedChats) {
-              setMessages([]);
-              setCurrentSessionId(null);
-              setCurrentSessionTitle('');
-              handleNewChat();
-            }
-          }}
-        />
-      )}
-
-      {showAccount && (
-        <AccountModal
-          user={user}
-          authToken={authToken}
-          onClose={() => setShowAccount(false)}
-          onAccountUpdated={(updated) => {
-            if (user) {
-              user.firstName = updated.firstName;
-              user.lastName = updated.lastName;
-              user.email = updated.email;
-            }
-          }}
-          onAccountDeleted={() => {
-            setShowAccount(false);
-            onSignOut();
-          }}
-        />
-      )}
     </div>
   );
 };

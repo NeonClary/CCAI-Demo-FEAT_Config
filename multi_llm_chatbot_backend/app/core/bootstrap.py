@@ -2,6 +2,10 @@
 import os
 from pathlib import Path
 
+from app.core.env_loader import load_application_env
+
+load_application_env()
+
 from app.config import get_settings
 from app.llm.improved_gemini_client import ImprovedGeminiClient
 from app.llm.improved_ollama_client import ImprovedOllamaClient
@@ -17,22 +21,35 @@ current_provider = settings.llm.provider or "vllm"
 available_providers = ["ollama", "gemini", "vllm"]
 
 
-def _load_shared_env_vllm_key() -> str:
-    shared = Path.home() / ".secrets" / "shared.env"
-    if shared.exists():
+def _load_shared_env_var(name: str) -> str:
+    explicit = os.environ.get("SHARED_ENV", "").strip()
+    candidates = [Path(explicit)] if explicit else []
+    candidates.append(Path.home() / ".secrets" / "shared.env")
+    prefix = f"{name}="
+    for shared in candidates:
+        if not shared.is_file():
+            continue
         for line in shared.read_text(encoding="utf-8").splitlines():
             line = line.strip()
-            if line.startswith("VLLM_API_KEY="):
+            if line.startswith(prefix):
                 return line.split("=", 1)[1].strip()
     return ""
 
 
 def _vllm_api_key() -> str:
-    return settings.llm.vllm.api_key or os.getenv("VLLM_API_KEY", "") or _load_shared_env_vllm_key()
+    return (
+        settings.llm.vllm.api_key
+        or os.getenv("VLLM_API_KEY", "")
+        or _load_shared_env_var("VLLM_API_KEY")
+    )
 
 
 def _openai_api_key() -> str:
-    return settings.llm.openai.api_key or os.getenv("OPENAI_API_KEY", "")
+    return (
+        settings.llm.openai.api_key
+        or os.getenv("OPENAI_API_KEY", "")
+        or _load_shared_env_var("OPENAI_API_KEY")
+    )
 
 
 def _build_neon_vllm(neon_persona: str | None) -> ImprovedVllmClient:

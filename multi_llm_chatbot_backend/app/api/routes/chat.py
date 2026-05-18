@@ -16,29 +16,22 @@ from app.core.bootstrap import chat_orchestrator
 from app.core.database import get_database
 from app.core.session_manager import get_session_manager
 from app.models.user import User
+from app.api.routes.user_profile import PROFILE_FIELDS, enrich_profile_from_user
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 session_manager = get_session_manager()
 
-_PROFILE_FIELDS = [
-    "cyber_role", "organization_type", "primary_domains", "certifications",
-    "tools_stack", "compliance_focus", "current_goals", "learning_preferences", "timezone",
-]
-
 
 async def _attach_user_profile_context(session, user: User) -> None:
     """Load Mongo profile + signup fields into session for persona prompts."""
     try:
         db = get_database()
-        profile = await db.user_profiles.find_one({"user_id": user.id}) or {}
+        doc = await db.user_profiles.find_one({"user_id": user.id})
+        profile = enrich_profile_from_user(doc, user)
         parts = []
-        if user.academicStage:
-            parts.append(f"knowledge_level: {user.academicStage}")
-        if user.researchArea and not profile.get("timezone"):
-            parts.append(f"timezone: {user.researchArea}")
-        for key in _PROFILE_FIELDS:
+        for key in PROFILE_FIELDS:
             val = profile.get(key)
             if val:
                 if isinstance(val, list):
@@ -183,9 +176,10 @@ async def chat_stream(
                     await done_queue.put(result)
                 except Exception as e:
                     logger.exception(f"chat-stream _run failed for {pid}: {e}")
+                    failed_persona = chat_orchestrator.get_persona(pid)
                     await done_queue.put({
-                        "persona_id": persona.id,
-                        "persona_name": persona.name,
+                        "persona_id": pid,
+                        "persona_name": failed_persona.name if failed_persona else pid,
                         "response": f"I ran into a technical issue. Please try again. ({e!s})",
                         "used_documents": False,
                         "document_chunks_used": 0,

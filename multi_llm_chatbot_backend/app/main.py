@@ -1,9 +1,9 @@
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
 from pathlib import Path
+
+from app.core.env_loader import load_application_env
+
+load_application_env()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

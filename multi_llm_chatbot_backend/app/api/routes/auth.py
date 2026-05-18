@@ -90,17 +90,19 @@ async def signup(user_data: UserCreate):
         result = await db.users.insert_one(user.dict(by_alias=True))
         user.id = result.inserted_id
 
-        profile_seed = {}
+        profile_seed: dict = {
+            "user_id": user.id,
+            "updated_at": datetime.utcnow(),
+        }
+        if user_data.academicStage:
+            profile_seed["knowledge_level"] = user_data.academicStage
         if user_data.researchArea:
             profile_seed["timezone"] = user_data.researchArea
-        if profile_seed:
-            profile_seed["user_id"] = user.id
-            profile_seed["updated_at"] = datetime.utcnow()
-            await db.user_profiles.update_one(
-                {"user_id": user.id},
-                {"$set": profile_seed},
-                upsert=True,
-            )
+        await db.user_profiles.update_one(
+            {"user_id": user.id},
+            {"$set": profile_seed},
+            upsert=True,
+        )
         
         # Create access token
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -260,11 +262,15 @@ async def update_profile(
                 )
 
         await db.users.update_one({"_id": current_user.id}, {"$set": updates})
-        if body.researchArea:
+        profile_sync: dict = {"updated_at": datetime.utcnow()}
+        if body.academicStage is not None:
+            profile_sync["knowledge_level"] = body.academicStage
+        if body.researchArea is not None:
+            profile_sync["timezone"] = body.researchArea
+        if len(profile_sync) > 1:
             await db.user_profiles.update_one(
                 {"user_id": current_user.id},
-                {"$set": {"timezone": body.researchArea, "updated_at": datetime.utcnow()},
-                 "$setOnInsert": {"user_id": current_user.id}},
+                {"$set": profile_sync, "$setOnInsert": {"user_id": current_user.id}},
                 upsert=True,
             )
         updated_user = await db.users.find_one({"_id": current_user.id})

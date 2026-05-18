@@ -13,6 +13,10 @@ from app.core.database import get_database
 LOG = logging.getLogger(__name__)
 
 PROFILE_FIELDS: List[tuple] = [
+    ("knowledge_level", "What is your cybersecurity knowledge level?",
+     "Level such as newcomer, foundational, practitioner, experienced, or expert"),
+    ("timezone", "What time zone are you usually in?",
+     "IANA timezone or region such as America/New_York, Europe/London, UTC"),
     ("cyber_role", "What best describes your role right now?",
      "Job or learning role: student, SOC analyst, engineer, architect, manager, career changer, etc."),
     ("organization_type", "What type of organization are you in (or targeting)?",
@@ -29,8 +33,6 @@ PROFILE_FIELDS: List[tuple] = [
      "Incident readiness, certification, job search, architecture review, audit prep, etc."),
     ("learning_preferences", "How do you prefer to learn new security concepts?",
      "Hands-on labs, reading, videos, mentorship, certifications, capture-the-flag, etc."),
-    ("timezone", "What time zone are you usually in?",
-     "IANA timezone or region such as America/New_York, Europe/London, UTC"),
 ]
 
 
