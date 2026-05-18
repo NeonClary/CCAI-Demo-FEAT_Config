@@ -12,6 +12,10 @@ import { useTheme } from '../contexts/ThemeContext';
 import '../styles/ChatPage.css';
 import '../styles/EnhancedChatInput.css';
 import AdvisorCarousel from '../components/AdvisorCarousel';
+import OnboardingChat from '../components/OnboardingChat';
+import ProfileWalkthrough from '../components/ProfileWalkthrough';
+import ClearDataModal from '../components/ClearDataModal';
+import AccountModal from '../components/AccountModal';
 
 const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onSignOut }) => {
   const { config, advisors, getAdvisorColors } = useAppConfig();
@@ -32,6 +36,46 @@ const ChatPage = ({ user, authToken, onNavigateToHome, onNavigateToCanvas, onSig
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [sidebarRefreshTrigger, setSidebarRefreshTrigger] = useState(0);
+
+  const [userAvatarId, setUserAvatarId] = useState(
+    () => localStorage.getItem('userAvatarId') || (user?.avatarId ?? null)
+  );
+  const avatarOptions = config?.app?.user_avatars || [];
+
+  const handleAvatarChange = async (id) => {
+    setUserAvatarId(id);
+    localStorage.setItem('userAvatarId', id);
+    try {
+      await fetch(`${process.env.REACT_APP_API_URL}/auth/me`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatarId: id }),
+      });
+    } catch (e) {
+      console.error('Failed to save avatar:', e);
+    }
+  };
+
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showProfileForm, setShowProfileForm] = useState(false);
+  const [showClearData, setShowClearData] = useState(false);
+  const [showAccount, setShowAccount] = useState(false);
+  const [userProfile, setUserProfile] = useState(null);
+
+  const loadProfile = async () => {
+    try {
+      const resp = await fetch(`${process.env.REACT_APP_API_URL}/api/users/me/profile`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (resp.ok) setUserProfile(await resp.json());
+    } catch (e) {
+      /* ignore */
+    }
+  };
+
+  useEffect(() => {
+    if (authToken) loadProfile();
+  }, [authToken]);
 
   
 
@@ -763,6 +807,11 @@ const handleNewChat = async (sessionId = null) => {
         onMobileToggle={setIsMobileMenuOpen}
         onNavigateToCanvas={onNavigateToCanvas}
         refreshTrigger={sidebarRefreshTrigger}
+        userAvatarId={userAvatarId}
+        onAvatarChange={handleAvatarChange}
+        onOpenProfile={() => setShowProfileForm(true)}
+        onOpenAccount={() => setShowAccount(true)}
+        onOpenClearData={() => setShowClearData(true)}
       />
       
       <div className={`main-chat-area ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
@@ -947,10 +996,67 @@ const handleNewChat = async (sessionId = null) => {
                   ? `Reply to ${replyingTo.advisorName}...`
                   : chatPlaceholder
               }
+              showProfileButtons={!userProfile || userProfile.completion_pct < 100}
+              onOpenOnboarding={() => setShowOnboarding(true)}
+              onOpenProfileForm={() => setShowProfileForm(true)}
             />
           </div>
         </div>
       </div>
+
+      {showOnboarding && (
+        <OnboardingChat
+          authToken={authToken}
+          userName={user?.firstName}
+          onClose={() => { setShowOnboarding(false); loadProfile(); }}
+        />
+      )}
+
+      {showProfileForm && (
+        <ProfileWalkthrough
+          authToken={authToken}
+          existingProfile={userProfile}
+          onClose={() => { setShowProfileForm(false); loadProfile(); }}
+        />
+      )}
+
+      {showClearData && (
+        <ClearDataModal
+          authToken={authToken}
+          onClose={() => setShowClearData(false)}
+          onDataCleared={({ profile: clearedProfile, chats: clearedChats }) => {
+            if (clearedProfile) {
+              setUserProfile(null);
+              loadProfile();
+            }
+            if (clearedChats) {
+              setMessages([]);
+              setCurrentSessionId(null);
+              setCurrentSessionTitle('');
+              handleNewChat();
+            }
+          }}
+        />
+      )}
+
+      {showAccount && (
+        <AccountModal
+          user={user}
+          authToken={authToken}
+          onClose={() => setShowAccount(false)}
+          onAccountUpdated={(updated) => {
+            if (user) {
+              user.firstName = updated.firstName;
+              user.lastName = updated.lastName;
+              user.email = updated.email;
+            }
+          }}
+          onAccountDeleted={() => {
+            setShowAccount(false);
+            onSignOut();
+          }}
+        />
+      )}
     </div>
   );
 };

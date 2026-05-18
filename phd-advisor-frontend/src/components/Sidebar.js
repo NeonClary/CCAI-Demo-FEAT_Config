@@ -7,12 +7,17 @@ import {
   Trash2,
   LogOut,
   User,
-  Settings,
+  UserCircle,
+  DatabaseZap,
+  KeyRound,
   PanelLeft,
   FileText,
   ChevronRight,
   Clock
 } from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
+import { useAppConfig } from '../contexts/AppConfigContext';
+import UserAvatarPicker from './UserAvatarPicker';
 import CopyrightNotice from './CopyrightNotice';
 import '../styles/Sidebar.css';
 
@@ -34,8 +39,18 @@ const Sidebar = ({
   widgetGroups = [],
   deliverableProjects = [],
   insightSections = [],
+  userAvatarId,
+  onAvatarChange,
+  onOpenProfile,
+  onOpenAccount,
+  onOpenClearData,
 }) => {
+  const { config } = useAppConfig();
   const isOnCanvas = pageContext === 'canvas';
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const avatarOptions = config?.app?.user_avatars || [];
+  const currentAvatar = avatarOptions.find(a => a.id === userAvatarId);
+  const AvatarIcon = currentAvatar ? (LucideIcons[currentAvatar.icon] || User) : User;
   const [expanded, setExpanded] = useState(() => {
     try { return JSON.parse(localStorage.getItem('sidebar-expanded-v1') || '{}'); } catch { return {}; }
   });
@@ -198,8 +213,17 @@ const Sidebar = ({
             <>
               <div className="user-section">
                 <div className="user-info">
-                  <div className="user-avatar">
-                    <User size={20} />
+                  <div
+                    className="user-avatar"
+                    onClick={() => onAvatarChange && setShowAvatarPicker(true)}
+                    style={{
+                      cursor: onAvatarChange ? 'pointer' : undefined,
+                      backgroundColor: currentAvatar?.bg || undefined,
+                      color: currentAvatar?.color || undefined,
+                    }}
+                    title={onAvatarChange ? 'Change avatar' : undefined}
+                  >
+                    <AvatarIcon size={20} />
                   </div>
                   <div className="user-details">
                     <span className="user-name">{user.firstName} {user.lastName}</span>
@@ -227,9 +251,21 @@ const Sidebar = ({
                     
                     {showUserMenu && (
                       <div className="user-menu">
-                        <button className="user-menu-item">
-                          <Settings size={16} />
-                          <span>Settings</span>
+                        <button className="user-menu-item" onClick={() => { setShowUserMenu(false); setShowAvatarPicker(true); }}>
+                          <User size={16} />
+                          <span>Change Avatar</span>
+                        </button>
+                        <button className="user-menu-item" onClick={() => { setShowUserMenu(false); if (onOpenProfile) onOpenProfile(); }}>
+                          <UserCircle size={16} />
+                          <span>Profile</span>
+                        </button>
+                        <button className="user-menu-item" onClick={() => { setShowUserMenu(false); if (onOpenAccount) onOpenAccount(); }}>
+                          <KeyRound size={16} />
+                          <span>Account</span>
+                        </button>
+                        <button className="user-menu-item" onClick={() => { setShowUserMenu(false); if (onOpenClearData) onOpenClearData(); }}>
+                          <DatabaseZap size={16} />
+                          <span>Clear User Data</span>
                         </button>
                         <button className="user-menu-item sign-out" onClick={onSignOut}>
                           <LogOut size={16} />
@@ -524,6 +560,15 @@ const Sidebar = ({
         </div>
       </div>
       
+      {showAvatarPicker && (
+        <UserAvatarPicker
+          options={avatarOptions}
+          currentId={userAvatarId}
+          onSelect={(id) => { onAvatarChange?.(id); setShowAvatarPicker(false); }}
+          onClose={() => setShowAvatarPicker(false)}
+        />
+      )}
+
       {isMobileOpen && (
         <div 
           className="mobile-sidebar-overlay visible" 

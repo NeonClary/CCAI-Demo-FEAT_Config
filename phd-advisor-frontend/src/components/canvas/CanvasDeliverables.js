@@ -32,8 +32,8 @@ const newId = (p) => p + Math.random().toString(36).slice(2, 8);
 export const TEMPLATES = [
   {
     id: 'research-paper',
-    name: 'Research Paper',
-    desc: 'Abstract → Introduction → Methods → Results → Discussion → References',
+    name: 'Security Assessment Report',
+    desc: 'Executive summary → Scope → Findings → Risk rating → Remediation → Appendix',
     icon: 'book',
     mode: 'paper',
     sections: [
@@ -47,8 +47,8 @@ export const TEMPLATES = [
   },
   {
     id: 'thesis-chapter',
-    name: 'Thesis Chapter',
-    desc: 'Standard chapter scaffolding for a dissertation.',
+    name: 'Incident Report',
+    desc: 'Timeline → Impact → Root cause → Containment → Lessons learned',
     icon: 'book',
     mode: 'paper',
     sections: [
@@ -466,7 +466,7 @@ const DeliverablesView = ({ allStates }) => {
           <div>
             <h1 className="page-title">Documents</h1>
             <div className="page-sub">
-              Your one-stop deliverable center. Drafts auto-save. Versions kept for rollback.
+              Security deliverables hub — policies, IR reports, audit evidence, and architecture briefs. Drafts auto-save. Versions kept for rollback.
               {projectList.length > 0 && ` · ${projectList.length} draft${projectList.length === 1 ? '' : 's'} in flight.`}
             </div>
           </div>

@@ -709,11 +709,6 @@ When analyzing the document context:
 
     Always cite your sources when referencing information from their documents using the format: "According to your [document_name]..." or "In your [section_name] from [document_name]..."
     """
-            
-            enhanced_context.append({
-                "role": "system",
-                "content": system_message
-            })
         else:
             # NO DOCUMENTS - Explicitly tell persona not to reference documents
             system_message = f"""{persona.system_prompt}
@@ -726,11 +721,17 @@ When analyzing the document context:
     3. Provide general guidance based on best practices in your area of expertise
 
     Do NOT make up document names or pretend to have access to files that don't exist."""
-            
-            enhanced_context.append({
-                "role": "system", 
-                "content": system_message
-            })
+
+        if hasattr(session, "user_profile_context") and session.user_profile_context:
+            system_message += (
+                f"\n\n{session.user_profile_context}\n"
+                "Use this background to calibrate technical depth, examples, and priorities."
+            )
+
+        enhanced_context.append({
+            "role": "system",
+            "content": system_message,
+        })
 
         # Add recent conversation messages (excluding system messages to avoid duplication)
         for message in recent_messages:

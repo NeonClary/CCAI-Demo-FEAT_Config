@@ -22,6 +22,33 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 session_manager = get_session_manager()
 
+_PROFILE_FIELDS = [
+    "cyber_role", "organization_type", "primary_domains", "certifications",
+    "tools_stack", "compliance_focus", "current_goals", "learning_preferences", "timezone",
+]
+
+
+async def _attach_user_profile_context(session, user: User) -> None:
+    """Load Mongo profile + signup fields into session for persona prompts."""
+    try:
+        db = get_database()
+        profile = await db.user_profiles.find_one({"user_id": user.id}) or {}
+        parts = []
+        if user.academicStage:
+            parts.append(f"knowledge_level: {user.academicStage}")
+        if user.researchArea and not profile.get("timezone"):
+            parts.append(f"timezone: {user.researchArea}")
+        for key in _PROFILE_FIELDS:
+            val = profile.get(key)
+            if val:
+                if isinstance(val, list):
+                    val = ", ".join(str(v) for v in val)
+                parts.append(f"{key}: {val}")
+        if parts:
+            session.user_profile_context = "USER SECURITY PROFILE: " + "; ".join(parts)
+    except Exception as prof_err:
+        logger.warning(f"Could not load user profile: {prof_err}")
+
 # Enhanced data models
 class UserInput(BaseModel):
     user_input: str
@@ -91,6 +118,7 @@ async def chat_stream(
                 sid = await get_or_create_session_for_request_async(request)
 
             session = session_manager.get_session(sid)
+            await _attach_user_profile_context(session, current_user)
 
             # Append user message to in-memory session and persist to MongoDB
             session.append_message("user", message.user_input)

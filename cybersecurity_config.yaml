@@ -8,6 +8,15 @@ app:
   primary_color: "#0F172A"
   logo_icon: "Shield"
   footer_text: "© 2026 Neon AI. All rights reserved."
+  user_avatars:
+    - { id: "shield-slate", icon: "Shield", color: "#0F172A", bg: "#F1F5F9" }
+    - { id: "user-blue", icon: "User", color: "#2563EB", bg: "#EFF6FF" }
+    - { id: "lock-red", icon: "Lock", color: "#DC2626", bg: "#FEF2F2" }
+    - { id: "terminal-green", icon: "Terminal", color: "#059669", bg: "#ECFDF5" }
+    - { id: "bug-amber", icon: "Bug", color: "#F59E0B", bg: "#FFFBEB" }
+    - { id: "server-cyan", icon: "Server", color: "#0891B2", bg: "#ECFEFF" }
+    - { id: "key-purple", icon: "KeyRound", color: "#7C3AED", bg: "#F3E8FF" }
+    - { id: "radar-rose", icon: "Radar", color: "#E11D48", bg: "#FFF1F2" }
 
 homepage:
   headline_prefix: "Strengthen Your Security Posture with"
@@ -31,15 +40,34 @@ homepage:
 login:
   subtitle: "Sign in to continue your security journey"
   signup_subtitle: "Create your account for personalized guidance from our cybersecurity advisor panel"
+  knowledge_levels:
+    - { value: "", label: "Select your cybersecurity knowledge level" }
+    - { value: "newcomer", label: "New to cybersecurity" }
+    - { value: "foundational", label: "Foundational — coursework or self-study" }
+    - { value: "practitioner", label: "Practitioner — hands-on experience" }
+    - { value: "experienced", label: "Experienced — multi-year professional" }
+    - { value: "expert", label: "Expert / specialist" }
+  timezones:
+    - { value: "", label: "Select timezone (optional)" }
+    - { value: "America/New_York", label: "Eastern (US)" }
+    - { value: "America/Chicago", label: "Central (US)" }
+    - { value: "America/Denver", label: "Mountain (US)" }
+    - { value: "America/Los_Angeles", label: "Pacific (US)" }
+    - { value: "America/Anchorage", label: "Alaska (US)" }
+    - { value: "Pacific/Honolulu", label: "Hawaii (US)" }
+    - { value: "Europe/London", label: "UK / Ireland" }
+    - { value: "Europe/Paris", label: "Central Europe" }
+    - { value: "Asia/Tokyo", label: "Japan" }
+    - { value: "Asia/Singapore", label: "Singapore" }
+    - { value: "Australia/Sydney", label: "Australia (East)" }
+    - { value: "UTC", label: "UTC" }
   academic_stages:
-    - { value: "", label: "Select your experience level" }
-    - { value: "student", label: "Student / Learner" }
-    - { value: "career-changer", label: "Career Changer" }
-    - { value: "junior-analyst", label: "Junior Analyst" }
-    - { value: "soc-analyst", label: "SOC Analyst" }
-    - { value: "engineer", label: "Security Engineer" }
-    - { value: "architect", label: "Architect / Lead" }
-    - { value: "manager", label: "Manager / Director" }
+    - { value: "", label: "Select your cybersecurity knowledge level" }
+    - { value: "newcomer", label: "New to cybersecurity" }
+    - { value: "foundational", label: "Foundational — coursework or self-study" }
+    - { value: "practitioner", label: "Practitioner — hands-on experience" }
+    - { value: "experienced", label: "Experienced — multi-year professional" }
+    - { value: "expert", label: "Expert / specialist" }
 
 chat_page:
   placeholder: "Ask your advisors about threats, controls, incidents, compliance, or your security career..."

@@ -48,11 +48,19 @@ class FeatureConfig(_IconValidatorMixin):
     icon: str = "HelpCircle"
 
 
+class UserAvatarOption(BaseModel):
+    id: str
+    icon: str = "User"
+    color: str = "#2563EB"
+    bg: str = "#EFF6FF"
+
+
 class AppConfig(BaseModel):
     title: str = "Advisor Canvas"
     subtitle: str = "AI-Powered Guidance"
     primary_color: str = "#7C3AED"
     footer_text: str = ""
+    user_avatars: List[UserAvatarOption] = []
 
 
 class HomepageConfig(BaseModel):
@@ -72,6 +80,8 @@ class LoginConfig(BaseModel):
     subtitle: str = "Sign in to continue"
     signup_subtitle: str = "Create your account to get personalized guidance from expert advisors"
     academic_stages: List[AcademicStage] = []
+    knowledge_levels: List[AcademicStage] = []
+    timezones: List[AcademicStage] = []
 
 
 class ExampleCategory(_IconValidatorMixin):
