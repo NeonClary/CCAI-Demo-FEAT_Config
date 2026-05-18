@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import Icon from './CanvasIcon';
 import { MOD } from './platform';
 
-const TOUR_KEY = 'canvas-tour-seen-v1';
+const TOUR_KEY = 'canvas-tour-seen-cyber-v1';
 
 const STEPS = [
   {
-    title: 'Welcome to your Canvas',
-    icon: 'sparkles',
-    body: 'This is your research workspace. Two views — Insights (AI-summarized highlights from your chats) and Workspace (a customizable dashboard of widgets). It starts empty so you can build it the way you want.',
+    title: 'Welcome to your Security Canvas',
+    icon: 'shield',
+    body: 'This is your security operations workspace. Two views ΓÇö Insights (highlights from your chats) and Workspace (a customizable dashboard of widgets). It starts empty so you can build it the way you want.',
   },
   {
     title: 'Add widgets from the palette',
     icon: 'plus',
-    body: `Click "Add widget" on the Workspace view, or hit ${MOD}+K and search. There are 30+ widgets — bibliography, kanban, pomodoro, writing tracker, plus three "anti-yes-man" widgets that push back on your thinking.`,
+    body: `Click "Add widget" on the Workspace view, or hit ${MOD}+K and search. There are 30+ widgets ΓÇö incidents, deadlines, controls, reading, plus challenge widgets that push back on weak assumptions.`,
   },
   {
     title: 'Make it yours',
@@ -21,9 +21,9 @@ const STEPS = [
     body: 'Drag widget headers to reorder. Click the size pill (S/M/L) to resize. Hover and click trash to remove. Layout and content auto-save to your browser.',
   },
   {
-    title: 'Try the anti-yes-man widgets',
+    title: 'Try the challenge widgets',
     icon: 'gavel',
-    body: 'Reviewer 2, Devil\'s Advocate, and Scope Realism are tuned to push back, not validate. They\'re where the real work gets sharpened. Add them last — when you\'re ready for honest feedback.',
+    body: 'Reviewer 2, Devil\'s Advocate, and Scope Realism are tuned to push back, not validate. They\'re where the real work gets sharpened. Add them last ΓÇö when you\'re ready for honest feedback.',
   },
 ];
 

@@ -263,12 +263,29 @@ class OllamaConfig(BaseModel):
 class VllmConfig(BaseModel):
     api_url: str = ""
     api_key: str = Field(default=os.getenv("VLLM_API_KEY", ""))
+    model_id: str = ""
+    neon_persona_orchestrator: str = "vanilla"
+    neon_persona_advisors: str = "CybersecurityExpert"
+
+
+class OpenAIConfig(BaseModel):
+    api_key: str = Field(default=os.getenv("OPENAI_API_KEY", ""))
+    model: str = "gpt-5.4"
+    orchestrator_reasoning_effort: str = "low"
+    persona_reasoning_effort: str = "none"
+
+
+class ResilientConfig(BaseModel):
+    race_timeout_seconds: float = 3.0
 
 
 class LLMConfig(BaseModel):
+    provider: str = "gemini"
     gemini: GeminiConfig = GeminiConfig()
     ollama: OllamaConfig = OllamaConfig()
     vllm: VllmConfig = VllmConfig()
+    openai: OpenAIConfig = OpenAIConfig()
+    resilient: ResilientConfig = ResilientConfig()
 
 
 class RAGConfig(BaseModel):

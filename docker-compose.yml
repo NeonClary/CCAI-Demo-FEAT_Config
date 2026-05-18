@@ -12,26 +12,31 @@ services:
       - database
     environment:
       MONGODB_CONNECTION_STRING: "mongodb://database:27017"
-      MONGODB_DATABASE: phd_advisor
+      MONGODB_DATABASE: cybersecurity_advisor
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-CHANGEME-by-overriding-in-dot-env-file}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-?}
       VLLM_API_KEY: ${VLLM_API_KEY:-}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3010,http://localhost:3000}
       GEMINI_MODEL: gemini-2.5-flash
-      CONFIG_PATH: ${CONFIG_PATH:-/ccai/phd_config.yaml}
+      CONFIG_PATH: ${CONFIG_PATH:-/ccai/cybersecurity_config.yaml}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   frontend:
     build:
       context: .
       dockerfile: Dockerfile
       target: frontend
     ports:
-      - "3000:3000"
+      - "3010:3010"
     networks:
       - application
     depends_on:
       - backend
     environment:
       REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:8000}
+      PORT: "3010"
+      HOST: "0.0.0.0"
+      WDS_SOCKET_PORT: "3010"
+      BROWSER: "none"
   database:
     image: mongo:8.0
     volumes:

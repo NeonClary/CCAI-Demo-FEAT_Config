@@ -6,6 +6,7 @@ python-multipart~=0.0
 # HTTP client for LLM APIs
 httpx~=0.28
 openai~=2.30
+huggingface-hub~=0.36
 
 # Document processing
 PyPDF2~=3.0

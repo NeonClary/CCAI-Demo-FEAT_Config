@@ -1,14 +1,14 @@
-// Demo data for a Year-2 PhD student in computational neuroscience.
+// Demo data for a security program lead preparing for a SOC 2 audit.
 
 export const DEMO_PROJECT = {
-  title: "Cortical Predictive Coding in Mouse V1",
-  meta: "Year 2 · PhD · Adv. Dr. Reineke",
+  title: "Zero Trust Rollout — Production SaaS",
+  meta: "Security Engineer · Q2 audit prep",
 };
 
 export const INSIGHTS = [
   {
     id: 'i-progress',
-    title: 'Research progress',
+    title: 'Program progress',
     icon: 'graph',
     category: 'progress',
     confidence: 78,
@@ -28,7 +28,7 @@ export const INSIGHTS = [
   },
   {
     id: 'i-method',
-    title: 'Methodology',
+    title: 'Controls posture',
     icon: 'flask',
     category: 'theory',
     confidence: 64,
@@ -47,7 +47,7 @@ export const INSIGHTS = [
   },
   {
     id: 'i-lit',
-    title: 'Literature review',
+    title: 'Threat landscape',
     icon: 'book',
     category: 'literature',
     confidence: 71,
@@ -145,8 +145,8 @@ export const WIDGET_CATALOG = [
   { type: 'calendar', name: 'Calendar', desc: 'Month grid with deadlines and writing days', icon: 'calendar', cat: 'project', defaultSize: 'M', enhanced: true },
   { type: 'activity', name: 'Activity Feed', desc: 'Chronological log of edits across widgets', icon: 'graph', cat: 'project', defaultSize: 'M', enhanced: true },
   { type: 'documenter', name: 'Daily Documenter', desc: 'Date-stamped journal · AI weekly summary (LLM stub)', icon: 'pencil', cat: 'project', defaultSize: 'M', enhanced: true },
-  { type: 'phd-journey', name: 'PhD Journey', desc: 'Standard PhD milestones — courses → defense → ProQuest', icon: 'flag', cat: 'project', defaultSize: 'M', enhanced: true },
-  { type: 'phd-resources', name: 'PhD Resources', desc: 'Curated open-source tools, handbooks, and community links', icon: 'star', cat: 'research', defaultSize: 'M', enhanced: true },
+  { type: 'phd-journey', name: 'Security Program Roadmap', desc: 'Milestones from assessment → hardening → audit → steady state', icon: 'flag', cat: 'project', defaultSize: 'M', enhanced: true },
+  { type: 'phd-resources', name: 'Security Resources', desc: 'Frameworks, tools, training, and community references', icon: 'star', cat: 'research', defaultSize: 'M', enhanced: true },
 
   { type: 'mood', name: 'Mood / Burnout Check-in', desc: 'Daily slider, trend graph', icon: 'smile', cat: 'wellness', defaultSize: 'S', stub: true },
   { type: 'sleep', name: 'Sleep & Energy', desc: 'Correlate with productive days', icon: 'heart', cat: 'wellness', defaultSize: 'S', stub: true },
@@ -174,7 +174,7 @@ export const WIDGET_CATALOG = [
 
 export const CATEGORIES = [
   { id: 'all', label: 'All' },
-  { id: 'research', label: 'Research' },
+  { id: 'research', label: 'Threat Intel' },
   { id: 'writing', label: 'Writing' },
   { id: 'project', label: 'Project' },
   { id: 'wellness', label: 'Wellness' },
@@ -192,9 +192,9 @@ export const DEFAULT_LAYOUT = [];
 const presetIds = (types) => types.map((t, i) => ({ id: `pre-${t.type}-${i}`, ...t }));
 export const WORKSPACE_PRESETS = [
   {
-    id: 'day1-phd',
-    name: 'Day-1 PhD',
-    desc: 'Get oriented: reading queue, bibliography, notes, deadlines, kanban, pomodoro.',
+    id: 'day1-soc',
+    name: 'SOC Starter',
+    desc: 'Get oriented: reading queue, notes, deadlines, kanban, pomodoro.',
     icon: 'sparkles',
     layout: presetIds([
       { type: 'reading-queue', size: 'M' },
@@ -220,9 +220,9 @@ export const WORKSPACE_PRESETS = [
     ]),
   },
   {
-    id: 'quals-prep',
-    name: 'Quals Prep',
-    desc: 'Lit-review heavy: bibliography, reading queue, notes, highlights, kanban.',
+    id: 'audit-prep',
+    name: 'Audit Prep',
+    desc: 'Evidence-heavy: bibliography, reading queue, notes, highlights, kanban.',
     icon: 'book',
     layout: presetIds([
       { type: 'bibliography', size: 'L' },
@@ -233,9 +233,9 @@ export const WORKSPACE_PRESETS = [
     ]),
   },
   {
-    id: 'defense-mode',
-    name: 'Defense Mode',
-    desc: 'Final stretch: writing, outline, anti-yes-man critics, deadlines.',
+    id: 'incident-mode',
+    name: 'Incident Mode',
+    desc: 'Active response: kanban, deadlines, challenge widgets, meeting log.',
     icon: 'gavel',
     layout: presetIds([
       { type: 'writing', size: 'M' },

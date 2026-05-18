@@ -5,22 +5,60 @@ from typing import Any, Callable, Dict, List, Optional
 from openai import AsyncOpenAI, APIConnectionError, APIStatusError
 
 from app.llm.llm_client import LLMClient, ToolCallInfo, ToolCallResult
+from app.llm.neon_pile import get_pile_system_prompt
 from app.core.context_manager import get_context_manager
 
 logger = logging.getLogger(__name__)
 
 
 class ImprovedVllmClient(LLMClient):
-    def __init__(self, api_url: str, api_key: str, model_name: str = None):
+    def __init__(
+        self,
+        api_url: str,
+        api_key: str,
+        model_name: str = None,
+        neon_persona: str | None = None,
+        model_revision: str | None = None,
+    ):
         self.api_url = api_url
         self.api_key = api_key
         self.model_name = model_name
+        self.neon_persona = neon_persona
+        self.model_revision = model_revision
         self.client = AsyncOpenAI(
             base_url=f"{api_url}/v1",
-            api_key=api_key,
+            api_key=api_key or "not-needed",
             timeout=90.0,
         )
         self.context_manager = get_context_manager()
+
+    def _resolve_model_revision(self) -> str | None:
+        if not self.model_name or "@" not in self.model_name:
+            return self.model_revision
+        _, _, suffix = self.model_name.partition("@")
+        return suffix or self.model_revision
+
+    def _resolve_base_model_name(self) -> str:
+        if not self.model_name:
+            return ""
+        return self.model_name.split("@", 1)[0]
+
+    def _build_messages(self, system_prompt: str, context_messages: List[dict]) -> List[dict]:
+        """Prepend Neon pile persona system prompt when configured."""
+        messages: List[dict] = []
+        base_model = self._resolve_base_model_name()
+        if base_model and self.neon_persona:
+            pile_prompt = get_pile_system_prompt(
+                base_model,
+                self.neon_persona,
+                revision=self._resolve_model_revision(),
+            )
+            if pile_prompt:
+                messages.append({"role": "system", "content": pile_prompt})
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.extend(context_messages)
+        return messages
 
     async def refresh_model(self):
         """Query the vLLM endpoint to discover the currently loaded model."""
@@ -35,8 +73,8 @@ class ImprovedVllmClient(LLMClient):
         try:
             context_window = self.context_manager.prepare_context_for_llm(
                 messages=context,
-                system_prompt=system_prompt,
-                llm_provider="vllm"
+                system_prompt="",
+                llm_provider="vllm",
             )
 
             logger.debug(f"Context prepared: {len(context_window.messages)} messages, "
@@ -45,9 +83,11 @@ class ImprovedVllmClient(LLMClient):
             if not self.model_name:
                 await self.refresh_model()
 
+            api_messages = self._build_messages(system_prompt, context_window.messages)
+
             create_kwargs = dict(
                 model=self.model_name,
-                messages=context_window.messages,
+                messages=api_messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
@@ -104,10 +144,10 @@ class ImprovedVllmClient(LLMClient):
         if not self.model_name:
             await self.refresh_model()
 
-        messages: List[Dict[str, Any]] = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message},
-        ]
+        messages: List[Dict[str, Any]] = self._build_messages(
+            system_prompt,
+            [{"role": "user", "content": user_message}],
+        )
 
         openai_tools = tool_definitions or []
 
