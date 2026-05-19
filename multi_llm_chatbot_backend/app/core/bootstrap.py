@@ -36,7 +36,35 @@ def _load_shared_env_var(name: str) -> str:
     return ""
 
 
+def _vllm_api_username() -> str:
+    """Optional HTTP Basic auth username for the vLLM endpoint.
+
+    The Neon BrainForge/Security endpoint at 4090-x1-3 requires HTTP Basic
+    auth using HANA_USERNAME_KLATCHAT / HANA_KLATCHAT_PASSWORD from
+    ~/.secrets/shared.env. We allow explicit override via api_username
+    in config or VLLM_API_USERNAME env var, falling back to the shared
+    HANA_USERNAME_KLATCHAT entry.
+    """
+    return (
+        settings.llm.vllm.api_username
+        or os.getenv("VLLM_API_USERNAME", "")
+        or _load_shared_env_var("HANA_USERNAME_KLATCHAT")
+    )
+
+
 def _vllm_api_key() -> str:
+    """vLLM key/password. If api_username is set (HANA Basic auth), prefer
+    HANA_KLATCHAT_PASSWORD; otherwise use the generic VLLM_API_KEY Bearer
+    token. This matches the dual-auth nature of the Neon endpoints.
+    """
+    if _vllm_api_username():
+        return (
+            settings.llm.vllm.api_key
+            or os.getenv("HANA_KLATCHAT_PASSWORD", "")
+            or _load_shared_env_var("HANA_KLATCHAT_PASSWORD")
+            or os.getenv("VLLM_API_KEY", "")
+            or _load_shared_env_var("VLLM_API_KEY")
+        )
     return (
         settings.llm.vllm.api_key
         or os.getenv("VLLM_API_KEY", "")
@@ -62,6 +90,7 @@ def _build_neon_vllm(neon_persona: str | None) -> ImprovedVllmClient:
         api_key=_vllm_api_key(),
         model_name=model_name,
         neon_persona=neon_persona,
+        api_username=_vllm_api_username() or None,
     )
 
 

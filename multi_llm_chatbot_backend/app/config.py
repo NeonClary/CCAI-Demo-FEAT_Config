@@ -273,6 +273,7 @@ class OllamaConfig(BaseModel):
 class VllmConfig(BaseModel):
     api_url: str = ""
     api_key: str = Field(default=os.getenv("VLLM_API_KEY", ""))
+    api_username: str = Field(default=os.getenv("VLLM_API_USERNAME", ""))
     model_id: str = ""
     neon_persona_orchestrator: str = "vanilla"
     neon_persona_advisors: str = "CybersecurityExpert"

@@ -157,23 +157,19 @@
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(31, 41, 55, 0.95);
+  background: var(--header-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--canvas-border);
+  border-bottom: 1px solid var(--header-border);
   padding: 12px 24px;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 16px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--header-shadow);
   flex-shrink: 0;
 }
 .canvas-page-with-sidebar .floating-header .header-right { justify-self: end; }
-.canvas-page-with-sidebar[data-canvas-theme="light"] .floating-header {
-  background: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-}
 
 .canvas-page-with-sidebar .header-left {
   display: flex;

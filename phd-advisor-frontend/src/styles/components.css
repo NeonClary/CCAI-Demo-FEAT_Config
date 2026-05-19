@@ -42,6 +42,11 @@
   --input-border: #D1D5DB;
   --input-focus: #6366F1;
   --input-focus-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+
+  /* App header (floating bar) */
+  --header-bg: #EBF5FF;
+  --header-border: rgba(59, 130, 246, 0.2);
+  --header-shadow: 0 4px 20px rgba(37, 99, 235, 0.1);
 }
 
 :root[data-theme="dark"] {
@@ -87,6 +92,11 @@
   --input-border: #4B5563;
   --input-focus: #818CF8;
   --input-focus-shadow: 0 0 0 3px rgba(129, 140, 248, 0.2);
+
+  /* App header (floating bar) */
+  --header-bg: rgba(23, 37, 64, 0.97);
+  --header-border: rgba(96, 165, 250, 0.18);
+  --header-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
 }
 
 /* Theme Toggle Button */

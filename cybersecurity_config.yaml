@@ -1,5 +1,5 @@
 # ============================================================================
-# Cybersecurity Advisor Canvas — Application Configuration
+# Cybersecurity Advisor — Application Configuration
 # ============================================================================
 
 app:
@@ -25,7 +25,7 @@ homepage:
     Get practical guidance on threats, compliance, incident response, architecture,
     and career growth from a panel of cybersecurity-focused AI advisors — each
     bringing a distinct lens to your questions.
-  features_title: "Why Use Cybersecurity Advisor Canvas?"
+  features_title: "Why Use Cybersecurity Advisor?"
   features:
     - title: "Defense in Depth"
       description: "Receive layered perspectives on risk, controls, detection, and response"
@@ -176,6 +176,7 @@ llm:
   vllm:
     api_url: "https://4090-x1-3.neonaiservices2.com/vllm0"
     api_key: ""
+    api_username: "guest"
     model_id: "BrainForge/Security@2026.03.18"
     neon_persona_orchestrator: "vanilla"
     neon_persona_advisors: "CybersecurityExpert"
@@ -185,7 +186,7 @@ llm:
     orchestrator_reasoning_effort: "low"
     persona_reasoning_effort: "none"
   resilient:
-    race_timeout_seconds: 3
+    race_timeout_seconds: 60
 
 rag:
   embedding_model: "all-MiniLM-L6-v2"

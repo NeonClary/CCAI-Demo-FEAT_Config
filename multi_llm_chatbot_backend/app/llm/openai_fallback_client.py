@@ -34,10 +34,35 @@ class OpenAIFallbackClient(LLMClient):
         self.client = AsyncOpenAI(api_key=api_key, timeout=120.0)
         self.context_manager = get_context_manager()
 
+    _ALLOWED_ROLES = {"system", "assistant", "user", "function", "tool", "developer"}
+
     def _reasoning_kwargs(self) -> Dict[str, Any]:
         if not self.reasoning_effort or self.reasoning_effort == "none":
             return {}
         return {"reasoning_effort": self.reasoning_effort}
+
+    def _uses_completion_tokens_param(self) -> bool:
+        """gpt-5+ requires `max_completion_tokens`; older models use `max_tokens`."""
+        m = (self.model or "").lower()
+        return m.startswith("gpt-5") or m.startswith("o1") or m.startswith("o3")
+
+    def _normalize_messages(self, messages: List[dict]) -> List[dict]:
+        """Map persona-id roles (e.g. 'jerry_huaute') to 'assistant' so OpenAI
+        accepts them. Preserve the persona name via the optional 'name' field
+        when possible.
+        """
+        out: List[dict] = []
+        for msg in messages:
+            role = msg.get("role", "user")
+            if role in self._ALLOWED_ROLES:
+                out.append(msg)
+                continue
+            new_msg = dict(msg)
+            new_msg["role"] = "assistant"
+            if "name" not in new_msg and isinstance(role, str):
+                new_msg["name"] = role[:64]
+            out.append(new_msg)
+        return out
 
     async def generate(
         self,
@@ -52,13 +77,16 @@ class OpenAIFallbackClient(LLMClient):
             system_prompt=system_prompt,
             llm_provider="openai",
         )
+        normalized_messages = self._normalize_messages(context_window.messages)
+        token_kwarg = "max_completion_tokens" if self._uses_completion_tokens_param() else "max_tokens"
         create_kwargs: Dict[str, Any] = dict(
             model=self.model,
-            messages=context_window.messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
+            messages=normalized_messages,
+            **{token_kwarg: max_tokens},
             **self._reasoning_kwargs(),
         )
+        if not self._uses_completion_tokens_param():
+            create_kwargs["temperature"] = temperature
         if response_mime_type == "application/json":
             create_kwargs["response_format"] = {"type": "json_object"}
 
@@ -69,9 +97,26 @@ class OpenAIFallbackClient(LLMClient):
                 raise ValueError("OpenAI returned empty content")
             return self._clean_response(text)
         except (APIConnectionError, APIStatusError) as exc:
+            # #region agent log
+            from app.core._debug_log import dlog
+            dlog("openai_fallback_client.py:generate.api_err", "OpenAI API error", {
+                "exc_type": type(exc).__name__,
+                "status_code": getattr(exc, "status_code", None),
+                "model": self.model,
+                "exc_msg": str(exc)[:500],
+            }, "B")
+            # #endregion
             logger.error("OpenAI API error: %s", exc)
             raise
         except Exception as exc:
+            # #region agent log
+            from app.core._debug_log import dlog
+            dlog("openai_fallback_client.py:generate.unexpected", "OpenAI generate failed", {
+                "exc_type": type(exc).__name__,
+                "model": self.model,
+                "exc_msg": str(exc)[:500],
+            }, "B")
+            # #endregion
             logger.error("OpenAI generate failed: %s", exc)
             raise
 
@@ -95,14 +140,17 @@ class OpenAIFallbackClient(LLMClient):
 
         try:
             for _round in range(self._MAX_TOOL_ROUNDS):
-                response = await self.client.chat.completions.create(
+                token_kwarg = "max_completion_tokens" if self._uses_completion_tokens_param() else "max_tokens"
+                tool_kwargs: Dict[str, Any] = dict(
                     model=self.model,
-                    messages=messages,
+                    messages=self._normalize_messages(messages),
                     tools=openai_tools or None,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
+                    **{token_kwarg: max_tokens},
                     **self._reasoning_kwargs(),
                 )
+                if not self._uses_completion_tokens_param():
+                    tool_kwargs["temperature"] = temperature
+                response = await self.client.chat.completions.create(**tool_kwargs)
                 choice = response.choices[0].message
                 if not choice.tool_calls:
                     text = choice.content or ""

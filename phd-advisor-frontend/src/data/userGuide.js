@@ -1,4 +1,4 @@
-// User Guide content for Cybersecurity Advisor Canvas.
+// User Guide content for Cybersecurity Advisor.
 // Use {{appName}} as a placeholder — replaced at render time.
 
 export const userGuideTopics = [

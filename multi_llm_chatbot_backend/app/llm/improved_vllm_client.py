@@ -1,3 +1,4 @@
+import base64
 import json
 import logging
 from typing import Any, Callable, Dict, List, Optional
@@ -19,17 +20,33 @@ class ImprovedVllmClient(LLMClient):
         model_name: str = None,
         neon_persona: str | None = None,
         model_revision: str | None = None,
+        api_username: str | None = None,
     ):
         self.api_url = api_url
         self.api_key = api_key
+        self.api_username = api_username or None
         self.model_name = model_name
         self.neon_persona = neon_persona
         self.model_revision = model_revision
-        self.client = AsyncOpenAI(
-            base_url=f"{api_url}/v1",
-            api_key=api_key or "not-needed",
-            timeout=90.0,
-        )
+
+        client_kwargs: dict = {
+            "base_url": f"{api_url}/v1",
+            "api_key": api_key or "not-needed",
+            "timeout": 90.0,
+        }
+
+        if self.api_username:
+            # Some Neon endpoints (e.g. BrainForge/Security at 4090-x1-3)
+            # require HTTP Basic auth using HANA-style credentials rather
+            # than the regular Bearer token. The OpenAI SDK injects its own
+            # Authorization: Bearer <api_key> header on every request, so we
+            # override it via default_headers to ensure Basic auth wins.
+            basic = base64.b64encode(
+                f"{self.api_username}:{api_key or ''}".encode("utf-8")
+            ).decode("ascii")
+            client_kwargs["default_headers"] = {"Authorization": f"Basic {basic}"}
+
+        self.client = AsyncOpenAI(**client_kwargs)
         self.context_manager = get_context_manager()
 
     def _resolve_model_revision(self) -> str | None:
@@ -100,16 +117,39 @@ class ImprovedVllmClient(LLMClient):
             text = response.choices[0].message.content.strip()
             return self._clean_response(text)
 
-        except APIConnectionError:
+        except APIConnectionError as e:
+            # #region agent log
+            from app.core._debug_log import dlog
+            dlog("improved_vllm_client.py:generate.conn_err", "vLLM connection error", {
+                "api_url": self.api_url,
+                "exc_msg": str(e)[:300],
+            }, "E")
+            # #endregion
             logger.error(f"Unable to connect to vLLM at {self.api_url}")
             return "I'm unable to connect to the AI service. Please ensure the vLLM endpoint is available."
         except APIStatusError as e:
+            # #region agent log
+            from app.core._debug_log import dlog
+            dlog("improved_vllm_client.py:generate.status_err", "vLLM API status error", {
+                "status_code": getattr(e, "status_code", None),
+                "message": getattr(e, "message", None),
+                "api_url": self.api_url,
+                "model": self.model_name,
+            }, "E")
+            # #endregion
             logger.error(f"vLLM API error: {e.status_code} - {e.message}")
             if e.status_code == 404:
                 logger.info("Model not found, will re-discover on next request")
                 self.model_name = None
             return "The AI service encountered an error. Please try again."
         except Exception as e:
+            # #region agent log
+            from app.core._debug_log import dlog
+            dlog("improved_vllm_client.py:generate.unexpected", "vLLM unexpected error", {
+                "exc_type": type(e).__name__,
+                "exc_msg": str(e)[:500],
+            }, "E")
+            # #endregion
             logger.error(f"Unexpected error in vLLM client: {str(e)}")
             return "I encountered an unexpected error. Please try again."
 
