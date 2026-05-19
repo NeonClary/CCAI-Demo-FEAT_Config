@@ -97,26 +97,9 @@ class OpenAIFallbackClient(LLMClient):
                 raise ValueError("OpenAI returned empty content")
             return self._clean_response(text)
         except (APIConnectionError, APIStatusError) as exc:
-            # #region agent log
-            from app.core._debug_log import dlog
-            dlog("openai_fallback_client.py:generate.api_err", "OpenAI API error", {
-                "exc_type": type(exc).__name__,
-                "status_code": getattr(exc, "status_code", None),
-                "model": self.model,
-                "exc_msg": str(exc)[:500],
-            }, "B")
-            # #endregion
             logger.error("OpenAI API error: %s", exc)
             raise
         except Exception as exc:
-            # #region agent log
-            from app.core._debug_log import dlog
-            dlog("openai_fallback_client.py:generate.unexpected", "OpenAI generate failed", {
-                "exc_type": type(exc).__name__,
-                "model": self.model,
-                "exc_msg": str(exc)[:500],
-            }, "B")
-            # #endregion
             logger.error("OpenAI generate failed: %s", exc)
             raise
 

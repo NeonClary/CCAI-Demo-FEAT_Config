@@ -166,64 +166,15 @@ async def chat_stream(
             done_queue: asyncio.Queue = asyncio.Queue()
 
             async def _run(pid: str) -> None:
-                # #region agent log
-                import os as _os
-                from app.core._debug_log import dlog
-                _probe_persona = chat_orchestrator.get_persona(pid)
-                _llm = getattr(_probe_persona, "llm", None) if _probe_persona else None
-                _llm_type = type(_llm).__name__ if _llm is not None else None
-                _primary_type = type(getattr(_llm, "primary", None)).__name__ if _llm is not None else None
-                _fallback_type = type(getattr(_llm, "fallback", None)).__name__ if _llm is not None else None
-                _primary_key = getattr(getattr(_llm, "primary", None), "api_key", None)
-                _primary_username = getattr(getattr(_llm, "primary", None), "api_username", None)
-                _primary_apiurl = getattr(getattr(_llm, "primary", None), "api_url", None)
-                _fallback_key = getattr(getattr(_llm, "fallback", None), "api_key", None)
-                _fallback_model = getattr(getattr(_llm, "fallback", None), "model", None)
-                if not _primary_key and _llm is not None:
-                    _primary_key = getattr(_llm, "api_key", None)
-                _vllm_env = _os.environ.get("VLLM_API_KEY", "")
-                _openai_env = _os.environ.get("OPENAI_API_KEY", "")
-                dlog("chat.py:_run.entry", f"persona task started", {
-                    "pid": pid,
-                    "llm_type": _llm_type,
-                    "primary_type": _primary_type,
-                    "primary_api_url": _primary_apiurl,
-                    "primary_api_username": _primary_username,
-                    "primary_key_prefix": (_primary_key[:8] + "…") if _primary_key else None,
-                    "primary_key_len": len(_primary_key) if _primary_key else 0,
-                    "fallback_type": _fallback_type,
-                    "fallback_model": _fallback_model,
-                    "fallback_key_prefix": (_fallback_key[:8] + "…") if _fallback_key else None,
-                    "fallback_key_len": len(_fallback_key) if _fallback_key else 0,
-                    "env_vllm_prefix": (_vllm_env[:8] + "…") if _vllm_env else None,
-                    "env_vllm_len": len(_vllm_env),
-                    "env_openai_prefix": (_openai_env[:8] + "…") if _openai_env else None,
-                    "env_openai_len": len(_openai_env),
-                }, "F")
-                # #endregion
                 try:
                     persona = chat_orchestrator.get_persona(pid)
                     result = await chat_orchestrator.generate_single_persona_response(
                         session, persona,
                         message.response_length or "medium",
                     )
-                    # #region agent log
-                    dlog("chat.py:_run.result", "persona response", {
-                        "pid": pid,
-                        "response_preview": (result.get("response") or "")[:200],
-                        "used_documents": result.get("used_documents"),
-                    }, "B")
-                    # #endregion
                     session.append_message(pid, result["response"])
                     await done_queue.put(result)
                 except Exception as e:
-                    # #region agent log
-                    dlog("chat.py:_run.exception", "persona task exception", {
-                        "pid": pid,
-                        "exc_type": type(e).__name__,
-                        "exc_msg": str(e)[:500],
-                    }, "B")
-                    # #endregion
                     logger.exception(f"chat-stream _run failed for {pid}: {e}")
                     failed_persona = chat_orchestrator.get_persona(pid)
                     await done_queue.put({
